@@ -503,14 +503,14 @@ data_chunks = {'band': 1, 'x': 2048, 'y': 2048}
 ########################################
 debug_level = 3
 now = datetime.now()  # current date and time
-#nowStr = now.strftime("%b:%d:%H:%M:%S")
-nowStr = now.strftime("%H:%M:%S")
+nowStr = now.strftime("%b:%d:%H:%M:%S")
+#nowStr = now.strftime("%H:%M:%S")
 # print("time:", nowStr)
 #  Derive file names for intermediate files
 head, tail = os.path.split(r_fn_evhr)
 filename = (tail.rsplit(".", 1)[0])
-output_name = "{}/srlite-{}-{}".format(
-    OUTDIR, filename+'-rasterio',
+output_name = "{}/{}-{}".format(
+    OUTDIR, filename+'-srlite',
     nowStr, r_fn_evhr.split('/')[-1]
 ) + ".tif"
 
