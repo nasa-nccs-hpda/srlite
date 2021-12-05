@@ -2,12 +2,12 @@ import os
 import numpy as np
 
 # SR-Lite dependencies
-from model.xrasterlib.Raster import Raster
+from srlite.model.xrasterlib.Raster import Raster
 from core.model.SystemCommand import SystemCommand
 from osgeo import gdal, gdal_array
 from pygeotools.lib import warplib
-from model.regression.linear.SimpleLinearRegression import SimpleLinearRegression
-import model.xrasterlib.RasterIndices as indices
+from srlite.model.regression.linear.SimpleLinearRegression import SimpleLinearRegression
+import srlite.model.xrasterlib.RasterIndices as indices
 from datetime import datetime  # tracking date
 
 __author__ = "Glenn S. Tamkin, CISTO Branch"

@@ -5,7 +5,7 @@ import xarray as xr  # array manipulation library, rasterio built-in
 import rasterio as rio  # geospatial library
 from scipy.ndimage import median_filter  # scipy includes median filter
 import rasterio.features as riofeat  # rasterio features include sieve filter
-import model.xrasterlib.RasterIndices as indices  # custom indices calculation module
+import srlite.model.xrasterlib.RasterIndices as indices  # custom indices calculation module
 
 from osgeo import gdal
 
