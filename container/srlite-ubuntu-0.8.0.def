@@ -44,10 +44,10 @@ FROM: ./cisto-core-ubuntu-1.0.0.sif
     # RECOMMENDED LOCATION - CURRENTLY INCLUDED IN CORE
     # git clone --single-branch --branch master https://github.com/nasa-nccs-hpda/core.git \
 	#	${PROJECT_PATH}/core
-#GT    git clone --single-branch --branch main https://github.com/nasa-nccs-hpda/srlite.git \
-#		${PROJECT_PATH}/srlite
+    git clone --single-branch --branch main https://github.com/nasa-nccs-hpda/srlite.git \
+		${PROJECT_PATH}/srlite
     chmod a+rwx -R ${PROJECT_PATH}/*
 
 %test
 
-#    python -c 'import rasterio;from pygeotools.lib import malib'
+    python -c 'import rasterio;from pygeotools.lib import malib'
