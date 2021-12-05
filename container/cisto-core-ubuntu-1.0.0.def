@@ -1,0 +1,119 @@
+#-----------------------------------------------------------------------------------------
+# Build cisto-core container
+# gdal build: https://github.com/OSGeo/gdal/blob/master/gdal/docker/ubuntu-full/Dockerfile
+# Legacy Reference:
+#   - Merges the contents of cisto-gdal, cisto-datascience
+#-----------------------------------------------------------------------------------------
+Bootstrap: docker
+FROM: osgeo/gdal:ubuntu-full-latest
+
+%labels
+    gdal_maintainer Even Rouault <even.rouault@spatialys.com>
+    cisto_author gtamkin
+    cisto_modified jacaraba
+    Version v1.0.0
+
+%help
+===========================================================================
+	- python3-data-science – contains the Python data science ecosystem:
+		a.	NumPy
+		b.	SciPy
+		c.	matplotlib
+		d.	IPython
+		e.	pandas
+		f.	Scikit-learn
+===========================================================================
+
+%environment
+    export PYTHONPATH="$PYTHONPATH:/usr/local/ilab"
+
+%post
+
+    PROJECT_PATH="/usr/local/ilab"
+
+    #-------------------------------------------------------------------------------
+    # System Dependencies
+    #-------------------------------------------------------------------------------
+    apt-get update && DEBIAN_FRONTEND=noninteractive apt-get -y dist-upgrade && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+        python3-pip python3-dev wget vim curl git procps gcc g++ bzip2 libssl-dev \
+        libsqlite3-dev libx11-dev gdal-bin libgdal-dev libgeos++-dev libproj-dev
+    DEBIAN_FRONTEND=noninteractive apt-get -y autoremove && \
+    rm -rf /var/lib/apt/lists/* && \
+    rm -rf /var/cache/apt
+
+    #-------------------------------------------------------------------------------
+    # Python Stack
+    #-------------------------------------------------------------------------------
+    python -m pip install --upgrade pip
+
+    python -m pip install awscli s3fs
+    python -m pip install celery[redis]
+    python -m pip install certifi
+    python -m pip install cryptography
+    python -m pip install Cython
+    python -m pip install dask
+    python -m pip install decorator
+    python -m pip install dill
+    python -m pip install distributed
+    python -m pip install docutils
+    python -m pip install fiona
+    python -m pip install flower
+    python -m pip install geopandas
+    python -m pip install h5py
+    python -m pip install imageio
+    python -m pip install ipykernel
+    python -m pip install ipython
+    python -m pip install ipython-genutils
+    python -m pip install ipywidgets
+    python -m pip install matplotlib
+    python -m pip install netcdf4
+    python -m pip install networkx
+    python -m pip install notebook
+    python -m pip install numba
+    python -m pip install numexpr
+    python -m pip install numpy
+    python -m pip install pandas
+    python -m pip install pyhdf
+    python -m pip install pyproj
+    python -m pip install Pysal
+    python -m pip install PyYAML
+    python -m pip install rasterio
+    python -m pip install redis
+    python -m pip install redis-server
+    python -m pip install requests
+    python -m pip install rioxarray
+    python -m pip install scikit-image
+    python -m pip install scikit-learn
+    python -m pip install scipy
+    python -m pip install seaborn
+    python -m pip install shapely
+    python -m pip install cartopy
+    python -m pip install xarray
+    python -m pip install urllib3
+    python -m pip install zarr
+
+    python -m pip cache purge
+    rm -rf /opt/requirements.txt /root/.cache/
+
+    # Add redis-server binary to /usr/local/bin
+    export pyVer=`python --version | awk -F' ' '{print $2}' | awk -F'.' '{print $1"."$2}'`
+    ln -sf /usr/local/lib/python${pyVer}/dist-packages/redis_server/bin/redis-server /usr/local/bin/redis-server
+
+    #-------------------------------------------------------------------------------
+    # CISTO-CORE Git Dependencies
+    #-------------------------------------------------------------------------------
+    mkdir -p ${PROJECT_PATH}
+    git clone --single-branch --branch master https://github.com/nasa-nccs-hpda/core.git \
+		${PROJECT_PATH}/core
+    chmod a+rwx -R ${PROJECT_PATH}/*
+
+%test
+
+    cat /etc/os-release | grep 20
+    gdalinfo --formats | grep -i jpeg
+    gdalinfo --formats | grep -i hdf
+    ogrinfo --formats | grep GDB
+    python -V | grep 3
+    python -c 'from osgeo import gdal; print(gdal.__version__)'
+#GT    python -c 'import core'
