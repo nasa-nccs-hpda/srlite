@@ -10,7 +10,7 @@ FROM: ./cisto-core-ubuntu-1.0.0.sif
 %labels
     cisto_author gtamkin
     app_poc gtamkin
-    Version v1.0.0
+    Version v0.8.0
 
 %help
 ===========================================================================
@@ -36,7 +36,7 @@ FROM: ./cisto-core-ubuntu-1.0.0.sif
     rm -rf /var/lib/apt/lists/* /var/cache/apt
 
     #-------------------------------------------------------------------------------
-    # NEPAC Git Dependencies
+    # SRLITE Git Dependencies
     #-------------------------------------------------------------------------------
     pip3 install --upgrade pygeotools
 
