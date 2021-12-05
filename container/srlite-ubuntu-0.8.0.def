@@ -50,4 +50,4 @@ FROM: ./cisto-core-ubuntu-1.0.0.sif
 
 %test
 
-    python -c 'import rasterio;from pygeotools.lib import malib'
+    /usr/bin/python -c 'import rasterio;from pygeotools.lib import malib'
