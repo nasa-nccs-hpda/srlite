@@ -56,33 +56,33 @@ def getparser():
         help = "Specify date to perform regression (YYYY-MM-DD)."
     )
     parser.add_argument(
-        "-bb", "--bounding-box", nargs=4, type=int, required=True, dest='bbox',
-        default=[-2927850, 4063820, -2903670,  4082450],
+        "-bb", "--bounding-box", nargs=4, type=int, required=False, dest='bbox',
+        default=None,
         help = "Specify bounding box to perform regression."
     )
     parser.add_argument(
-        "-i-m", "--input-model-image", type=str, required=True, dest='input_model_image',
-        default="/home/centos/srlite/LR/pitkus-point-demo/GEE-CCDC-pitkusPointSubset-esri102001-30m-after-edit.tif",
+        "-i-m", "--input-model-image", type=str, required=False, dest='model_image',
+        default=None,
         help="Specify model (e.g., CCDC) input image path and filename."
     )
     parser.add_argument(
         '-b-m', '--bands-model', nargs='*', dest='bands_model',
-        default=['blue', 'green', 'red', 'nir'], required=False, type=str,
+        default=['blue', 'green', 'redd', 'nir'], required=False, type=str,
         help = 'Specify input model (e.g., CCDC) bands.'
     )
     parser.add_argument(
-        "-i-linear", "--input-low-res-image", type=str, required=False, dest='input_low_res_image',
-        default="/home/centos/srlite/LR/pitkus-point-demo/GDAL-EVHR-WV02_20110818_M1BS_103001000CCC9000-toa-pitkusPointSubset-esri102001-30m-avg-cog.tif",
+        "-i-lr", "--input-low-res-image", type=str, required=False, dest='low_res_image',
+        default=None,
         help="Specify low-resolution input image path and filename."
     )
     parser.add_argument(
-        "-i-hr", "--input-high-res-image", type=str, required=True, dest='input_high_res_image',
-        default="/home/centos/srlite/LR/pitkus-point-demo/GDAL-WV02_20110818_M1BS_103001000CCC9000-toa-PitkusPointSubset-cog.tif",
+        "-i-hr", "--input-high-res-image", type=str, required=True, dest='high_res_image',
+        default=None,
         help="Specify high-resolution input image path and filename."
     )
     parser.add_argument(
-        '-b-d', '--bands-data', nargs='*', dest='bands_data', required=False, type=str,
-        default=['b1', 'b2', 'b3', 'b4'],
+        '-b-d', '--bands-data', nargs='*', dest='bands_data', required=True, type=str,
+        default=['b1', 'b2ff', 'b3', 'b4'],
         help='Specify input data (e.g., HR WV) bands.'
     )
     parser.add_argument(
@@ -96,6 +96,10 @@ def getparser():
     parser.add_argument(
         "-o", "--out-directory", type=str, required=True, dest='outdir',
         default="", help="Specify output directory."
+    )
+    parser.add_argument(
+        "-fo", "--force-overwrite", required=False, dest='force_overwrite',
+        default=False, action='store_true', help="Force overwrite."
     )
     parser.add_argument(
         "-l", "--log", required=False, dest='logbool',
@@ -152,10 +156,10 @@ def main():
     print('Initializing SRLite Regression script with the following parameters')
     print(f'Date: {args.doi}')
     print(f'Bounding Box:    {args.bbox}')
-    print(f'Model Image:    {args.input_model_image}')
+    print(f'Model Image:    {args.model_image}')
     print(f'Initial Bands (model):    {args.bands_model}')
-    print(f'Low Res Image:    {args.input_low_res_image}')
-    print(f'High Res Image:    {args.input_high_res_image}')
+    print(f'Low Res Image:    {args.low_res_image}')
+    print(f'High Res Image:    {args.high_res_image}')
     print(f'Initial Bands (linear/hr data):    {args.bands_data}')
     print(f'Model:    {args.model}')
     print(f'Regression:    {args.regression}')
@@ -172,52 +176,74 @@ def main():
 
     # Initialize raster object that hosts algorithmic operations
     raster_obj = SurfaceReflectance(
-        model_image=args.input_model_image,
-        high_res_image=args.input_high_res_image,
+        model_image=args.model_image,
+        low_res_image=args.low_res_image,
+        high_res_image=args.high_res_image,
         outdir=args.outdir
     )
 
     # --------------------------------------------------------------------------------
-    # 1. Run EVHR to get 2m toa 
+    # 1) Get the CCDC raster and edit the input CCDC projection 
+    #   a.	get_ccdc(date, bounding_box) 
+    #   b.	edit_input(ccdc_image, relevant params to adjust) ← adjustment to specify nodata value
+    #       and correct projection definition 
+    # --------------------------------------------------------------------------------
+    doi, high_res_image_bbox = raster_obj.extract_extents(args.high_res_image, args)
+    raw_ccdc_image = raster_obj.get_ccdc_image(doi)
+    edited_ccdc_image = raster_obj.edit_image(raw_ccdc_image,
+                                              nodata_value=raster_obj._targetNodata, # enforce no data value
+                                              srs=raster_obj._targetSRS, # override srs to enforce latitude corrections
+                                              xres=None,
+                                              yres=None)
+    # --------------------------------------------------------------------------------
+    # 2. Run EVHR to get 2m toa 
     # --------------------------------------------------------------------------------
     #   a.	extract bounding_box and date 
     #   b.	edit_input(evhr_image, relevant params to adjust) ← adjustment to specify nodata value 
-    doi, bbox = raster_obj.extract_extents(args)
-    raw_evhr_image = raster_obj.get_evhr_image(doi, bbox)
-    edited_evhr_image = raster_obj.edit_image(raw_evhr_image,
-                                              nodata_value=None)
-
-    # 2) Get the CCDC raster and edit the input CCDC projection 
-    #   a.	get_ccdc(bounding_box, date) 
-    #   b.	edit_input(ccdc_image, relevant params to adjust) ← adjustment to specify nodata value
-    #       and correct projection definition 
-    raw_ccdc_image = raster_obj.get_ccdc_image(doi, bbox)
-    edited_ccdc_image = raster_obj.edit_image(raw_ccdc_image,
-                                              bbox=raster_obj.bbox,
-                                              nodata_value=raster_obj._targetNodata,
-                                              srs=raster_obj._targetSRS,
-                                              xres=raster_obj._targetXres,
-                                              yres = raster_obj._targetYres)
+    raw_evhr_image = raster_obj.get_evhr_image(doi)
+    # edited_evhr_image = raster_obj.warp_image(raw_evhr_image,
+    #                                           bbox=None,
+    #                                           nodata_value=None,
+    #                                           srs=raster_obj._targetSRS,
+    #                                           xres=raster_obj.model_xres,
+    #                                           yres = raster_obj.model_yres,
+    #                                           resampling= raster_obj._targetResampling,
+    #                                           overwrite=hasattr(args, 'force_overwrite'))
 
     # 3) Warp, Model, Write output 
     #       a.	warp_inputs(ccdc_image, evhr_image): 
     #           import pygeotools
     #          fn_list = [ccdc_image, evhr_image]
-    fn_list = [edited_ccdc_image, edited_evhr_image]
+    fn_list = [edited_ccdc_image, raw_evhr_image]
 
     #           # Warp CCDC and EVHR to bounding_box and 30m CCDC grid
     #           ma_list = warplib.memwarp_multi_fn(fn_list evhr_image, extent='intersection', res=30,
     #               t_srs=ccdc_image, r='cubic' 'average', return ma=True)
-    ds_list = raster_obj.get_intersection(fn_list)
+#    fn_list, warp_ma_list = raster_obj.get_intersection(fn_list)
+    raster_obj.coefficients = raster_obj.get_intersection(fn_list)
+
+    # clip original ccdc based on intersection
+    # intersected_evhr_image = fn_list[1]
+    # doi2, bbox2 = raster_obj.extract_extents(intersected_evhr_image, args)
+    # intersected_ccdc_image = raster_obj.warp_image(edited_ccdc_image,
+    #                                           bbox=bbox2,
+    #                                           nodata_value=None,
+    #                                           srs=raster_obj._targetSRS,
+    #                                           xres=raster_obj.model_xres,
+    #                                           yres = raster_obj.model_yres,
+    #                                           resampling= raster_obj._targetResampling,
+    #                                           overwrite=hasattr(args, 'force_overwrite'))
+    # fn_list[0] = intersected_ccdc_image
 
     #       b. Build model
     #           Model = some_regression_model(ma_list[0], ma_list[1])
-    coefficients = raster_obj.build_model(ds_list)
+#    raster_obj.coefficients = raster_obj.build_stats_model(fn_list)
+#    raster_obj.coefficients = raster_obj.build_model(warp_ma_list)
 
     #       c. Apply model back to input EVHR
     #           out_sr = apply_model(model, evhr_image)
     srliteFn = raster_obj.apply_model(
-        raster_obj._intersection, coefficients, args)
+        raster_obj.high_res_image, raster_obj.coefficients, args)
 #    srliteFn = raster_obj.apply_model(raw_evhr_image, coefficients, args)
 
     #       d. Write out SR COG

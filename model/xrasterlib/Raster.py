@@ -6,6 +6,7 @@ import rasterio as rio  # geospatial library
 from scipy.ndimage import median_filter  # scipy includes median filter
 import rasterio.features as riofeat  # rasterio features include sieve filter
 import srlite.model.xrasterlib.RasterIndices as indices  # custom indices calculation module
+import numpy as np
 
 from osgeo import gdal
 
@@ -159,6 +160,31 @@ class Raster:
         ops = {'<': operator.lt, '>': operator.gt}
         self.data = self.data.where(ops[op](self.data, boundary), other=subs)
 
+    def xformBands(self, bandData, coefficients, bandNames ):
+        """
+        Add multiple indices to existing Raster object self.data.
+        ----------
+        Parameters
+        ----------
+        indices : list of functions
+            Function reference to calculate indices
+        factor : float
+            Atmospheric factor for indices calculation
+        """
+        nbands = len(bandNames)  # get initial number of bands
+        for band in bandNames:  # iterate over each new band
+            band, bandid = indices.map(bandData, coefficients, bandNames, band)
+
+            self.bands.append(bandid)  # append new band id to list of bands
+            band.coords['band'] = [nbands]  # add band indices to raster
+            self.data = xr.concat([self.data, band], dim='band')  # concat band
+
+            nbands += 1
+
+        # update raster metadata, xarray attributes
+        self.data.attrs['scales'] = [self.data.attrs['scales'][0]] * nbands
+        self.data.attrs['offsets'] = [self.data.attrs['offsets'][0]] * nbands
+
     def addindices(self, indices, factor=1.0):
         """
         Add multiple indices to existing Raster object self.data.
@@ -170,13 +196,14 @@ class Raster:
         factor : float
             Atmospheric factor for indices calculation
         """
+        self.srcNumBands = self.data.shape[0]
         nbands = len(self.bands)  # get initial number of bands
         for indices_function in indices:  # iterate over each new band
             nbands += 1  # counter for number of bands
 
             # calculate band (indices)
             band, bandid = indices_function(self.data,
-                                            bands=self.bands, factor=factor)
+                                            bands=self.bands, coefficients=self.coefficients, factor=factor)
             self.bands.append(bandid)  # append new band id to list of bands
             band.coords['band'] = [nbands]  # add band indices to raster
             self.data = xr.concat([self.data, band], dim='band')  # concat band
@@ -234,18 +261,67 @@ class Raster:
     # ---------------------------------------------------------------------------
     # output
     # ---------------------------------------------------------------------------
-    def torasterBands(self, rast, band, output='rfmask.tif'):
+    def torasterBands(self, args, rast, data, output='rfmask.tif'):
+            """
+            :param rast: raster name to get metadata from
+            :param band: numpy array with synthetic band output
+            :param output: raster name to save on
+            :return: tif file saved to disk
+            """
+            srcNumBands = len(self.bands)
+            modelNumBands = len(args.bands_model)
+            currentNumBands = self.data.shape[0]
+            requestedNumBands = self.requestedNumBands
+
+            # get meta features from raster
+            with rio.open(rast) as src:
+                meta = src.profile
+                nodatavals = src.read_masks(1).astype('int16')
+            logging.info(meta)
+
+            nodatavals[nodatavals == 0] = self.nodataval[0]
+
+            out_meta = meta  # modify profile based on numpy array
+            out_meta['count'] = 4  # output is four bands
+            out_meta['dtype'] = 'int16'  # data type is float64
+
+            print(f'++++++++++++++++++ Create results +++++++++++')
+            print(
+                f'# Original Bands {srcNumBands} # Current Bands {currentNumBands} # Requested Bands {requestedNumBands}')
+
+            # write to a raster
+            with rio.open(output, 'w', **out_meta) as dst:
+                index = 0
+                #            for index in requestedNumBands:  # iterate over each new band
+                while index < modelNumBands:
+                    dataIndex = requestedNumBands + index
+                    index += 1
+                    bandArray = data[dataIndex]
+                    nbandArray = bandArray.as_numpy()
+
+                    print(
+                        f'nbandArray.index =  {dataIndex} index[0][0] {nbandArray.values[0][0]} index[500][500] {nbandArray.values[500][500]}')
+                    dst.write(bandArray, index)
+            logging.info(f'Band saved at {output}')
+
+            self.show_hist(output)
+
+    def _torasterBands(self, rast, data, output='rfmask.tif'):
         """
         :param rast: raster name to get metadata from
         :param band: numpy array with synthetic band output
         :param output: raster name to save on
         :return: tif file saved to disk
         """
+        srcNumBands = self.srcNumBands
+        currentNumBands = self.data.shape[0]
+        requestedNumBands = self.requestedNumBands
+
         # get meta features from raster
-        with rio.open(rast) as src:
-            meta = src.profile
-            nodatavals = src.read_masks(1).astype('int16')
-        logging.info(meta)
+        # with rio.open(rast) as src:
+        #     meta = src.profile
+        #     nodatavals = src.read_masks(1).astype('int16')
+        # logging.info(meta)
 
         nodatavals[nodatavals == 0] = self.nodataval[0]
         #        band[nodatavals == self.nodataval[0]] = \
@@ -255,12 +331,16 @@ class Raster:
         out_meta['count'] = 4  # output is four bands
         out_meta['dtype'] = 'int16'  # data type is float64
 
+        print(f'# Original Bands {srcNumBands} # Current Bands {currentNumBands} # Requested Bands {requestedNumBands}')
+
         # write to a raster
         with rio.open(output, 'w', **out_meta) as dst:
-            dst.write(band[0], 1)
-            dst.write(band[1], 2)
-            dst.write(band[2], 3)
-            dst.write(band[3], 4)
+            index = 0
+#            for index in requestedNumBands:  # iterate over each new band
+            while index < len(requestedNumBands):
+                    dataIndex = srcNumBands + index
+                    dst.write(data[dataIndex], dataIndex+1)
+                    index += 1
         logging.info(f'Band saved at {output}')
 
     # ---------------------------------------------------------------------------

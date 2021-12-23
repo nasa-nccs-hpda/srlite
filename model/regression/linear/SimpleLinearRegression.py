@@ -26,19 +26,19 @@ class SimpleLinearRegression(object):
 
 		return (b_0, b_1)
 
-	def estimate_coef(self, x, y):
+	def estimate_coef(self, _x, _y):
 		# number of observations/points
-		n = np.size(x)
+		n = np.size(_x)
 
-		nanval = x[0,0]
+#		nanval = x[0,0]
 #		print(nanval)
 		# mean of x and y vector
 #		m_x = np.mean(x)
 #		m_y = np.mean(y)
 
 		# mean of x and y vector - replace nan with -9999
-		x = np.nan_to_num(x, copy=True, nan = -9999)
-		y = np.nan_to_num(y, copy=True, nan = -9999)
+		x = np.nan_to_num(_x, copy=True, nan = -9999)
+		y = np.nan_to_num(_y, copy=True, nan = -9999)
 #		x = np.where(x != nanval, x, -9999)
 		# mean of x and y vector - replace 0 with nan and ignore all nans
 		#		x = np.where(x != 0, x, np.nan)
