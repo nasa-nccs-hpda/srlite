@@ -201,20 +201,19 @@ def main():
     #   a.	extract bounding_box and date 
     #   b.	edit_input(evhr_image, relevant params to adjust) ← adjustment to specify nodata value 
     raw_evhr_image = raster_obj.get_evhr_image(doi)
-    # edited_evhr_image = raster_obj.warp_image(raw_evhr_image,
-    #                                           bbox=None,
-    #                                           nodata_value=None,
-    #                                           srs=raster_obj._targetSRS,
-    #                                           xres=raster_obj.model_xres,
-    #                                           yres = raster_obj.model_yres,
-    #                                           resampling= raster_obj._targetResampling,
-    #                                           overwrite=hasattr(args, 'force_overwrite'))
+    edited_evhr_image = raster_obj.warp_image(raw_evhr_image,
+                                               bbox=None,
+                                               nodata_value=None,
+                                               srs=raster_obj._targetSRS,
+                                               xres=raster_obj.model_xres,
+                                               yres = raster_obj.model_yres,
+                                               resampling= raster_obj._targetResampling,
+                                               overwrite=hasattr(args, 'force_overwrite'))
 
     # 3) Warp, Model, Write output 
     #       a.	warp_inputs(ccdc_image, evhr_image): 
     #           import pygeotools
-    #          fn_list = [ccdc_image, evhr_image]
-    fn_list = [edited_ccdc_image, raw_evhr_image]
+    fn_list = [edited_ccdc_image, edited_evhr_image]
 
     #           # Warp CCDC and EVHR to bounding_box and 30m CCDC grid
     #           ma_list = warplib.memwarp_multi_fn(fn_list evhr_image, extent='intersection', res=30,
