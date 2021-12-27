@@ -5,7 +5,7 @@ import numpy as np
 from srlite.model.xrasterlib.Raster import Raster
 from core.model.SystemCommand import SystemCommand
 from osgeo import gdal, gdal_array, osr
-from pygeotools.lib import warplib, geolib, iolib, malib
+from pygeotools.lib import warplib, geolib, iolib, malib, timelib
 from srlite.model.regression.linear.SimpleLinearRegression import SimpleLinearRegression
 import srlite.model.xrasterlib.RasterIndices as indices
 from datetime import datetime  # tracking date
@@ -16,7 +16,7 @@ from matplotlib import pyplot
 import numpy.ma as ma
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
-#from scipy import stats
+from scipy import stats
 #import pandas as pd
 #from tempfile import TemporaryDirectory
 
@@ -278,21 +278,7 @@ class SurfaceReflectance(Raster):
 
         plt.tight_layout()
 
-    def get_intersection(self, fn_list):
-
-        ccdcNdv = iolib.get_ndv_fn(fn_list[0])
-        evhrNdv = iolib.get_ndv_fn(fn_list[1])
-        if (not ccdcNdv == self._targetNodata or (not evhrNdv == self._targetNodata)):
-            raise RuntimeError('{} missing NoDataValue or not equal to: '.format(self._targetNodata))
-
-        ma_list = [iolib.fn_getma(fn) for fn in fn_list]
-        self._display_plots("Before Intersection Results: ", fn_list, ma_list)
-
-        # To intersect these images, use warplib - warp to CCDC resolution, extent, and srs
-        warp_ds_list = warplib.memwarp_multi_fn(fn_list, res='first', extent='intersection', t_srs='first', r='near')
-
-        geomIntersection = geolib.ds_geom_intersection(warp_ds_list)
-        print(f'geom intersection of {fn_list[0]} and {fn_list[1]} = \n {geomIntersection}')
+    def validate_intersection(self, warp_ds_list):
 
         ccdc_warp_ds, evhr_warp_ds = warp_ds_list
 
@@ -310,7 +296,34 @@ class SurfaceReflectance(Raster):
         if geolib.ds_IsEmpty(ccdc_warp_ds) or geolib.ds_IsEmpty(evhr_warp_ds):
             raise RuntimeError('{} model or image is empty after intersection'.format(evhrExtent))
 
-        # Get masked array from dataset
+        return ccdcNumBands
+
+    def get_intersection(self, fn_list):
+
+        ccdcNdv = iolib.get_ndv_fn(fn_list[0])
+        evhrNdv = iolib.get_ndv_fn(fn_list[1])
+        if (not ccdcNdv == self._targetNodata or (not evhrNdv == self._targetNodata)):
+            raise RuntimeError('{} missing NoDataValue or not equal to: '.format(self._targetNodata))
+
+        #dt_list = timelib.get_dt_list(fn_list)
+        #s = malib.DEMStack(fn_list, res='min', extent='intersection')
+
+        #ma_list = [iolib.fn_getma(fn) for fn in s]
+       # self._display_plots("Before Intersection Results: ", fn_list, ma_list)
+
+        ma_list = [iolib.fn_getma(fn) for fn in fn_list]
+        self._display_plots("Before Intersection Results: ", fn_list, ma_list)
+
+        # To intersect these images, use warplib - warp to CCDC resolution, extent, and srs
+        warp_ds_list = warplib.memwarp_multi_fn(fn_list, res='first', extent='intersection', t_srs='first', r='near')
+
+        # Validate intersection
+        ccdcNumBands = self.validate_intersection(warp_ds_list)
+
+        geomIntersection = geolib.ds_geom_intersection(warp_ds_list)
+        print(f'geom intersection of {fn_list[0]} and {fn_list[1]} = \n {geomIntersection}')
+
+         # Get masked array from dataset
         warp_ma_list = [iolib.ds_getma(ds) for ds in warp_ds_list]
         ccdc_warp_ma, evhr_warp_ma = warp_ma_list
         print(f'model shape {ccdc_warp_ma.shape} and image shape {evhr_warp_ma.shape}')
@@ -326,6 +339,7 @@ class SurfaceReflectance(Raster):
         common_warp_ma_masked_list = [np.ma.array(ccdc_warp_ma, mask=common_mask), np.ma.array(evhr_warp_ma, mask=common_mask)]
         self._display_plots("Common Mask Results: ", fn_list, common_warp_ma_masked_list)
 
+        ccdc_warp_ds, evhr_warp_ds = warp_ds_list
         coefficients = [ccdcNumBands]
         index = 0
         while index < ccdcNumBands:
@@ -336,6 +350,14 @@ class SurfaceReflectance(Raster):
             warp_ma_masked_list = [np.ma.array(ccdcBandMaArray, mask=common_mask), np.ma.array(evhrBandMaArray, mask=common_mask)]
 
             self._display_plots("Single Band Mask Results" + str(index) + ": ", fn_list, warp_ma_masked_list)
+
+#            slope, intercept, detrended_std = malib.ma_linreg(warp_ma_masked_list, dt_list)
+
+#            slope, intercept, r_value, p_value, std_err = stats.linregress(warp_ma_masked_list[0], warp_ma_masked_list[1])
+
+            # print("slope:", slope,
+            #       "\nintercept:", intercept,
+            #       "\nr squared:", r_value ** 2)
 
             lr = SimpleLinearRegression(warp_ma_masked_list[0], warp_ma_masked_list[1])
             coefficients.append(lr.run())
