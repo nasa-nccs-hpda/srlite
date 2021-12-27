@@ -415,11 +415,13 @@ def map(data, coefficients, bandNames, fname, factor=1.0, vtype='int16') -> dask
     bandArray = (data[band, :, :] )
 #    print(f'bandArray.mean =  {bandArray.mean} ')
     nbandArray = bandArray.as_numpy()
-    print(f'nbandArray.average =  {np.average(nbandArray)} index[0][0] {nbandArray.values[0][0]} index[500][500] {nbandArray.values[500][500]}')
+    #print(f'nbandArray.average =  {np.average(nbandArray)} index[0][0] {nbandArray.values[0][0]} index[500][500] {nbandArray.values[500][500]}')
+    print(f'before mx+b index[0][0] {nbandArray.values[0][0]} index[500][500] {nbandArray.values[500][500]}')
 
     newData = ((bandArray) * slope) + yInt
     nnewData = newData.as_numpy()
-    print(f'nnewData.average =  {np.average(nnewData)} index[0][0] {nnewData.values[0][0]} index[500][500] {nnewData.values[500][500]}')
+#    print(f'nnewData.average =  {np.average(nnewData)} index[0][0] {nnewData.values[0][0]} index[500][500] {nnewData.values[500][500]}')
+    print(f'after mx+b index[0][0] {nnewData.values[0][0]} index[500][500] {nnewData.values[500][500]}')
 
     xform = (newData
 #             ).expand_dims(dim="band", axis=0).fillna(-9999).astype(vtype), fname

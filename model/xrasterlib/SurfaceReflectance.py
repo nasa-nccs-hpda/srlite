@@ -173,7 +173,7 @@ class SurfaceReflectance(Raster):
 
             if bool(editParms) != False:
                 # Use gdal_edit (via ILAB core SystemCommand) to convert GEE CCDC output to proper projection ESRI:102001 and set NoData value in place
-                command = 'gdalwarp ' + editParms + ' ' + input_image + ' ' + warpFn
+                command = '/usr/bin/gdalwarp ' + editParms + ' ' + input_image + ' ' + warpFn
                 SystemCommand(command)
 
             # Replace 'nan' values with nodata value (i.e., -9999) and store to disk
@@ -216,7 +216,7 @@ class SurfaceReflectance(Raster):
 
         if bool(editParms) != False:
             # Use gdal_edit (via ILAB core SystemCommand) to convert GEE CCDC output to proper projection ESRI:102001 and set NoData value in place
-            command = 'gdal_edit.py ' + editParms + ' ' + input_image
+            command = '/usr/bin/gdal_edit.py ' + editParms + ' ' + input_image
             SystemCommand(command)
 
         # Replace 'nan' values with nodata value (i.e., -9999) and store to disk
@@ -300,8 +300,8 @@ class SurfaceReflectance(Raster):
         ccdcNumBands = ccdc_warp_ds.RasterCount
         evhrNumBands = evhr_warp_ds.RasterCount
         if not ccdcNumBands == evhrNumBands:
-            raise RuntimeError('{} model band count does not match image after intersection'.format(evhrNumBands))
-
+#            raise RuntimeError('{} model band count does not match image after intersection'.format(evhrNumBands))
+            print(f'WARNING: {ccdcNumBands} model band count does not match image {evhrNumBands} after intersection')
         ccdcExtent = geolib.ds_extent(ccdc_warp_ds)
         evhrExtent = geolib.ds_extent(evhr_warp_ds)
         if not ccdcExtent == evhrExtent:
@@ -618,7 +618,8 @@ class SurfaceReflectance(Raster):
 
         # high resolution path and filename (e.g. 30m WV)
         if srcNumBands != self.requestedNumBands:
-            raise RuntimeError(f'Original Data size {srcNumBands} and Requested Data Size {self.requestedNumBands} must match')
+#            raise RuntimeError(f'Original Data size {srcNumBands} and Requested Data Size {self.requestedNumBands} must match')
+            print(f'Original Data size {srcNumBands} and Requested Data Size {self.requestedNumBands} must match')
 
         # See indices.py (b1-b4) for LR coefficients implementation: y = ee.Number(x).multiply(slope).add(yInt);
         self.xformBands(self.data, coefficients, args.bands_model )
