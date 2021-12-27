@@ -252,6 +252,8 @@ class SurfaceReflectance(Raster):
             return edited_image
 
     def _display_plots(self, title, fn_list, warp_ma_masked_list):
+        visual = False
+        if (visual == False): return
 
         figsize = (10, 5)
         fig, axa = plt.subplots(nrows=1, ncols=len(fn_list), figsize=figsize, sharex=False, sharey=False)
@@ -353,6 +355,10 @@ class SurfaceReflectance(Raster):
 
 #            slope, intercept, detrended_std = malib.ma_linreg(warp_ma_masked_list, dt_list)
 
+            path = "/tmp/coefficients/sciLrBand" + str(index) + ".jpg"
+            slope, intercept, r_value, p_value, std_err =\
+                self.correlation_plot(warp_ma_masked_list[0], warp_ma_masked_list[1], path, "Correlation Plot", "X", "Y")
+            coefficients.append((slope, intercept))
 #            slope, intercept, r_value, p_value, std_err = stats.linregress(warp_ma_masked_list[0], warp_ma_masked_list[1])
 
             # print("slope:", slope,
@@ -360,7 +366,7 @@ class SurfaceReflectance(Raster):
             #       "\nr squared:", r_value ** 2)
 
             lr = SimpleLinearRegression(warp_ma_masked_list[0], warp_ma_masked_list[1])
-            coefficients.append(lr.run())
+ #           coefficients.append(lr.run())
 
         print(f'Coefficients={coefficients}')
 
@@ -396,6 +402,30 @@ class SurfaceReflectance(Raster):
         fn_list[1] = imageryHighResIntersectionFn;
 
         return fn_list, warp_ma_list
+
+    def correlation_plot(self, x, y,
+                         save_path,
+                         title,
+                         xlabel, ylabel):
+        x = x.flatten()
+        y = y.flatten()
+
+        plt.scatter(x, y)
+        slope, intercept, r_value, p_value, std_err = stats.linregress(x, y)
+        line_x = np.arange(x.min(), x.max())
+        line_y = slope * line_x + intercept
+        plt.plot(line_x, line_y,
+                 label='$%.2fx + %.2f$, $R^2=%.2f$' % (slope, intercept, r_value ** 2))
+        plt.legend(loc='best')
+        plt.title(title)
+        plt.xlabel(xlabel)
+        plt.ylabel(ylabel)
+        plt.tight_layout()
+        plt.savefig(save_path)
+        plt.clf()  # clear figure
+        plt.close()
+
+        return slope, intercept, r_value, p_value, std_err
 
     def _get_intersection(self, fn_list):
 

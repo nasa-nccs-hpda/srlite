@@ -153,3 +153,5 @@ for i, ma in enumerate(warp_ma_list):
 
 plt.tight_layout()
 
+print("Strutter")
+
