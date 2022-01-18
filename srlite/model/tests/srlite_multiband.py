@@ -87,8 +87,14 @@ start_time = time.time()  # record start time
 
 maindir = '/home/centos/dev/srlite/input/'
 r_fn_ccdc = os.path.join(maindir, 'ccdc_20110818-edited.tif')
-r_fn_evhr_full = os.path.join(maindir, 'WV02_20110818_M1BS_103001000CCC9000-toa.tif')  # open for band descriptions
-r_fn_evhr = os.path.join(maindir, 'WV02_20110818_M1BS_103001000CCC9000-toa-pitkusPoint-cog.tif')
+r_fn_evhr = os.path.join(maindir, 'WV02_20110818_M1BS_103001000CCC9000-toa.tif')  # open for band descriptions
+#r_fn_evhr = os.path.join(maindir, 'WV02_20110818_M1BS_103001000CCC9000-toa-pitkusPoint-cog.tif')
+r_fn_evhr_full = os.path.join(maindir, '_WV02_20110818_M1BS_103001000CCC9000-toa.tif')  # open for band descriptions
+
+r_fn_ccdc = os.path.join(maindir, 'ccdc_20150616-edited.tif')
+r_fn_evhr = os.path.join(maindir, 'WV02_20150616_M1BS_103001004351F000-toa.tif')  # open for band descriptions
+#r_fn_evhr = os.path.join(maindir, 'WV02_20110818_M1BS_103001000CCC9000-toa-pitkusPoint-cog.tif')
+r_fn_evhr_full = os.path.join(maindir, '_WV02_20150616_M1BS_103001004351F000-toa.tif')  # open for band descriptions
 fn_list = [r_fn_ccdc, r_fn_evhr]
 OUTDIR = '/home/centos/dev/srlite/output'
 # data_chunks = {'band': 1, 'x': 2048, 'y': 2048}
@@ -168,8 +174,8 @@ for bandPairIndex in range(0, numBandPairs - 1):
     for j, ma in enumerate(warp_ma_masked_band_list):
         j = j + 1
         if (ma.min() < 0):
-            pl.trace("Masked array values should be larger than 0")
-            exit(1)
+            pl.trace("Warning: Masked array values should be larger than 0")
+#            exit(1)
     pl.plot_maps(warp_ma_masked_band_list, fn_list, figsize=(10, 5),
                  title=str(bandNamePairList[bandPairIndex]) + ' Reflectance (%)')
     pl.plot_histograms(warp_ma_masked_band_list, fn_list, figsize=(10, 3),
@@ -275,10 +281,6 @@ meta.update(count=4)
 
 # Read each layer and write it to stack
 with rasterio.open(output_name, 'w', **meta) as dst:
-    # for id, layer in enumerate(sr_prediction_list, start=1):
-    #     with rasterio.open(layer) as src1:
-    #         dst.write_band(id, src1.read(1))
-
     for id in range(1, 5):
         bandPrediction = sr_prediction_list[id]
         min = bandPrediction.min()
