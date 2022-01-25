@@ -7,6 +7,10 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 from plotnine import ggplot, aes, geom_smooth, geom_bin2d, geom_abline
 from pygeotools.lib import malib
 
+import rasterio
+from rasterio.plot import show
+from rasterio.plot import show_hist
+from matplotlib import pyplot
 
 # -----------------------------------------------------------------------------
 # class PlotLib
@@ -142,3 +146,27 @@ class PlotLib(object):
                   + geom_abline(slope=slope, intercept=intercept, size=2)
                   + geom_smooth(method='lm', color='red'))
             # + xlim(0,500) + ylim(0,500)
+
+    # -------------------------------------------------------------------------
+    # plot_combo()
+    #
+    # Generate and display histograms for 2-dimensional list of masked arrays
+    # -------------------------------------------------------------------------
+    def plot_combo(self, fname, figsize=(10, 3),
+                        title="WARPED MASKED ARRAY", override=False):
+        """
+
+        :param masked_array_list:
+        :param fn_list:
+        :param figsize:
+        :param title:
+        :param override:
+        """
+        from rasterio.plot import show_hist
+        from matplotlib import pyplot
+        if (((self._debugLevel >= 2) and (self._histogramPlot == True)) or override == True):
+            imageSrc = rasterio.open(fname)
+            fig, (axrgb, axhist) = pyplot.subplots(1, 2, figsize=figsize)
+            show(imageSrc, ax=axrgb)
+            show_hist(imageSrc, bins=50, histtype='stepfilled',lw=0.0, stacked=False, alpha=0.3, ax=axhist)
+            pyplot.show()

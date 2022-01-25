@@ -84,19 +84,32 @@ def getBandIndices(fn_list, bandNamePair):
 # For this test run, use a subset of the YKD (e.g., Pitkus Point) for faster processing time
 ########################################
 start_time = time.time()  # record start time
+#/att/nobackup/gtamkin/dev/srlite/input/2011/WV02_20110818/WV02_20110818-full-scene
+# year = '2011'
+# doy = year + '0818'
+# WV02_20150616_M1BS_103001004351F000-toa.tif
+year = '2015'
+doy = year + '0616'
 
-maindir = '/home/centos/dev/srlite/input/'
-r_fn_ccdc = os.path.join(maindir, 'ccdc_20110818-edited.tif')
-r_fn_evhr = os.path.join(maindir, 'WV02_20110818_M1BS_103001000CCC9000-toa.tif')  # open for band descriptions
+dataset = 'WV02_'
+region = '-full-scene'
+details = year + '/' + dataset + doy + '/' + dataset + doy + region
+maindir = '/att/nobackup/gtamkin/dev/srlite'
+input = maindir + '/input'
+r_fn_ccdc = os.path.join(input + '/' + year + '/' + 'ccdc_' + doy + '-edited.tif')
+r_fn_evhr = os.path.join(input + '/' + details, 'WV02_20150616_M1BS_103001004351F000-toa.tif')  # open for band descriptions
+#r_fn_evhr = os.path.join(input + '/' + details, 'WV02_20110818_M1BS_103001000CCC9000-toa.tif')  # open for band descriptions
 #r_fn_evhr = os.path.join(maindir, 'WV02_20110818_M1BS_103001000CCC9000-toa-pitkusPoint-cog.tif')
-r_fn_evhr_full = os.path.join(maindir, '_WV02_20110818_M1BS_103001000CCC9000-toa.tif')  # open for band descriptions
+#r_fn_evhr_full = os.path.join(maindir, '_WV02_20110818_M1BS_103001000CCC9000-toa.tif')  # open for band descriptions
 
-r_fn_ccdc = os.path.join(maindir, 'ccdc_20150616-edited.tif')
-r_fn_evhr = os.path.join(maindir, 'WV02_20150616_M1BS_103001004351F000-toa.tif')  # open for band descriptions
-#r_fn_evhr = os.path.join(maindir, 'WV02_20110818_M1BS_103001000CCC9000-toa-pitkusPoint-cog.tif')
-r_fn_evhr_full = os.path.join(maindir, '_WV02_20150616_M1BS_103001004351F000-toa.tif')  # open for band descriptions
+# r_fn_ccdc = os.path.join(maindir, 'ccdc_20150616-edited.tif')
+# r_fn_evhr = os.path.join(maindir, 'WV02_20150616_M1BS_103001004351F000-toa.tif')  # open for band descriptions
+# #r_fn_evhr = os.path.join(maindir, 'WV02_20110818_M1BS_103001000CCC9000-toa-pitkusPoint-cog.tif')
+# r_fn_evhr_full = os.path.join(maindir, '_WV02_20150616_M1BS_103001004351F000-toa.tif')  # open for band descriptions
+
 fn_list = [r_fn_ccdc, r_fn_evhr]
-OUTDIR = '/home/centos/dev/srlite/output'
+OUTDIR = input + '/' + details
+#OUTDIR = maindir + '/output/' + details
 # data_chunks = {'band': 1, 'x': 2048, 'y': 2048}
 
 ##############################################
@@ -130,7 +143,7 @@ bandNamePairList = list([
 # Validate Band Pairs and Retrieve Corresponding Array Indices
 ########################################
 pl.trace('bandNamePairList=' + str(bandNamePairList))
-fn_full_list = [r_fn_ccdc, r_fn_evhr_full]
+fn_full_list = [r_fn_ccdc, r_fn_evhr]
 bandPairIndicesList = getBandIndices(fn_full_list, bandNamePairList)
 pl.trace('bandIndices=' + str(bandPairIndicesList))
 
@@ -277,16 +290,17 @@ with rasterio.open(r_fn_evhr) as src0:
     meta = src0.meta
 
 # Update meta to reflect the number of layers
-meta.update(count=4)
+meta.update(count=numBandPairs-1)
 
 # Read each layer and write it to stack
 with rasterio.open(output_name, 'w', **meta) as dst:
-    for id in range(1, 5):
+    for id in range(1, numBandPairs):
         bandPrediction = sr_prediction_list[id]
         min = bandPrediction.min()
-        pl.trace(f'BandPrediction({bandPrediction}) \nBandPrediction.min({min})')
+        pl.trace(f'BandPrediction.min({min})')
         dst.set_band_description(id, bandNamePairList[id - 1][1])
         bandPrediction1 = np.ma.masked_values(bandPrediction, -9999)
         dst.write_band(id, bandPrediction1)
 
-print("--- %s seconds ---" % (time.time() - start_time))
+print("Elapsed Time: " + output_name + ': ',
+          (time.time() - start_time) / 60.0)  # time in min
