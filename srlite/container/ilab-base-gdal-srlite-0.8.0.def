@@ -1,0 +1,55 @@
+#-----------------------------------------------------------------------------------------
+# Build srlite container
+# Source: https://github.com/nasa-nccs-hpda/srlite.git
+#-----------------------------------------------------------------------------------------
+Bootstrap: localimage
+FROM: ./cisto-core-ubuntu-1.0.0.sif
+#Bootstrap: oras
+#FROM: gitlab.nccs.nasa.gov:5050/cisto-ilab/containers/base/cisto-core-ubuntu:1.0.0
+
+%labels
+    cisto_author gtamkin
+    app_poc gtamkin
+    Version v0.8.0
+
+%help
+===========================================================================
+	- srlite (extends -> core-ubuntu) – contains srlite dependencies:
+===========================================================================
+
+%environment
+    export PYTHONPATH="$PYTHONPATH:/usr/local/ilab"
+
+%post
+
+    PROJECT_PATH="/usr/local/ilab"
+
+    #-------------------------------------------------------------------------------
+    # System Dependencies
+    #-------------------------------------------------------------------------------
+    apt-get update && DEBIAN_FRONTEND=noninteractive apt-get -y dist-upgrade && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+        python3-tk tk-dev libgdbm-dev libc6-dev libbz2-dev \
+        libffi-dev zlib1g-dev liblzma-dev libgirepository1.0-dev libcairo2-dev \
+        pkg-config python3-dev gir1.2-gtk-3.0 && \
+    DEBIAN_FRONTEND=noninteractive apt-get -y autoremove && \
+    rm -rf /var/lib/apt/lists/* /var/cache/apt
+
+    #-------------------------------------------------------------------------------
+    # SRLITE Git Dependencies
+    #-------------------------------------------------------------------------------
+    pip3 install --upgrade pygeotools
+    pip3 install --upgrade plotnine
+#    pip3 install --upgrade python3-tk
+
+    mkdir -p ${PROJECT_PATH}
+    # RECOMMENDED LOCATION - CURRENTLY INCLUDED IN CORE
+    # git clone --single-branch --branch master https://github.com/nasa-nccs-hpda/core.git \
+	#	${PROJECT_PATH}/core
+    git clone --single-branch --branch main https://github.com/nasa-nccs-hpda/srlite.git \
+		${PROJECT_PATH}/srlite
+    chmod a+rwx -R ${PROJECT_PATH}/*
+
+%test
+
+    /usr/bin/python -c 'import rasterio;from pygeotools.lib import malib'
