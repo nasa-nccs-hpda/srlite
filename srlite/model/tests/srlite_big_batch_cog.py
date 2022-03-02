@@ -22,7 +22,7 @@ debug_level = 0
 
 import subprocess
 
-#from core.model.SystemCommand import SystemCommand
+from core.model.SystemCommand import SystemCommand
 
 # ## Change os.path.append() to your personal repo location
 
@@ -141,6 +141,14 @@ def processBands(warp_ds_list, bandPairIndicesList, fn_list):
     warp_ma_masked_band_series = [numBandPairs]
     sr_prediction_list = [numBandPairs]
     # debug_level = 3
+
+    firstBand = True
+    # Apply range of -100 to 200 for Blue Band pixel mask and apply to each band (as per MC - 3/1/22 - for big batch)
+    evhrBandMaArrayThresholdMin = -100
+    evhrBandMaArrayThresholdMax = 2000
+    pl.trace(' evhrBandMaArrayThresholdMin = ' + str(evhrBandMaArrayThresholdMin))
+    pl.trace(' evhrBandMaArrayThresholdMax = ' + str(evhrBandMaArrayThresholdMax))
+
     for bandPairIndex in range(0, numBandPairs - 1):
 
         pl.trace('=>')
@@ -148,31 +156,42 @@ def processBands(warp_ds_list, bandPairIndicesList, fn_list):
         pl.trace('============== Start Processing Band #' + str(bandPairIndex + 1) + ' ===============')
         pl.trace('====================================================================================')
 
-        # Get 30m CCDC & EVHR Masked Arrays
+        # Retrieve band pair
         bandPairIndices = bandPairIndicesList[bandPairIndex + 1]
-        ccdcBandMaArray = iolib.ds_getma(warp_ds_list[0], bandPairIndices[0])
-        evhrBandMaArray = iolib.ds_getma(warp_ds_list[1], bandPairIndices[1])
 
-        # Get 2m CCDC & EVHR Masked Arrays
-        ccdcBandMaArrayRaw = iolib.fn_getma(fn_list[0], bandPairIndices[0])
+        # Get 30m CCDC Masked Arrays
+        ccdcBandMaArray = iolib.ds_getma(warp_ds_list[0], bandPairIndices[0])
+
+        # Get 2m EVHR Masked Arrays
         evhrBandMaArrayRaw = iolib.fn_getma(fn_list[1], bandPairIndices[1])
 
-        ########################################
-        # Mask threshold values (e.g., (median - threshold) < range < (median + threshold) 
-        #  prior to generating common mask to reduce outliers ++++++[as per MC - 02/07/2022]
-        ########################################
-        evhrBandMaArray = iolib.ds_getma(warp_ds_list[1], bandPairIndices[1])
-        evhrBandMaArrayMedian = np.ma.median(evhrBandMaArray)
-        pl.trace(' evhrBandMaArrayMedian median =' + str(np.ma.median(evhrBandMaArrayMedian)))    
-        threshold = 500
-        evhrBandMaArrayThresholdMin = evhrBandMaArrayMedian - threshold
-        evhrBandMaArrayThresholdMax = evhrBandMaArrayMedian + threshold
-        pl.trace(' evhrBandMaArrayThresholdMin = ' + str(evhrBandMaArrayThresholdMin))
-        pl.trace(' evhrBandMaArrayThresholdMax = ' + str(evhrBandMaArrayThresholdMax))
-        evhrBandMaThresholdMaxArray = np.ma.masked_where(evhrBandMaArray > evhrBandMaArrayThresholdMax, evhrBandMaArray) 
-        evhrBandMaThresholdRangeArray = np.ma.masked_where(evhrBandMaThresholdMaxArray < evhrBandMaArrayThresholdMin, evhrBandMaThresholdMaxArray) 
-        pl.trace(' evhrBandMaThresholdRangeArray median =' + str(np.ma.median(evhrBandMaThresholdRangeArray)))    
-        evhrBandMaArray = evhrBandMaThresholdRangeArray
+        #  Create single mask for all bands based on Blue-band threshold values
+        #  Assumes Blue-band is first indice pair, so collect mask on 1st iteration only.
+        if (firstBand == True):
+            ########################################
+            # Mask threshold values (e.g., (median - threshold) < range < (median + threshold)
+            #  prior to generating common mask to reduce outliers ++++++[as per MC - 02/07/2022]
+            ########################################
+            evhrBandMaArray = iolib.ds_getma(warp_ds_list[1], bandPairIndices[1])
+
+            # Logic below applies dynamic Min & Max threshold range based on Median
+            # evhrBandMaArrayMedian = np.ma.median(evhrBandMaArray)
+            # pl.trace(' evhrBandMaArrayMedian median =' + str(np.ma.median(evhrBandMaArrayMedian)))
+            # threshold = 500
+            # evhrBandMaArrayThresholdMin = evhrBandMaArrayMedian - threshold
+            # evhrBandMaArrayThresholdMax = evhrBandMaArrayMedian + threshold
+
+            # Apply upper bound to EVHR values in raw 2m array
+            evhrBandMaThresholdMaxArray = \
+                np.ma.masked_where(evhrBandMaArray > evhrBandMaArrayThresholdMax, evhrBandMaArray)
+
+            # Apply lower bound to EVHR values to modified 2m array above
+            evhrBandMaThresholdRangeArray = \
+                np.ma.masked_where(evhrBandMaThresholdMaxArray < evhrBandMaArrayThresholdMin, evhrBandMaThresholdMaxArray)
+            pl.trace(' evhrBandMaThresholdRangeArray median =' + str(np.ma.median(evhrBandMaThresholdRangeArray)))
+
+            evhrBandMaArray = evhrBandMaThresholdRangeArray
+            firstBand = False
 
         # Generate common mask
         warp_ma_band_list = [ccdcBandMaArray, evhrBandMaArray]
@@ -181,12 +200,14 @@ def processBands(warp_ds_list, bandPairIndicesList, fn_list):
 
         warp_ma_masked_band_list = [np.ma.array(ccdcBandMaArray, mask=common_mask_band),
                                     np.ma.array(evhrBandMaArray, mask=common_mask_band)]
-        # Check the mins of each ma - they should be greater than 0
+
+        # Check the mins of each ma - they should be greater than <evhrBandMaArrayThresholdMin>
         for j, ma in enumerate(warp_ma_masked_band_list):
             j = j + 1
-            if (ma.min() < 0):
-                pl.trace("Warning: Masked array values should be larger than 0")
-    #            exit(1)
+            #            if (ma.min() < 0):
+            if (ma.min() < int(evhrBandMaArrayThresholdMin)):
+                pl.trace("Warning: Masked array values should be larger than " + str(evhrBandMaArrayThresholdMin))
+        #            exit(1)
         pl.plot_maps(warp_ma_masked_band_list, fn_list, figsize=(10, 5),
                      title=str(bandNamePairList[bandPairIndex]) + ' Reflectance (%)')
         pl.plot_histograms(warp_ma_masked_band_list, fn_list, figsize=(10, 3),
@@ -379,7 +400,7 @@ def createImage(r_fn_evhr, numBandPairs, sr_prediction_list, name):
     output_name = "{}/{}".format(
         OUTDIR, name
 #        nowStr, str(r_fn_evhr).split('/')[-1]
-    ) + "_sr_02m.tif"
+    ) + "_sr_02m-precog.tif"
     pl.trace(f"\nCreating .tif image from band-based prediction layers...{output_name}")
 
     # Read metadata of EVHR file
@@ -401,9 +422,6 @@ def createImage(r_fn_evhr, numBandPairs, sr_prediction_list, name):
             bandPrediction1 = np.ma.masked_values(bandPrediction, -9999)
             dst.write_band(id, bandPrediction1)
 
-    print("\nElapsed Time: " + output_name + ': ',
-          (time.time() - start_time) / 60.0)  # time in min
-
     return output_name
 
 
@@ -417,10 +435,10 @@ evhrdir = "/att/nobackup/gtamkin/dev/srlite/input/TOA_v2/Yukon_Delta/5-toas"
 #evhrdir = "/att/nobackup/gtamkin/dev/srlite/input/TOA_v2/Siberia/5-toas"
 ccdcdir = "/home/gtamkin/nobackup/dev/srlite/input/CCDC_v2"
 
-outpath = OUTDIR = "/att/nobackup/gtamkin/dev/srlite/output/big-batch/02272022/Yukon_Delta"
-#outpath = OUTDIR = "/att/nobackup/gtamkin/dev/srlite/output/big-batch/02272022/Senegal"
-#outpath = OUTDIR = "/att/nobackup/gtamkin/dev/srlite/output/big-batch/02272022/Fairbanks"
-#outpath = OUTDIR = "/att/nobackup/gtamkin/dev/srlite/output/big-batch/02272022/Siberia"
+outpath = OUTDIR = "/att/nobackup/gtamkin/dev/srlite/output/big-batch/03012022/Yukon_Delta"
+#outpath = OUTDIR = "/att/nobackup/gtamkin/dev/srlite/output/big-batch/03012022/Senegal"
+#outpath = OUTDIR = "/att/nobackup/gtamkin/dev/srlite/output/big-batch/03012022/Fairbanks"
+#outpath = OUTDIR = "/att/nobackup/gtamkin/dev/srlite/output/big-batch/03012022/Siberia"
 
 for r_fn_evhr in Path(evhrdir).glob("*.tif"):
     prefix = str(r_fn_evhr).rsplit("/", 1)
@@ -451,12 +469,16 @@ for r_fn_evhr in Path(evhrdir).glob("*.tif"):
     pl.trace('\n Create Image....')
     outputname = createImage(str(r_fn_evhr), len(bandPairIndicesList), sr_prediction_list, name[0])
 
-    # Use gdal_edit (via ILAB core SystemCommand) to convert GEE CCDC output to proper projection ESRI:102001 and set NoData value in place
-    cogname = outputname.replace(".tif", "_cog.tif")
+    # Use gdalwarp to create Cloud-optimized Geotiff (COG)
+    cogname = outputname.replace("-precog.tif", ".tif")
     command = 'gdalwarp -of cog ' + outputname + ' ' + cogname
     SystemCommand(command)
+    if os.path.exists(outputname):
+        os.remove(outputname)
 
-    break;
+    print("\nElapsed Time: " + cogname + ': ',
+          (time.time() - start_time) / 60.0)  # time in min
+#    break;
 
 print("\nTotal Elapsed Time for: " + evhrdir + '/*.tif: ',
           (time.time() - start_time) / 60.0)  # time in min
