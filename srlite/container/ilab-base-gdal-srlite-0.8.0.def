@@ -3,9 +3,7 @@
 # Source: https://github.com/nasa-nccs-hpda/srlite.git
 #-----------------------------------------------------------------------------------------
 Bootstrap: localimage
-FROM: ./cisto-core-ubuntu-1.0.0.sif
-#Bootstrap: oras
-#FROM: gitlab.nccs.nasa.gov:5050/cisto-ilab/containers/base/cisto-core-ubuntu:1.0.0
+FROM: ./ilab-base_gdal-3.3.3.sif
 
 %labels
     cisto_author gtamkin
@@ -44,8 +42,8 @@ FROM: ./cisto-core-ubuntu-1.0.0.sif
 
     mkdir -p ${PROJECT_PATH}
     # RECOMMENDED LOCATION - CURRENTLY INCLUDED IN CORE
-    # git clone --single-branch --branch master https://github.com/nasa-nccs-hpda/core.git \
-	#	${PROJECT_PATH}/core
+    git clone --single-branch --branch master https://github.com/nasa-nccs-hpda/core.git \
+		${PROJECT_PATH}/core
     git clone --single-branch --branch main https://github.com/nasa-nccs-hpda/srlite.git \
 		${PROJECT_PATH}/srlite
     chmod a+rwx -R ${PROJECT_PATH}/*
