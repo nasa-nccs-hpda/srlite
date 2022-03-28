@@ -16,7 +16,7 @@
 import sys
 #sys.path.append('/att/gpfsfs/home/pmontesa/code/pygeotools')
 sys.path.append('/home/gtamkin/.local/lib/python3.9/site-packages')
-sys.path.append('/att/nobackup/gtamkin/dev/srlite/src')
+sys.path.append('/adapt/nobackup/people/gtamkin/dev/srlite/src')
 
 debug_level = 0
 
@@ -429,16 +429,16 @@ def createImage(r_fn_evhr, numBandPairs, sr_prediction_list, name):
 
 
 from pathlib import Path
-evhrdir = "/att/nobackup/gtamkin/dev/srlite/input/TOA_v2/Yukon_Delta/5-toas"
-#evhrdir = "/att/nobackup/gtamkin/dev/srlite/input/TOA_v2/Senegal/5-toas"
-#evhrdir = "/att/nobackup/gtamkin/dev/srlite/input/TOA_v2/Fairbanks/5-toas"
-#evhrdir = "/att/nobackup/gtamkin/dev/srlite/input/TOA_v2/Siberia/5-toas"
+evhrdir = "/adapt/nobackup/people/gtamkin/dev/srlite/input/TOA_v2/Yukon_Delta/5-toas"
+#evhrdir = "/adapt/nobackup/people/gtamkin/dev/srlite/input/TOA_v2/Senegal/5-toas"
+#evhrdir = "/adapt/nobackup/people/gtamkin/dev/srlite/input/TOA_v2/Fairbanks/5-toas"
+#evhrdir = "/adapt/nobackup/people/gtamkin/dev/srlite/input/TOA_v2/Siberia/5-toas"
 ccdcdir = "/home/gtamkin/nobackup/dev/srlite/input/CCDC_v2"
 
-outpath = OUTDIR = "/att/nobackup/gtamkin/dev/srlite/output/big-batch/03012022/Yukon_Delta"
-#outpath = OUTDIR = "/att/nobackup/gtamkin/dev/srlite/output/big-batch/03012022/Senegal"
-#outpath = OUTDIR = "/att/nobackup/gtamkin/dev/srlite/output/big-batch/03012022/Fairbanks"
-#outpath = OUTDIR = "/att/nobackup/gtamkin/dev/srlite/output/big-batch/03012022/Siberia"
+outpath = OUTDIR = "/adapt/nobackup/people/gtamkin/dev/srlite/output/big-batch/03012022/Yukon_Delta"
+#outpath = OUTDIR = "/adapt/nobackup/people/gtamkin/dev/srlite/output/big-batch/03012022/Senegal"
+#outpath = OUTDIR = "/adapt/nobackup/people/gtamkin/dev/srlite/output/big-batch/03012022/Fairbanks"
+#outpath = OUTDIR = "/adapt/nobackup/people/gtamkin/dev/srlite/output/big-batch/03012022/Siberia"
 
 for r_fn_evhr in Path(evhrdir).glob("*.tif"):
     prefix = str(r_fn_evhr).rsplit("/", 1)
@@ -478,7 +478,7 @@ for r_fn_evhr in Path(evhrdir).glob("*.tif"):
 
     print("\nElapsed Time: " + cogname + ': ',
           (time.time() - start_time) / 60.0)  # time in min
-#    break;
+    break;
 
 print("\nTotal Elapsed Time for: " + evhrdir + '/*.tif: ',
           (time.time() - start_time) / 60.0)  # time in min
