@@ -65,7 +65,7 @@ def getparser():
 
     # General
     parser.add_argument(
-        "-d", "--date", nargs=1, type=str, required=True, dest='doi',
+        "-d", "--date", nargs=1, type=str, required=False, dest='doi',
         default="2011-08-18",
         help = "Specify date to perform regression (YYYY-MM-DD)."
     )
@@ -75,13 +75,13 @@ def getparser():
         help = "Specify bounding box to perform regression."
     )
     parser.add_argument(
-        "-i-m", "--input-model-image", type=str, required=False, dest='model_image',
+        "-i-ccdc", "--input-model-image", type=str, required=False, dest='model_image',
         default=None,
         help="Specify model (e.g., CCDC) input image path and filename."
     )
 
     parser.add_argument(
-        "-i-cm", "--input-cloudmask-image", type=str, required=False, dest='cloudmask_image',
+        "-i-cmask", "--input-cloudmask-image", type=str, required=False, dest='cloudmask_image',
         default=None,
         help="Specify cloudmask input image path and filename."
     )
@@ -91,17 +91,22 @@ def getparser():
         help = 'Specify input model (e.g., CCDC) bands.'
     )
     parser.add_argument(
+        "-i-bpairs", "--input-list-of-band-pairs", type=str, required=False, dest='band_pair_list',
+        default="[['blue_ccdc', 'BAND-B'], ['green_ccdc', 'BAND-G'], ['red_ccdc', 'BAND-R'], ['nir_ccdc', 'BAND-N']]",
+        help="Specify list of band pairs to be processed per scene"
+    )
+    parser.add_argument(
         "-i-lr", "--input-low-res-image", type=str, required=False, dest='low_res_image',
         default=None,
         help="Specify low-resolution input image path and filename."
     )
     parser.add_argument(
-        "-i-hr", "--input-high-res-image", type=str, required=True, dest='high_res_image',
+        "-i-toa", "--input-high-res-image", type=str, required=True, dest='high_res_image',
         default=None,
         help="Specify high-resolution input image path and filename."
     )
     parser.add_argument(
-        '-b-d', '--bands-data', nargs='*', dest='bands_data', required=True, type=str,
+        '-b-d', '--bands-data', nargs='*', dest='bands_data', required=False, type=str,
         default=['b1', 'b2ff', 'b3', 'b4'],
         help='Specify input data (e.g., HR WV) bands.'
     )
@@ -583,7 +588,7 @@ def main():
     print(f'Bounding Box:    {args.bbox}')
     print(f'Model Image:    {args.model_image}')
     print(f'Cloudmask Image:    {args.cloudmask_image}')
-    print(f'Initial Bands (model):    {args.bands_model}')
+    print(f'Band pairs:    {args.band_pair_list}')
     print(f'Low Res Image:    {args.low_res_image}')
     print(f'High Res Image:    {args.high_res_image}')
     print(f'Initial Bands (linear/hr data):    {args.bands_data}')
@@ -621,13 +626,29 @@ def main():
     regressionType = 'sklearn'
 
     pl = PlotLib(debug_level, histogramPlot, scatterPlot, fitPlot)
-
+    import ast
+    bandNamePairList = list(ast.literal_eval(args.band_pair_list))
     # Temporary input - Need to pull from arg list
-    bandNamePairList = list([
+    #bandNamePairList = list([
+    _bandNamePairList = list([
         ['blue_ccdc', 'BAND-B'],
         ['green_ccdc', 'BAND-G'],
         ['red_ccdc', 'BAND-R'],
         ['nir_ccdc', 'BAND-N']])
+
+    rawStr = str("[['blue_ccdc', 'BAND-B'], ['green_ccdc', 'BAND-G'], ['red_ccdc', 'BAND-R'], ['nir_ccdc', 'BAND-N']]")
+    import json
+    temp = list("[['blue_ccdc', 'BAND-B'], ['green_ccdc', 'BAND-G'], ['red_ccdc', 'BAND-R'], ['nir_ccdc', 'BAND-N']]")
+#    jtemp = json.loads(temp)
+#    jtemp2 = json.loads(str("[['blue_ccdc', 'BAND-B'], ['green_ccdc', 'BAND-G'], ['red_ccdc', 'BAND-R'], ['nir_ccdc', 'BAND-N']]"))
+    import ast
+    rawAstStr = ast.literal_eval(rawStr)
+    print (rawAstStr)
+    rawStrList = list(rawAstStr)
+    print(rawStrList)
+
+
+    ast.literal_eval('[[0,0,0], [0,0,1], [1,1,0]]')
 
     if (debug_level >= 2):
         print(sys.path)
@@ -706,384 +727,8 @@ def main():
 
          break;
 
-    print("\nTotal Elapsed Time for: " + evhrdir + '/*.tif: ',
+    print("\nTotal Elapsed Time for " + cogname + ': ',
            (time.time() - start_time) / 60.0)  # time in min
-
-def _main():
-    # --------------------------------------------------------------------------------
-    # 0. Prepare for run - set log file for script if requested (-l command line option)
-    # --------------------------------------------------------------------------------
-    #    start_time = time()  # record start time
-    args = getparser()  # initialize arguments parser
-
-    print('Initializing SRLite Regression script with the following parameters')
-    print(f'Date: {args.doi}')
-    print(f'Bounding Box:    {args.bbox}')
-    print(f'Model Image:    {args.model_image}')
-    print(f'Cloudmask Image:    {args.cloudmask_image}')
-    print(f'Initial Bands (model):    {args.bands_model}')
-    print(f'Low Res Image:    {args.low_res_image}')
-    print(f'High Res Image:    {args.high_res_image}')
-    print(f'Initial Bands (linear/hr data):    {args.bands_data}')
-    print(f'Model:    {args.model}')
-    print(f'Regression:    {args.regression}')
-    print(f'Output Directory: {args.outdir}')
-    print(f'Log: {args.logbool}')
-
-    # Initialize log file
-    os.system(f'mkdir -p {args.outdir}')  # create output dir
-    if args.logbool:  # if command line option -l was given
-        # logfile = create_logfile(args, logdir=args.outdir)
-        # TODO: make sure logging works without having to specify it
-        create_logfile(args, logdir=args.outdir)  # create logfile for std
-    print("Command line executed: ", sys.argv)  # saving command into log file
-
-    ##############################################
-    # Default configuration values
-    ##############################################
-    start_time = time.time()  # record start time
-
-    # Debug levels:  0-no debug, 2-visualization, 3-detailed diagnostics
-    debug_level = 0
-
-    # Toggle visualizations
-    # imagePlot = False
-    # histogramPlot = False
-    # scatterPlot = False
-    # fitPlot = False
-    imagePlot = True
-    histogramPlot = True
-    scatterPlot = True
-    fitPlot = True
-    override = False
-    regressionType = 'sklearn'
-
-    pl = PlotLib(debug_level, histogramPlot, scatterPlot, fitPlot)
-
-    # Temporary input - Need to pull from arg list
-    bandNamePairList = list([
-        ['blue_ccdc', 'BAND-B'],
-        ['green_ccdc', 'BAND-G'],
-        ['red_ccdc', 'BAND-R'],
-        ['nir_ccdc', 'BAND-N']])
-
-    if (debug_level >= 2):
-        print(sys.path)
-        print(osgeo.gdal.VersionInfo())
-
-    evhrdir = args.high_res_image
-    #    evhrdir = "/att/nobackup/gtamkin/dev/srlite/input/TOA_v2/Yukon_Delta/5-toas"
-    # evhrdir = "/att/nobackup/gtamkin/dev/srlite/input/TOA_v2/Senegal/5-toas"
-    # evhrdir = "/att/nobackup/gtamkin/dev/srlite/input/TOA_v2/Fairbanks/5-toas"
-    # evhrdir = "/att/nobackup/gtamkin/dev/srlite/input/TOA_v2/Siberia/5-toas"
-
-    ccdcdir = args.model_image
-    # ccdcdir = "/home/gtamkin/nobackup/dev/srlite/input/CCDC_v2"
-
-    cloudmaskdir = args.cloudmask_image
-
-    outpath = args.outdir
-    # outpath = "/att/nobackup/gtamkin/dev/srlite/output/big-batch/03012022/Yukon_Delta"
-    # outpath = "/att/nobackup/gtamkin/dev/srlite/output/big-batch/03012022/Senegal"
-    # outpath = "/att/nobackup/gtamkin/dev/srlite/output/big-batch/03012022/Fairbanks"
-    # outpath = "/att/nobackup/gtamkin/dev/srlite/output/big-batch/03012022/Siberia"
-    bandNamePairList2 = list(args.bands_model)
-    evhrPath = Path(evhrdir).glob("*.tif")
-    #    evhrPath = sorted(Path(evhrdir).glob("*.tif"))
-    for r_fn_evhr in evhrPath:
-        prefix = str(r_fn_evhr).rsplit("/", 1)
-        name = str(prefix[1]).split("-toa.tif", 1)
-        r_fn_ccdc = os.path.join(ccdcdir + '/' + name[0] + '-ccdc.tif')
-        r_fn_cloudmask = os.path.join(cloudmaskdir + '/' + name[0] + '-toa_pred.tif')
-        print('\n Processing files: ', r_fn_evhr, r_fn_ccdc, r_fn_cloudmask)
-
-        fn_list = [str(r_fn_ccdc), str(r_fn_evhr), str(r_fn_cloudmask)]
-
-        pl.trace('\nCCDC file=' + str(r_fn_ccdc))
-        if (debug_level >= 3):
-            getProjection(str(r_fn_ccdc), "CCDC Combo Plot", pl)
-
-        pl.trace('\nCloudmask file=' + str(r_fn_cloudmask))
-        if (debug_level >= 3):
-            getProjection(str(r_fn_cloudmask), "Cloudmask Combo Plot", pl)
-
-        pl.trace('\nEVHR file=' + str(r_fn_evhr))
-        if (debug_level >= 3):
-            getProjection(str(r_fn_evhr), "EVHR Combo Plot", pl)
-
-        bandPairIndicesList = validateBands(bandNamePairList, fn_list, pl)
-
-        warp_ds_list, warp_ma_list = getIntersection(fn_list)
-        pl.trace('\n CCDC shape=' + str(warp_ma_list[0].shape) +
-                 ' EVHR shape=' + str(warp_ma_list[1].shape))
-
-        pl.trace('\n Process Bands ....')
-        sr_prediction_list = processBands(warp_ds_list, bandPairIndicesList, fn_list,
-                                          bandNamePairList, override, pl)
-
-        pl.trace('\n Create Image....')
-        outputname = createImage(str(r_fn_evhr), len(bandPairIndicesList), sr_prediction_list, name[0],
-                                 bandNamePairList, outpath, pl)
-
-        # Use gdalwarp to create Cloud-optimized Geotiff (COG)
-        cogname = outputname.replace("-precog.tif", ".tif")
-        command = 'gdalwarp -of cog ' + outputname + ' ' + cogname
-        SystemCommand(command)
-        if os.path.exists(outputname):
-            os.remove(outputname)
-
-        print("\nElapsed Time: " + cogname + ': ',
-              (time.time() - start_time) / 60.0)  # time in min
-        break;
-
-    print("\nTotal Elapsed Time for: " + evhrdir + '/*.tif: ',
-          (time.time() - start_time) / 60.0)  # time in min
-
-    exit()
-    # --------------------------------------------------------------------------------
-    # 1) Get the CCDC raster and edit the input CCDC projection 
-    #   a.	get_ccdc(date, bounding_box) 
-    #   b.	edit_input(ccdc_image, relevant params to adjust) ← adjustment to specify nodata value
-    #       and correct projection definition 
-    # --------------------------------------------------------------------------------
-    # doi, high_res_image_bbox = raster_obj.extract_extents(args.high_res_image, args)
-    # raw_ccdc_image = raster_obj.get_ccdc_image(doi)
-    # edited_ccdc_image = raster_obj.edit_image(raw_ccdc_image,
-    #                                           nodata_value=raster_obj._targetNodata, # enforce no data value
-    #                                           srs=raster_obj._targetSRS, # override srs to enforce latitude corrections
-    #                                           xres=None,
-    #                                           yres=None)
-    # --------------------------------------------------------------------------------
-    # 2. Run EVHR to get 2m toa 
-    # --------------------------------------------------------------------------------
-    #   a.	extract bounding_box and date
-    #   b.	edit_input(evhr_image, relevant params to adjust) ← adjustment to specify nodata value 
-    # raw_evhr_image = raster_obj.get_evhr_image(doi)
-    # edited_evhr_image = raster_obj.warp_image(raw_evhr_image,
-    #                                            bbox=None,
-    #                                            nodata_value=None,
-    #                                            srs=raster_obj._targetSRS,
-    #                                            xres=raster_obj.model_xres,
-    #                                            yres = raster_obj.model_yres,
-    #                                            resampling= raster_obj._targetResampling,
-    #                                            overwrite=hasattr(args, 'force_overwrite'))
-
-    # 3) Warp, Model, Write output 
-    #       a.	warp_inputs(ccdc_image, evhr_image): 
-    #           import pygeotools
-    # fn_list = [edited_ccdc_image, edited_evhr_image]
-
-    #           # Warp CCDC and EVHR to bounding_box and 30m CCDC grid
-    #           ma_list = warplib.memwarp_multi_fn(fn_list evhr_image, extent='intersection', res=30,
-    #               t_srs=ccdc_image, r='cubic' 'average', return ma=True)
-
-
-#    fn_list, warp_ma_list = raster_obj.get_intersection(fn_list)
-#     raster_obj.coefficients = raster_obj.get_intersection(fn_list)
-
-# clip original ccdc based on intersection
-# intersected_evhr_image = fn_list[1]
-# doi2, bbox2 = raster_obj.extract_extents(intersected_evhr_image, args)
-# intersected_ccdc_image = raster_obj.warp_image(edited_ccdc_image,
-#                                           bbox=bbox2,
-#                                           nodata_value=None,
-#                                           srs=raster_obj._targetSRS,
-#                                           xres=raster_obj.model_xres,
-#                                           yres = raster_obj.model_yres,
-#                                           resampling= raster_obj._targetResampling,
-#                                           overwrite=hasattr(args, 'force_overwrite'))
-# fn_list[0] = intersected_ccdc_image
-
-#       b. Build model
-#           Model = some_regression_model(ma_list[0], ma_list[1])
-#    raster_obj.coefficients = raster_obj.build_stats_model(fn_list)
-#    raster_obj.coefficients = raster_obj.build_model(warp_ma_list)
-
-#       c. Apply model back to input EVHR
-#           out_sr = apply_model(model, evhr_image)
-# srliteFn = raster_obj.apply_model(
-#     raster_obj.high_res_image, raster_obj.coefficients, args)
-#    srliteFn = raster_obj.apply_model(raw_evhr_image, coefficients, args)
-
-#       d. Write out SR COG
-#           out_sr.to_file(“filename.tif”, type=’COG’)
-#
-# print("Elapsed Time: " + srliteFn + ': ',
-#       (time() - start_time) / 60.0)  # time in min
-
-
-def _processBands(warp_ds_list, bandPairIndicesList, fn_list, bandNamePairList, override, pl):
-    ########################################
-    # ### FOR EACH BAND PAIR,
-    # now, each input should have same exact dimensions, grid, projection. They ony differ in their values (CCDC is surface reflectance, EVHR is TOA reflectance)
-    ########################################
-    from sklearn.linear_model import HuberRegressor
-    pl.trace('bandPairIndicesList: ' + str(bandPairIndicesList))
-    numBandPairs = len(bandPairIndicesList)
-    warp_ma_masked_band_series = [numBandPairs]
-    sr_prediction_list = [numBandPairs]
-    # debug_level = 3
-
-    firstBand = True
-    # Apply range of -100 to 200 for Blue Band pixel mask and apply to each band (as per MC - 3/1/22 - for big batch)
-    evhrBandMaArrayThresholdMin = -100
-    evhrBandMaArrayThresholdMax = 10000
-#    evhrBandMaArrayThresholdMax = 2000
-    pl.trace(' evhrBandMaArrayThresholdMin = ' + str(evhrBandMaArrayThresholdMin))
-    pl.trace(' evhrBandMaArrayThresholdMax = ' + str(evhrBandMaArrayThresholdMax))
-
-    for bandPairIndex in range(0, numBandPairs - 1):
-
-        pl.trace('=>')
-        pl.trace('====================================================================================')
-        pl.trace('============== Start Processing Band #' + str(bandPairIndex + 1) + ' ===============')
-        pl.trace('====================================================================================')
-
-        # Retrieve band pair
-        bandPairIndices = bandPairIndicesList[bandPairIndex + 1]
-
-        # Get 30m CCDC Masked Arrays
-        ccdcBandMaArray = iolib.ds_getma(warp_ds_list[0], bandPairIndices[0])
-
-        # Get 30m Cloudmask Masked Arrays
-        cloudmaskBandMaArray = iolib.ds_getma(warp_ds_list[2], 1)
-
-        # Get 2m EVHR Masked Arrays
-        evhrBandMaArray = evhrBandMaArrayRaw = iolib.fn_getma(fn_list[1], bandPairIndices[1])
-
-        #  Create single mask for all bands based on Blue-band threshold values
-        #  Assumes Blue-band is first indice pair, so collect mask on 1st iteration only.
-        threshold = False
-        if (threshold == True):
-            if (firstBand == True):
-                ########################################
-                # Mask threshold values (e.g., (median - threshold) < range < (median + threshold)
-                #  prior to generating common mask to reduce outliers ++++++[as per MC - 02/07/2022]
-                ########################################
-                evhrBandMaArray = iolib.ds_getma(warp_ds_list[1], bandPairIndices[1])
-
-                # Logic below applies dynamic Min & Max threshold range based on Median
-                # evhrBandMaArrayMedian = np.ma.median(evhrBandMaArray)
-                # pl.trace(' evhrBandMaArrayMedian median =' + str(np.ma.median(evhrBandMaArrayMedian)))
-                # threshold = 500
-                # evhrBandMaArrayThresholdMin = evhrBandMaArrayMedian - threshold
-                # evhrBandMaArrayThresholdMax = evhrBandMaArrayMedian + threshold
-
-                # Apply upper bound to EVHR values in raw 2m arrayf
-                evhrBandMaThresholdMaxArray = \
-                    np.ma.masked_where(evhrBandMaArray > evhrBandMaArrayThresholdMax, evhrBandMaArray)
-
-                # Apply lower bound to EVHR values to modified 2m array above
-                evhrBandMaThresholdRangeArray = \
-                    np.ma.masked_where(evhrBandMaThresholdMaxArray < evhrBandMaArrayThresholdMin,
-                                       evhrBandMaThresholdMaxArray)
-                pl.trace(' evhrBandMaThresholdRangeArray median =' + str(np.ma.median(evhrBandMaThresholdRangeArray)))
-
-                evhrBandMaArray = evhrBandMaThresholdRangeArray
-                firstBand = False
-
-#        warp_ma_band_list = [ccdcBandMaArray, evhrBandMaArray, cloudmaskBandMaArray]
-
-        cloudmaskBandMaFilteredArray  = \
-            np.ma.masked_where(cloudmaskBandMaArray == 1, cloudmaskBandMaArray)
-        warp_ma_band_list = [ccdcBandMaArray, evhrBandMaArray, cloudmaskBandMaFilteredArray]
-
-        # Generate common mask
-        common_mask_band = malib.common_mask(warp_ma_band_list)
-
-        warp_ma_masked_band_list = [np.ma.array(ccdcBandMaArray, mask=common_mask_band),
-                                    np.ma.array(evhrBandMaArray, mask=common_mask_band)]
-
-        # Check the mins of each ma - they should be greater than <evhrBandMaArrayThresholdMin>
-        for j, ma in enumerate(warp_ma_masked_band_list):
-            j = j + 1
-            #            if (ma.min() < 0):
-            if (ma.min() < int(evhrBandMaArrayThresholdMin)):
-                pl.trace("Warning: Masked array values should be larger than " + str(evhrBandMaArrayThresholdMin))
-        #            exit(1)
-        pl.plot_maps(warp_ma_masked_band_list, fn_list, figsize=(10, 5),
-                     title=str(bandNamePairList[bandPairIndex]) + ' Reflectance (%)')
-        pl.plot_histograms(warp_ma_masked_band_list, fn_list, figsize=(10, 3),
-                           title=str(bandNamePairList[bandPairIndex]) + " BAND COMMON ARRAY")
-
-        warp_ma_masked_band_series.append(warp_ma_masked_band_list)
-
-        ########################################
-        # ### WARPED MASKED ARRAY WITH COMMON MASK, DATA VALUES ONLY
-        # CCDC SR is first element in list, which needs to be the y-var: b/c we are predicting SR from TOA ++++++++++[as per PM - 01/05/2022]
-        ########################################
-        ccdc_sr_band = warp_ma_masked_band_list[0].ravel()
-        evhr_toa_band = warp_ma_masked_band_list[1].ravel()
-
-        ccdc_sr_data_only_band = ccdc_sr_band[ccdc_sr_band.mask == False]
-        evhr_toa_data_only_band = evhr_toa_band[evhr_toa_band.mask == False]
-
-        model_data_only_band = HuberRegressor().fit(evhr_toa_data_only_band.reshape(-1, 1), ccdc_sr_data_only_band)
-        #    model_data_only_band = LinearRegression().fit(evhr_toa_data_only_band.reshape(-1, 1), ccdc_sr_data_only_band)
-        pl.trace(str(bandNamePairList[bandPairIndex]) + '= > intercept: ' + str(
-            model_data_only_band.intercept_) + ' slope: ' + str(model_data_only_band.coef_) + ' score: ' +
-                 str(model_data_only_band.score(evhr_toa_data_only_band.reshape(-1, 1), ccdc_sr_data_only_band)))
-        pl.plot_fit(evhr_toa_data_only_band, ccdc_sr_data_only_band, model_data_only_band.coef_[0],
-                    model_data_only_band.intercept_, override=override)
-
-        ########################################
-        # #### Apply the model to the original EVHR (2m) to predict surface reflectance
-        ########################################
-        pl.trace(f'Applying model to {str(bandNamePairList[bandPairIndex])} in file {os.path.basename(fn_list[1])}')
-        pl.trace(f'Input masked array shape: {evhrBandMaArray.shape}')
-
-        score = model_data_only_band.score(evhr_toa_data_only_band.reshape(-1, 1), ccdc_sr_data_only_band)
-        pl.trace(f'R2 score : {score}')
-        sr_prediction_band = model_data_only_band.predict(evhrBandMaArrayRaw.ravel().reshape(-1, 1))
-        pl.trace(f'Post-prediction shape : {sr_prediction_band.shape}')
-
-        # Return to original shape and apply original mask
-        orig_dims = evhrBandMaArrayRaw.shape
-        evhr_sr_ma_band = np.ma.array(sr_prediction_band.reshape(orig_dims), mask=evhrBandMaArrayRaw.mask)
-
-        # Check resulting ma
-        pl.trace(f'Final masked array shape: {evhr_sr_ma_band.shape}')
-        #    pl.trace('evhr_sr_ma=\n' + str(evhr_sr_ma_band))
-
-        ########### save prediction #############
-        sr_prediction_list.append(evhr_sr_ma_band)
-
-        ########################################
-        ##### Compare the before and after histograms (EVHR TOA vs EVHR SR)
-        ########################################
-        evhr_pre_post_ma_list = [evhrBandMaArrayRaw, evhr_sr_ma_band]
-        compare_name_list = ['EVHR TOA', 'EVHR SR-Lite']
-
-        pl.plot_histograms(evhr_pre_post_ma_list, fn_list, figsize=(5, 3),
-                           title=str(bandNamePairList[bandPairIndex]) + " EVHR TOA vs EVHR SR", override=override)
-        pl.plot_maps(evhr_pre_post_ma_list, compare_name_list, figsize=(10, 50), override=override)
-
-        ########################################
-        ##### Compare the original CCDC histogram with result (CCDC SR vs EVHR SR)
-        ########################################
-        #     ccdc_evhr_srlite_list = [ccdc_warp_ma, evhr_sr_ma_band]
-        #     compare_name_list = ['CCDC SR', 'EVHR SR-Lite']
-
-        #     pl.plot_histograms(ccdc_evhr_srlite_list, fn_list, figsize=(5, 3),
-        #                        title=str(bandNamePairList[bandPairIndex]) + " CCDC SR vs EVHR SR", override=override)
-        #     pl.plot_maps(ccdc_evhr_srlite_list, compare_name_list, figsize=(10, 50), override=override)
-
-        ########################################
-        ##### Compare the original EVHR TOA histogram with result (EVHR TOA vs EVHR SR)
-        ########################################
-        evhr_srlite_delta_list = [evhr_pre_post_ma_list[1], evhr_pre_post_ma_list[1] - evhr_pre_post_ma_list[0]]
-        compare_name_list = ['EVHR TOA', 'EVHR SR-Lite']
-        pl.plot_histograms(evhr_srlite_delta_list, fn_list, figsize=(5, 3),
-                           title=str(bandNamePairList[bandPairIndex]) + " EVHR TOA vs EVHR SR DELTA ",
-                           override=override)
-        pl.plot_maps([evhr_pre_post_ma_list[1],
-                      evhr_pre_post_ma_list[1] - evhr_pre_post_ma_list[0]],
-                     [compare_name_list[1],
-                      str(bandNamePairList[bandPairIndex]) + ' Difference: TOA-SR-Lite'], (10, 50),
-                     cmap_list=['RdYlGn', 'RdBu'], override=override)
-        print(f"\nFinished with {str(bandNamePairList[bandPairIndex])} Band")
-
-    return sr_prediction_list
 
 if __name__ == "__main__":
     main()
