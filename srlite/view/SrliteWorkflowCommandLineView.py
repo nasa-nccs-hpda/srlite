@@ -15,6 +15,7 @@ Portions Inspired by: Jordan A Caraballo-Vega, Science Data Processing Branch, C
 # --------------------------------------------------------------------------------
 import sys
 import os
+import ast
 from datetime import datetime  # tracking date
 import time  # tracking time
 import argparse  # system libraries
@@ -22,6 +23,7 @@ import numpy as np
 import rasterio
 from osgeo import gdal
 from srlite.model.PlotLib import PlotLib
+from srlite.model.Context import Context
 from pygeotools.lib import iolib, malib, geolib, filtlib, warplib
 import osgeo
 from osgeo import gdal
@@ -40,20 +42,6 @@ sys.path.append('/home/gtamkin/.local/lib/python3.9/site-packages')
 # methods
 # --------------------------------------------------------------------------------
 
-def create_logfile(args, logdir='results'):
-    """
-    :param args: argparser object
-    :param logdir: log directory to store log file
-    :return: logfile instance, stdour and stderr being logged to file
-    """
-    logfile = os.path.join(logdir, '{}_log_{}_model_{}_doi_{}.txt'.format(
-        datetime.now().strftime("%Y%m%d-%H%M%S"), args.model, args.regression, args.doi))
-    print('See ', logfile)
-    so = se = open(logfile, 'w')  # open our log file
-    sys.stdout = os.fdopen(sys.stdout.fileno(), 'w')  # stdout buffering
-    os.dup2(so.fileno(), sys.stdout.fileno())  # redirect to the log file
-    os.dup2(se.fileno(), sys.stderr.fileno())
-    return logfile
 
 
 def getBandIndices(fn_list, bandNamePair, pl):
@@ -490,81 +478,11 @@ def processBands(warp_ds_list, bandNamePairList, bandPairIndicesList, fn_list, r
 
     return sr_prediction_list
 
-# ## Set up inputs
-
-# In[8]:
-def getparser():
-    """
-    :return: argparser object with CLI commands.
-    """
-    parser = argparse.ArgumentParser()
-
-    parser.add_argument(
-        "-toa", "--input-toa-dir", type=str, required=True, dest='toa_dir',
-        default=None, help="Specify directory path containing TOA files."
-    )
-    parser.add_argument(
-        "-ccdc", "--input-ccdc-dir", type=str, required=False, dest='ccdc_dir',
-        default=None, help="Specify directory path containing CCDC files."
-    )
-    parser.add_argument(
-        "-cloudmask", "--input-cloudmask-dir", type=str, required=True, dest='cloudmask_dir',
-        default=None, help="Specify directory path containing Cloudmask files."
-    )
-    parser.add_argument(
-        "-bandpairs", "--input-list-of-band-pairs", type=str, required=False, dest='band_pairs_list',
-        default="[['blue_ccdc', 'BAND-B'], ['green_ccdc', 'BAND-G'], ['red_ccdc', 'BAND-R'], ['nir_ccdc', 'BAND-N']]",
-        help="Specify list of band pairs to be processed per scene."
-    )
-    parser.add_argument(
-        "-o", "--output-directory", type=str, required=False, dest='out_dir',
-        default="./", help="Specify output directory."
-    )
-    parser.add_argument(
-        "-fo", "--force-overwrite", required=False, dest='force_overwrite',
-        default=False, action='store_true', help="Force overwrite."
-    )
-    parser.add_argument(
-        "-l", "--log", required=False, dest='logbool',
-        action='store_true', help="Set logging."
-    )
-
-    parser.add_argument('--regressor',
-                        required=False,
-                        dest='regressor',
-                        default='robust',
-                        choices=['simple', 'robust'],
-                        help='Choose which regression algorithm to use')
-
-    return parser.parse_args()
-
-
 # --------------------------------------------------------------------------------
 # Main
 # --------------------------------------------------------------------------------
 def main():
 
-     # --------------------------------------------------------------------------------
-    # 0. Prepare for run - set log file for script if requested (-l command line option)
-    # --------------------------------------------------------------------------------
-#    start_time = time()  # record start time
-    args = getparser()  # initialize arguments parser
-
-    print('Initializing SRLite Regression script with the following parameters')
-    print(f'TOA Directory:    {args.toa_dir}')
-    print(f'CCDC Directory:    {args.ccdc_dir}')
-    print(f'Cloudmask Directory:    {args.cloudmask_dir}')
-    print(f'Band pairs:    {args.band_pairs_list}')
-    print(f'Regression:    {args.regressor}')
-    print(f'Output Directory: {args.out_dir}')
-    print(f'Log: {args.logbool}')
-
-    # Initialize log file
-    os.system(f'mkdir -p {args.out_dir}')  # create output dir
-    if args.logbool:  # if command line option -l was given
-        # logfile = create_logfile(args, logdir=args.outdir)
-        # TODO: make sure logging works without having to specify it
-        create_logfile(args, logdir=args.out_dir)  # create logfile for std
     print("Command line executed: ", sys.argv)  # saving command into log file
 
     ##############################################
@@ -572,8 +490,24 @@ def main():
     ##############################################
     start_time = time.time()  # record start time
 
+    # --------------------------------------------------------------------------------
+    # 0. Prepare for run - set log file for script if requested (-l command line option)
+    # --------------------------------------------------------------------------------
+    context = Context().getDict()
+    print('Initializing SRLite Regression script with the following parameters')
+    print(f'TOA Directory:    {context[Context.DIR_TOA]}')
+    print(f'CCDC Directory:    {context[Context.DIR_CCDC]}')
+    print(f'Cloudmask Directory:    {context[Context.DIR_CLOUDMASK]}')
+    print(f'Output Directory: {context[Context.DIR_OUTPUT]}')
+    print(f'Band pairs:    {context[Context.LIST_BAND_PAIRS]}')
+    print(f'Regression Model:    {context[Context.REGRESSION_MODEL]}')
+    print(f'Log: {context[Context.LOG_FLAG]}')
+
+    # create output dir
+    os.system(f'mkdir -p {context[Context.DIR_OUTPUT]}')
+
     # Debug levels:  0-no debug, 2-visualization, 3-detailed diagnostics
-    debug_level = 0
+    debug_level = int(context[Context.DEBUG_LEVEL])
 
     # Toggle visualizations
     # imagePlot = False
@@ -588,18 +522,18 @@ def main():
     regressionType = 'sklearn'
 
     pl = PlotLib(debug_level, histogramPlot, scatterPlot, fitPlot)
-    import ast
-    bandNamePairList = list(ast.literal_eval(args.band_pairs_list))
+    bandNamePairList = list(ast.literal_eval(context[Context.LIST_BAND_PAIRS]))
+
 
     if (debug_level >= 2):
         print(sys.path)
         print(osgeo.gdal.VersionInfo())
 
     # Retrieve paths
-    evhrdir = args.toa_dir
-    ccdcdir = args.ccdc_dir
-    cloudmaskdir = cloudmaskWarpdir = args.cloudmask_dir
-    outpath = args.out_dir
+    evhrdir = context[Context.DIR_TOA]
+    ccdcdir = context[Context.DIR_CCDC]
+    cloudmaskdir = cloudmaskWarpdir = context[Context.DIR_CLOUDMASK]
+    outpath = context[Context.DIR_OUTPUT]
 
     # for r_fn_evhr in sorted(Path(evhrdir).glob("*.tif")):
     for r_fn_evhr in (Path(evhrdir).glob("*.tif")):
