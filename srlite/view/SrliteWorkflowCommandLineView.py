@@ -17,7 +17,6 @@ import sys
 import os
 from datetime import datetime  # tracking date
 import time  # tracking time
-#from time import time  # tracking time
 import argparse  # system libraries
 import numpy as np
 import rasterio
@@ -56,81 +55,6 @@ def create_logfile(args, logdir='results'):
     os.dup2(se.fileno(), sys.stderr.fileno())
     return logfile
 
-
-def getparser():
-    """
-    :return: argparser object with CLI commands.
-    """
-    parser = argparse.ArgumentParser()
-
-    # General
-    parser.add_argument(
-        "-d", "--date", nargs=1, type=str, required=False, dest='doi',
-        default="2011-08-18",
-        help = "Specify date to perform regression (YYYY-MM-DD)."
-    )
-    parser.add_argument(
-        "-bb", "--bounding-box", nargs=4, type=int, required=False, dest='bbox',
-        default=None,
-        help = "Specify bounding box to perform regression."
-    )
-    parser.add_argument(
-        "-i-ccdc", "--input-model-image", type=str, required=False, dest='model_image',
-        default=None,
-        help="Specify model (e.g., CCDC) input image path and filename."
-    )
-
-    parser.add_argument(
-        "-i-cmask", "--input-cloudmask-image", type=str, required=False, dest='cloudmask_image',
-        default=None,
-        help="Specify cloudmask input image path and filename."
-    )
-    parser.add_argument(
-        '-b-m', '--bands-model', nargs='*', dest='bands_model',
-        default=['blue', 'green', 'redd', 'nir'], required=False, type=str,
-        help = 'Specify input model (e.g., CCDC) bands.'
-    )
-    parser.add_argument(
-        "-i-bpairs", "--input-list-of-band-pairs", type=str, required=False, dest='band_pair_list',
-        default="[['blue_ccdc', 'BAND-B'], ['green_ccdc', 'BAND-G'], ['red_ccdc', 'BAND-R'], ['nir_ccdc', 'BAND-N']]",
-        help="Specify list of band pairs to be processed per scene"
-    )
-    parser.add_argument(
-        "-i-lr", "--input-low-res-image", type=str, required=False, dest='low_res_image',
-        default=None,
-        help="Specify low-resolution input image path and filename."
-    )
-    parser.add_argument(
-        "-i-toa", "--input-high-res-image", type=str, required=True, dest='high_res_image',
-        default=None,
-        help="Specify high-resolution input image path and filename."
-    )
-    parser.add_argument(
-        '-b-d', '--bands-data', nargs='*', dest='bands_data', required=False, type=str,
-        default=['b1', 'b2ff', 'b3', 'b4'],
-        help='Specify input data (e.g., HR WV) bands.'
-    )
-    parser.add_argument(
-        "-m", "--model", type=str, required=False, dest='model',
-        default='ccdc', help="Specify model to run."
-    )
-    parser.add_argument(
-        "-r", "--regression", type=str, required=False, dest='regression',
-        default='linear-regression', help="Specify regression to run."
-    )
-    parser.add_argument(
-        "-o", "--out-directory", type=str, required=True, dest='outdir',
-        default="", help="Specify output directory."
-    )
-    parser.add_argument(
-        "-fo", "--force-overwrite", required=False, dest='force_overwrite',
-        default=False, action='store_true', help="Force overwrite."
-    )
-    parser.add_argument(
-        "-l", "--log", required=False, dest='logbool',
-        action='store_true', help="Set logging."
-    )
-    return parser.parse_args()
 
 def getBandIndices(fn_list, bandNamePair, pl):
     """
@@ -177,7 +101,6 @@ def getBandIndices(fn_list, bandNamePair, pl):
 
     ccdcDs = evhrDs = None
     return bandIndices
-
 
 def getProjection(r_fn, title, pl):
     r_ds = iolib.fn_getds(r_fn)
@@ -291,9 +214,9 @@ def getMetadata(band_num, input_file):
 
     try:
         srcband = src_ds.GetRasterBand(band_num)
-    except e:
+    except BaseException as err:
         print('No band %i found' % band_num)
-        print(e)
+        print(err)
         sys.exit(1)
 
     print("[ METADATA] = ", src_ds.GetMetadata())
@@ -563,13 +486,57 @@ def processBands(warp_ds_list, bandNamePairList, bandPairIndicesList, fn_list, r
                      [compare_name_list[1],
                       str(bandNamePairList[bandPairIndex]) + ' Difference: TOA-SR-Lite'], (10, 50),
                      cmap_list=['RdYlGn', 'RdBu'], override=override)
-        print(f"\nFinished with {str(bandNamePairList[bandPairIndex])} Band")
+        print(f"Finished with {str(bandNamePairList[bandPairIndex])} Band")
 
     return sr_prediction_list
 
 # ## Set up inputs
 
 # In[8]:
+def getparser():
+    """
+    :return: argparser object with CLI commands.
+    """
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument(
+        "-toa", "--input-toa-dir", type=str, required=True, dest='toa_dir',
+        default=None, help="Specify directory path containing TOA files."
+    )
+    parser.add_argument(
+        "-ccdc", "--input-ccdc-dir", type=str, required=False, dest='ccdc_dir',
+        default=None, help="Specify directory path containing CCDC files."
+    )
+    parser.add_argument(
+        "-cloudmask", "--input-cloudmask-dir", type=str, required=True, dest='cloudmask_dir',
+        default=None, help="Specify directory path containing Cloudmask files."
+    )
+    parser.add_argument(
+        "-bandpairs", "--input-list-of-band-pairs", type=str, required=False, dest='band_pairs_list',
+        default="[['blue_ccdc', 'BAND-B'], ['green_ccdc', 'BAND-G'], ['red_ccdc', 'BAND-R'], ['nir_ccdc', 'BAND-N']]",
+        help="Specify list of band pairs to be processed per scene."
+    )
+    parser.add_argument(
+        "-o", "--output-directory", type=str, required=False, dest='out_dir',
+        default="./", help="Specify output directory."
+    )
+    parser.add_argument(
+        "-fo", "--force-overwrite", required=False, dest='force_overwrite',
+        default=False, action='store_true', help="Force overwrite."
+    )
+    parser.add_argument(
+        "-l", "--log", required=False, dest='logbool',
+        action='store_true', help="Set logging."
+    )
+
+    parser.add_argument('--regressor',
+                        required=False,
+                        dest='regressor',
+                        default='robust',
+                        choices=['simple', 'robust'],
+                        help='Choose which regression algorithm to use')
+
+    return parser.parse_args()
 
 
 # --------------------------------------------------------------------------------
@@ -584,25 +551,20 @@ def main():
     args = getparser()  # initialize arguments parser
 
     print('Initializing SRLite Regression script with the following parameters')
-    print(f'Date: {args.doi}')
-    print(f'Bounding Box:    {args.bbox}')
-    print(f'Model Image:    {args.model_image}')
-    print(f'Cloudmask Image:    {args.cloudmask_image}')
-    print(f'Band pairs:    {args.band_pair_list}')
-    print(f'Low Res Image:    {args.low_res_image}')
-    print(f'High Res Image:    {args.high_res_image}')
-    print(f'Initial Bands (linear/hr data):    {args.bands_data}')
-    print(f'Model:    {args.model}')
-    print(f'Regression:    {args.regression}')
-    print(f'Output Directory: {args.outdir}')
+    print(f'TOA Directory:    {args.toa_dir}')
+    print(f'CCDC Directory:    {args.ccdc_dir}')
+    print(f'Cloudmask Directory:    {args.cloudmask_dir}')
+    print(f'Band pairs:    {args.band_pairs_list}')
+    print(f'Regression:    {args.regressor}')
+    print(f'Output Directory: {args.out_dir}')
     print(f'Log: {args.logbool}')
 
     # Initialize log file
-    os.system(f'mkdir -p {args.outdir}')  # create output dir
+    os.system(f'mkdir -p {args.out_dir}')  # create output dir
     if args.logbool:  # if command line option -l was given
         # logfile = create_logfile(args, logdir=args.outdir)
         # TODO: make sure logging works without having to specify it
-        create_logfile(args, logdir=args.outdir)  # create logfile for std
+        create_logfile(args, logdir=args.out_dir)  # create logfile for std
     print("Command line executed: ", sys.argv)  # saving command into log file
 
     ##############################################
@@ -627,50 +589,17 @@ def main():
 
     pl = PlotLib(debug_level, histogramPlot, scatterPlot, fitPlot)
     import ast
-    bandNamePairList = list(ast.literal_eval(args.band_pair_list))
-    # Temporary input - Need to pull from arg list
-    #bandNamePairList = list([
-    _bandNamePairList = list([
-        ['blue_ccdc', 'BAND-B'],
-        ['green_ccdc', 'BAND-G'],
-        ['red_ccdc', 'BAND-R'],
-        ['nir_ccdc', 'BAND-N']])
-
-    rawStr = str("[['blue_ccdc', 'BAND-B'], ['green_ccdc', 'BAND-G'], ['red_ccdc', 'BAND-R'], ['nir_ccdc', 'BAND-N']]")
-    import json
-    temp = list("[['blue_ccdc', 'BAND-B'], ['green_ccdc', 'BAND-G'], ['red_ccdc', 'BAND-R'], ['nir_ccdc', 'BAND-N']]")
-#    jtemp = json.loads(temp)
-#    jtemp2 = json.loads(str("[['blue_ccdc', 'BAND-B'], ['green_ccdc', 'BAND-G'], ['red_ccdc', 'BAND-R'], ['nir_ccdc', 'BAND-N']]"))
-    import ast
-    rawAstStr = ast.literal_eval(rawStr)
-    print (rawAstStr)
-    rawStrList = list(rawAstStr)
-    print(rawStrList)
-
-
-    ast.literal_eval('[[0,0,0], [0,0,1], [1,1,0]]')
+    bandNamePairList = list(ast.literal_eval(args.band_pairs_list))
 
     if (debug_level >= 2):
         print(sys.path)
         print(osgeo.gdal.VersionInfo())
 
-    evhrdir = args.high_res_image
-#    evhrdir = "/att/nobackup/gtamkin/dev/srlite/input/TOA_v2/Yukon_Delta/5-toas"
-    # evhrdir = "/att/nobackup/gtamkin/dev/srlite/input/TOA_v2/Senegal/5-toas"
-    # evhrdir = "/att/nobackup/gtamkin/dev/srlite/input/TOA_v2/Fairbanks/5-toas"
-    # evhrdir = "/att/nobackup/gtamkin/dev/srlite/input/TOA_v2/Siberia/5-toas"
-
-    ccdcdir = args.model_image
-    #ccdcdir = "/home/gtamkin/nobackup/dev/srlite/input/CCDC_v2"
-
-    cloudmaskdir = cloudmaskWarpdir = args.cloudmask_image
-
-    outpath = args.outdir
-    # outpath = "/att/nobackup/gtamkin/dev/srlite/output/big-batch/03012022/Yukon_Delta"
-    # outpath = "/att/nobackup/gtamkin/dev/srlite/output/big-batch/03012022/Senegal"
-    # outpath = "/att/nobackup/gtamkin/dev/srlite/output/big-batch/03012022/Fairbanks"
-    # outpath = "/att/nobackup/gtamkin/dev/srlite/output/big-batch/03012022/Siberia"
-    bandNamePairList2 = list(args.bands_model)
+    # Retrieve paths
+    evhrdir = args.toa_dir
+    ccdcdir = args.ccdc_dir
+    cloudmaskdir = cloudmaskWarpdir = args.cloudmask_dir
+    outpath = args.out_dir
 
     # for r_fn_evhr in sorted(Path(evhrdir).glob("*.tif")):
     for r_fn_evhr in (Path(evhrdir).glob("*.tif")):
