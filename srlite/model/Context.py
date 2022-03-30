@@ -6,9 +6,9 @@ import argparse  # system libraries
 from datetime import datetime
 
 # -----------------------------------------------------------------------------
-# class PlotLib
+# class Context
 #
-# This class provides plotting functions (e.g., scatter, histogram, maps).
+# This class is a serializable context for orchestration.
 # -----------------------------------------------------------------------------
 class Context(object):
 
@@ -46,6 +46,9 @@ class Context(object):
             if not bool(self.context_dict[Context.LOG_FLAG]):
                 self._create_logfile(self.context_dict[Context.REGRESSION_MODEL],
                                        logdir=self.context_dict[Context.DIR_OUTPUT])
+            if (int(self.context_dict[Context.DEBUG_LEVEL]) >= 1):
+                    print(sys.path)
+
         except BaseException as err:
             print('Missing or invalid argument: ', args)
             print(err)
