@@ -9,8 +9,6 @@ from pygeotools.lib import malib
 
 import rasterio
 from rasterio.plot import show
-from rasterio.plot import show_hist
-from matplotlib import pyplot
 
 # -----------------------------------------------------------------------------
 # class PlotLib
@@ -27,7 +25,6 @@ class PlotLib(object):
         self._histogramPlot = histogramPlot
         self._scatterPlot = scatterPlot
         self._fitPlot = fitPlot
-
         return
 
     # -------------------------------------------------------------------------
