@@ -22,7 +22,11 @@ class Context(object):
     REGRESSOR_ROBUST = 'robust'
     REGRESSION_MODEL = REGRESSOR_ROBUST
 
+    DEBUG_NONE_VALUE = 0
+    DEBUG_TRACE_VALUE = 1
+    DEBUG_VIZ_VALUE = 2
     DEBUG_LEVEL = 'debug_level'
+
     LOG_FLAG = 'log_flag'
 
     context_dict = {}

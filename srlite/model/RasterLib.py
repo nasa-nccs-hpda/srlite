@@ -84,30 +84,27 @@ class RasterLib(object):
 
     def getProjection(self, r_fn, title):
         r_ds = iolib.fn_getds(r_fn)
-        print(r_ds.GetProjection())
-        print("Driver: {}/{}".format(r_ds.GetDriver().ShortName,
-                                     r_ds.GetDriver().LongName))
-        print("Size is {} x {} x {}".format(r_ds.RasterXSize,
-                                            r_ds.RasterYSize,
-                                            r_ds.RasterCount))
-        print("Projection is {}".format(r_ds.GetProjection()))
-        geotransform = r_ds.GetGeoTransform()
-        if geotransform:
-            print("Origin = ({}, {})".format(geotransform[0], geotransform[3]))
-            print("Pixel Size = ({}, {})".format(geotransform[1], geotransform[5]))
+        if (self._debug_level >= 1):
+            print(r_ds.GetProjection())
+            print("Driver: {}/{}".format(r_ds.GetDriver().ShortName,
+                                         r_ds.GetDriver().LongName))
+            print("Size is {} x {} x {}".format(r_ds.RasterXSize,
+                                                r_ds.RasterYSize,
+                                                r_ds.RasterCount))
+            print("Projection is {}".format(r_ds.GetProjection()))
+            geotransform = r_ds.GetGeoTransform()
+            if geotransform:
+                print("Origin = ({}, {})".format(geotransform[0], geotransform[3]))
+                print("Pixel Size = ({}, {})".format(geotransform[1], geotransform[5]))
 
-        # if (debug_level >= 2):
-        #     r_fn_data = xr.open_rasterio(r_ds, chunks=data_chunks)
-        #     print(r_fn_data)
-
-        self._plot_lib.plot_combo(r_fn, figsize=(14, 7), title=title)
+        if (self._debug_level >= 2):
+            self._plot_lib.plot_combo(r_fn, figsize=(14, 7), title=title)
 
     def validateBands(self, bandNamePairList, fn_list):
         ########################################
         # Validate Band Pairs and Retrieve Corresponding Array Indices
         ########################################
         self._plot_lib.trace('bandNamePairList=' + str(bandNamePairList))
-        #    fn_full_list = [r_fn_ccdc, r_fn_evhr]
         bandPairIndicesList = self.getBandIndices(fn_list, bandNamePairList)
         self._plot_lib.trace('bandIndices=' + str(bandPairIndicesList))
         return bandPairIndicesList
@@ -125,14 +122,14 @@ class RasterLib(object):
         ########################################
         # Create .tif image from band-based prediction layers
         ########################################
-        self._plot_lib.trace(f"\nApplot_liby coefficients to High Res File...{r_fn_evhr}")
+        self._plot_lib.trace(f"\nAppy coefficients to High Res File...{r_fn_evhr}")
 
         now = datetime.now()  # current date and time
-        nowStr = now.strftime("%m%d%H%M")
+#        nowStr = now.strftime("%m%d%H%M")
 
         #  Derive file names for intermediate files
         head, tail = os.path.split(r_fn_evhr)
-        filename = (tail.rsplit(".", 1)[0])
+#        filename = (tail.rsplit(".", 1)[0])
         output_name = "{}/{}".format(
             outdir, name
         ) + "_sr_02m-precog.tif"
@@ -234,7 +231,8 @@ class RasterLib(object):
     def warp(self, in_raster, outraster, dstSRS, outputType, xRes, yRes, extent):
         from osgeo import gdal
         ds = gdal.Warp(in_raster, outraster,
-                       dstSRS=dstSRS, outputType=outputType, xRes=yRes, yRes=yRes, outputBounds=extent)
+                       dstSRS=dstSRS, outputType=outputType,
+                       xRes=xRes, yRes=yRes, outputBounds=extent)
         ds = None
         return outraster
 
@@ -254,7 +252,7 @@ class RasterLib(object):
         # Mask threshold values (e.g., (median - threshold) < range < (median + threshold)
         #  prior to generating common mask to reduce outliers ++++++[as per MC - 02/07/2022]
         ########################################
-        self._plot_lib.trace('======== Appying threshold algorithm to first EVHR Band (Assume Blue) ========================')
+        self._plot_lib.trace('======== Applying threshold algorithm to first EVHR Band (Assume Blue) ========================')
         bandMaThresholdMaxArray = np.ma.masked_where(bandMaArray > max, bandMaArray)
         bandMaThresholdRangeArray = np.ma.masked_where(bandMaThresholdMaxArray < min, bandMaThresholdMaxArray)
         self._plot_lib.trace(' threshold range median =' + str(np.ma.median(bandMaThresholdRangeArray)))

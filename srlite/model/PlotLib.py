@@ -33,7 +33,7 @@ class PlotLib(object):
     # Print trace debug (cus
     # -------------------------------------------------------------------------
     def trace(self, value, override=False):
-        if ((self._debugLevel >= 3) or override == True):
+        if ((self._debugLevel > 0) or override == True):
             print(value)
 
     # -------------------------------------------------------------------------
