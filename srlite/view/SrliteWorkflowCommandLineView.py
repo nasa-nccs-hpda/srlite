@@ -18,13 +18,14 @@ import os
 import ast
 import time  # tracking time
 import numpy as np
-from pygeotools.lib import iolib, malib, geolib, filtlib, warplib
+from pygeotools.lib import iolib, malib
 from core.model.SystemCommand import SystemCommand
 from pathlib import Path
 
 from srlite.model.PlotLib import PlotLib
 from srlite.model.Context import Context
 from srlite.model.RasterLib import RasterLib
+from sklearn.linear_model import HuberRegressor, LinearRegression
 
 ########################################
 # Point to local pygeotools (not in ilab-kernel by default)
@@ -38,7 +39,9 @@ sys.path.append('/adapt/nobackup/people/gtamkin/dev/srlite/src')
 # methods
 # --------------------------------------------------------------------------------
 
-def processBands(warp_ds_list, bandNamePairList, bandPairIndicesList, fn_list, r_fn_cloudmask_warp, 
+def processBands(context, warp_ds_list, bandNamePairList,
+                 bandPairIndicesList, fn_list,
+                 r_fn_cloudmask_warp,
                  override, plotLib, rasterLib):
 
     import numpy.ma as ma
@@ -50,12 +53,10 @@ def processBands(warp_ds_list, bandNamePairList, bandPairIndicesList, fn_list, r
     # ### PREPARE CLOUDMASK
     # After retrieving the masked array from the warped cloudmask, further reduce it by suppressing the one ("1") value pixels
     ########################################
-    from sklearn.linear_model import HuberRegressor
     plotLib.trace('bandPairIndicesList: ' + str(bandPairIndicesList))
     numBandPairs = len(bandPairIndicesList)
     warp_ma_masked_band_series = [numBandPairs]
     sr_prediction_list = [numBandPairs]
-    # debug_level = 3
 
     #  Get Masked array from warped Cloudmask - assumes only 1 band in mask to be applied to all
     cloudmaskWarpExternalBandMaArray = iolib.fn_getma(r_fn_cloudmask_warp, 1)
@@ -177,8 +178,12 @@ def processBands(warp_ds_list, bandNamePairList, bandPairIndicesList, fn_list, r
         ccdc_sr_data_only_band = ccdc_sr_band[ccdc_sr_band.mask == False]
         evhr_toa_data_only_band = evhr_toa_band[evhr_toa_band.mask == False]
 
-        model_data_only_band = HuberRegressor().fit(evhr_toa_data_only_band.reshape(-1, 1), ccdc_sr_data_only_band)
-        #        model_data_only_band = LinearRegression().fit(evhr_toa_data_only_band.reshape(-1, 1), ccdc_sr_data_only_band)
+        # Perform regression fit based on model type
+        if (context[Context.REGRESSION_MODEL] == Context.REGRESSOR_ROBUST):
+            model_data_only_band = HuberRegressor().fit(evhr_toa_data_only_band.reshape(-1, 1), ccdc_sr_data_only_band)
+        else:
+            model_data_only_band = LinearRegression().fit(evhr_toa_data_only_band.reshape(-1, 1), ccdc_sr_data_only_band)
+
         plotLib.trace(str(bandNamePairList[bandPairIndex]) + '= > intercept: ' + str(
             model_data_only_band.intercept_) + ' slope: ' + str(model_data_only_band.coef_) + ' score: ' +
                  str(model_data_only_band.score(evhr_toa_data_only_band.reshape(-1, 1), ccdc_sr_data_only_band)))
@@ -252,21 +257,12 @@ def processBands(warp_ds_list, bandNamePairList, bandPairIndicesList, fn_list, r
 # --------------------------------------------------------------------------------
 def main():
 
-    start_time = time.time()  # record start time
-    print("Command line executed: ", sys.argv)
-
     ##############################################
     # Default configuration values
     ##############################################
+    start_time = time.time()  # record start time
+    print(f'Command line executed:    {sys.argv}')
     context = Context().getDict()
-    print('Initializing SRLite Regression script with the following parameters')
-    print(f'TOA Directory:    {context[Context.DIR_TOA]}')
-    print(f'CCDC Directory:    {context[Context.DIR_CCDC]}')
-    print(f'Cloudmask Directory:    {context[Context.DIR_CLOUDMASK]}')
-    print(f'Output Directory: {context[Context.DIR_OUTPUT]}')
-    print(f'Band pairs:    {context[Context.LIST_BAND_PAIRS]}')
-    print(f'Regression Model:    {context[Context.REGRESSION_MODEL]}')
-    print(f'Log: {context[Context.LOG_FLAG]}')
 
     # Debug levels:  0-no debug, 1-trace, 2-visualization, 3-detailed diagnostics
     debug_level = int(context[Context.DEBUG_LEVEL])
@@ -278,6 +274,15 @@ def main():
         histogramPlot = scatterPlot = fitPlot = override = True
     plotLib = PlotLib(debug_level, histogramPlot, scatterPlot, fitPlot)
     rasterLib = RasterLib(debug_level, plotLib)
+
+    plotLib.trace(f'Initializing SRLite Regression script with the following parameters')
+    plotLib.trace(f'TOA Directory:    {context[Context.DIR_TOA]}')
+    plotLib.trace(f'CCDC Directory:    {context[Context.DIR_CCDC]}')
+    plotLib.trace(f'Cloudmask Directory:    {context[Context.DIR_CLOUDMASK]}')
+    plotLib.trace(f'Output Directory: {context[Context.DIR_OUTPUT]}')
+    plotLib.trace(f'Band pairs:    {context[Context.LIST_BAND_PAIRS]}')
+    plotLib.trace(f'Regression Model:    {context[Context.REGRESSION_MODEL]}')
+    plotLib.trace(f'Log: {context[Context.LOG_FLAG]}')
 
     # Retrieve and prepare paths
     evhrdir = context[Context.DIR_TOA]
@@ -296,7 +301,7 @@ def main():
          r_fn_cloudmask = os.path.join(cloudmaskdir + '/' + name[0] + '-toa_pred.tif')
          r_fn_cloudmaskWarp = os.path.join(cloudmaskWarpdir + '/' + name[0] + '-toa_pred_warp.tif')
 
-         print('\n Processing files: ', r_fn_evhr, r_fn_ccdc, r_fn_cloudmask)
+         plotLib.trace(f'Processing files: {r_fn_evhr, r_fn_ccdc, r_fn_cloudmask}')
 
          # Get attributes of raw EVHR tif and create plot - assumes same root name suffixed by "-toa.tif")
          plotLib.trace('\nEVHR file=' + str(r_fn_evhr))
@@ -323,14 +328,12 @@ def main():
 
          # Get the common pixel intersection values of the EVHR & CCDC files
          warp_ds_list, warp_ma_list = rasterLib.getIntersection(fn_list)
-         #    ccdc_warp_ma = warp_ma_list[0]
-         #    evhr_warp_ma = warp_ma_list[1]
 
-         plotLib.trace('\n CCDC shape=' + str(warp_ma_list[0].shape) + ' EVHR shape=' + 
+         plotLib.trace('\n CCDC shape=' + str(warp_ma_list[0].shape) + ' EVHR shape=' +
                        str(warp_ma_list[1].shape))
 
          plotLib.trace('\n Process Bands ....')
-         sr_prediction_list = processBands(warp_ds_list, bandNamePairList, bandPairIndicesList,
+         sr_prediction_list = processBands(context, warp_ds_list, bandNamePairList, bandPairIndicesList,
                                            fn_list, r_fn_cloudmaskWarp, override, plotLib, rasterLib)
 
          plotLib.trace('\n Create Image....')

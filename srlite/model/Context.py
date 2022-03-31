@@ -47,15 +47,14 @@ class Context(object):
             self.context_dict[Context.REGRESSION_MODEL]  = str(args.regressor)
             self.context_dict[Context.DEBUG_LEVEL]  = str(args.debug_level)
             self.context_dict[Context.LOG_FLAG]  = str(args.logbool)
-            if not bool(self.context_dict[Context.LOG_FLAG]):
+            if eval(self.context_dict[Context.LOG_FLAG]):
                 self._create_logfile(self.context_dict[Context.REGRESSION_MODEL],
-                                       logdir=self.context_dict[Context.DIR_OUTPUT])
-            if (int(self.context_dict[Context.DEBUG_LEVEL]) >= 1):
+                                     self.context_dict[Context.DIR_OUTPUT])
+            if (int(self.context_dict[Context.DEBUG_LEVEL]) >= int(self.DEBUG_TRACE_VALUE)):
                     print(sys.path)
 
         except BaseException as err:
-            print('Missing or invalid argument: ', args)
-            print(err)
+            print('Check arguments: ', err)
             sys.exit(1)
 
         return
@@ -97,7 +96,7 @@ class Context(object):
             default=0, help="Specify debug level [0,1,2,3]"
         )
         parser.add_argument(
-            "-l", "--log", required=False, dest='logbool',
+            "--log", "--log", required=False, dest='logbool',
             action='store_true', help="Set logging."
         )
         parser.add_argument('--regressor',
@@ -122,7 +121,7 @@ class Context(object):
     #
     # Print trace debug (cus
     # -------------------------------------------------------------------------
-    def _create_logfile(model, logdir='results'):
+    def _create_logfile(self, model, logdir='results'):
         """
         :param args: argparser object
         :param logdir: log directory to store log file
