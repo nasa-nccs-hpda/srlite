@@ -69,7 +69,7 @@ def processBands(context, warp_ds_list, bandNamePairList,
     plotLib.trace(
         f'cloudmaskWarpExternalBandMaArray total count (masked + non-masked)=' + str(count_masked + count_non_masked))
     plotLib.trace(f'cloudmaskWarpExternalBandMaArray max=' + str(cloudmaskWarpExternalBandMaArray.max()))
-    plotLib.plot_combo(cloudmaskWarpExternalBandMaArray, figsize=(14, 7), title='cloudmaskWarpExternalBandMaArray')
+    plotLib.plot_combo_array(cloudmaskWarpExternalBandMaArray, figsize=(14, 7), title='cloudmaskWarpExternalBandMaArray')
 
     # Create a mask where the pixel values equal to 'one' are suppressed because these correspond to clouds
     plotLib.trace(f'\nAfter Mask == 1.0 (sum should be 0 since all ones are masked -> cloudmaskWarpExternalBandMaArray')
@@ -84,7 +84,7 @@ def processBands(context, warp_ds_list, bandNamePairList,
     plotLib.trace(f'cloudmaskWarpExternalBandMaArrayMasked total count (masked + non-masked)=' + str(
         count_masked + count_non_masked))
     plotLib.trace(f'cloudmaskWarpExternalBandMaArrayMasked max=' + str(cloudmaskWarpExternalBandMaArrayMasked.max()))
-    plotLib.plot_combo(cloudmaskWarpExternalBandMaArrayMasked, figsize=(14, 7),
+    plotLib.plot_combo_array(cloudmaskWarpExternalBandMaArrayMasked, figsize=(14, 7),
                   title='cloudmaskWarpExternalBandMaArrayMasked')
 
     #         # Get Cloud mask (assumes 1 band per scene)

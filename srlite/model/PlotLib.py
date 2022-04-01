@@ -157,9 +157,23 @@ class PlotLib(object):
         """
         from rasterio.plot import show_hist
         from matplotlib import pyplot
+        imageSrc = rasterio.open(fname)
         if (self._debug_level >= 2):
-            imageSrc = rasterio.open(fname)
+            self.plot_combo_array(imageSrc, figsize, title)
+
+    def plot_combo_array(self, imageSrc, figsize=(10, 3),
+                        title="WARPED MASKED ARRAY"):
+        """
+
+        :param masked_array_list:
+        :param fn_list:
+        :param figsize:
+        :param title:
+        """
+        from rasterio.plot import show_hist
+        from matplotlib import pyplot
+        if (self._debug_level >= 2):
             fig, (axrgb, axhist) = pyplot.subplots(1, 2, figsize=figsize)
             show(imageSrc, ax=axrgb)
-            show_hist(imageSrc, bins=50, histtype='stepfilled',lw=0.0, stacked=False, alpha=0.3, ax=axhist)
+            show_hist(imageSrc, bins=50, histtype='stepfilled',lw=0.0, stacked=False, alpha=0.3, ax=axhist, title=title)
             pyplot.show()
