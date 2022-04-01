@@ -261,7 +261,7 @@ def main():
     start_time = time.time()  # record start time
     print(f'Command line executed:    {sys.argv}')
 
-    # initialize context
+    # Initialize context
     contextClazz = Context()
     context = contextClazz.getDict()
 

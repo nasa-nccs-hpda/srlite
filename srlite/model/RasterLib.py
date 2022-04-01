@@ -29,10 +29,9 @@ class RasterLib(object):
 
         try:
             if (self._debug_level >= 1):
-                 print(osgeo.gdal.VersionInfo())
+                 self._plot_lib.trace(f'GDAL version: {osgeo.gdal.VersionInfo()}')
         except BaseException as err:
-            print('ERROR - check gdal version: ')
-            print(err)
+            print('ERROR - check gdal version: ',err)
             sys.exit(1)
         return
 
@@ -74,7 +73,7 @@ class RasterLib(object):
 
             if ((ccdcBandIndex == -1) or (evhrBandIndex == -1)):
                 ccdcDs = evhrDs = None
-                print(f"Invalid band pairs - verify correct name and case {currentBandPair}")
+                self._plot_lib.trace(f"Invalid band pairs - verify correct name and case {currentBandPair}")
                 exit(1)
 
             bandIndices.append([ccdcIndex, evhrIndex])
@@ -85,17 +84,17 @@ class RasterLib(object):
     def getProjection(self, r_fn, title):
         r_ds = iolib.fn_getds(r_fn)
         if (self._debug_level >= 1):
-            print(r_ds.GetProjection())
-            print("Driver: {}/{}".format(r_ds.GetDriver().ShortName,
+            self._plot_lib.trace(r_ds.GetProjection())
+            self._plot_lib.trace("Driver: {}/{}".format(r_ds.GetDriver().ShortName,
                                          r_ds.GetDriver().LongName))
-            print("Size is {} x {} x {}".format(r_ds.RasterXSize,
+            self._plot_lib.trace("Size is {} x {} x {}".format(r_ds.RasterXSize,
                                                 r_ds.RasterYSize,
                                                 r_ds.RasterCount))
-            print("Projection is {}".format(r_ds.GetProjection()))
+            self._plot_lib.trace("Projection is {}".format(r_ds.GetProjection()))
             geotransform = r_ds.GetGeoTransform()
             if geotransform:
-                print("Origin = ({}, {})".format(geotransform[0], geotransform[3]))
-                print("Pixel Size = ({}, {})".format(geotransform[1], geotransform[5]))
+                self._plot_lib.trace("Origin = ({}, {})".format(geotransform[0], geotransform[3]))
+                self._plot_lib.trace("Pixel Size = ({}, {})".format(geotransform[1], geotransform[5]))
 
         if (self._debug_level >= 2):
             self._plot_lib.plot_combo(r_fn, figsize=(14, 7), title=title)
@@ -160,13 +159,13 @@ class RasterLib(object):
         from osgeo import gdal, osr
         ds = gdal.Open(in_raster)
         prj = ds.GetProjection()
-        print(prj)
+        self._plot_lib.trace(prj)
 
         srs = osr.SpatialReference(wkt=prj)
-        print('srs=', srs)
+        self._plot_lib.trace('srs=', srs)
         if srs.IsProjected:
-            print(srs.GetAttrValue('projcs'))
-        print(srs.GetAttrValue('geogcs'))
+            self._plot_lib.trace(srs.GetAttrValue('projcs'))
+        self._plot_lib.trace(srs.GetAttrValue('geogcs'))
         return prj, srs
 
     def getExtents(self, in_raster):
@@ -195,36 +194,36 @@ class RasterLib(object):
             print(err)
             sys.exit(1)
 
-        print("[ METADATA] = ", src_ds.GetMetadata())
+        self._plot_lib.trace("[ METADATA] = ", src_ds.GetMetadata())
 
         stats = srcband.GetStatistics(True, True)
-        print("[ STATS ] = Minimum=%.3f, Maximum=%.3f, Mean=%.3f, StdDev=%.3f", stats[0], stats[1], stats[2], stats[3])
+        self._plot_lib.trace("[ STATS ] = Minimum=%.3f, Maximum=%.3f, Mean=%.3f, StdDev=%.3f", stats[0], stats[1], stats[2], stats[3])
 
         # source_layer = srcband.GetLayer()
         # x_min, x_max, y_min, y_max = source_layer.GetExtent()
         # print ("[ EXTENTS] = ", x_min, x_max, y_min, y_max )
 
-        print("[ NO DATA VALUE ] = ", srcband.GetNoDataValue())
-        print("[ MIN ] = ", srcband.GetMinimum())
-        print("[ MAX ] = ", srcband.GetMaximum())
-        print("[ SCALE ] = ", srcband.GetScale())
-        print("[ UNIT TYPE ] = ", srcband.GetUnitType())
+        self._plot_lib.trace("[ NO DATA VALUE ] = ", srcband.GetNoDataValue())
+        self._plot_lib.trace("[ MIN ] = ", srcband.GetMinimum())
+        self._plot_lib.trace("[ MAX ] = ", srcband.GetMaximum())
+        self._plot_lib.trace("[ SCALE ] = ", srcband.GetScale())
+        self._plot_lib.trace("[ UNIT TYPE ] = ", srcband.GetUnitType())
         ctable = srcband.GetColorTable()
 
         if ctable is None:
-            print('No ColorTable found')
+            self._plot_lib.trace('No ColorTable found')
             # sys.exit(1)
         else:
-            print("[ COLOR TABLE COUNT ] = ", ctable.GetCount())
+            self._plot_lib.trace("[ COLOR TABLE COUNT ] = ", ctable.GetCount())
             for i in range(0, ctable.GetCount()):
                 entry = ctable.GetColorEntry(i)
                 if not entry:
                     continue
-                print("[ COLOR ENTRY RGB ] = ", ctable.GetColorEntryAsRGB(i, entry))
+                self._plot_lib.trace("[ COLOR ENTRY RGB ] = ", ctable.GetColorEntryAsRGB(i, entry))
 
         outputType = gdal.GetDataTypeName(srcband.DataType)
 
-        print(outputType)
+        self._plot_lib.trace(outputType)
 
         return srcband.DataType
 
@@ -242,7 +241,7 @@ class RasterLib(object):
             outputType = self.getMetadata(1, str(targetAttributesFile))
             new_projection, new_srs = self.getProjSrs(targetAttributesFile)
             extent = self.getExtents(targetAttributesFile)
-            print(extent)
+            self._plot_lib.trace(extent)
             outFile = self.warp(outFile, inFile, dstSRS=new_srs, outputType=outputType, xRes=xRes, yRes=yRes, extent=extent)
             ds = None
         return outFile
