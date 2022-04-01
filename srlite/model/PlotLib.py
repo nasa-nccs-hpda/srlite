@@ -20,11 +20,8 @@ class PlotLib(object):
     # -------------------------------------------------------------------------
     # __init__
     # -------------------------------------------------------------------------
-    def __init__(self, debugLevel, histogramPlot, scatterPlot, fitPlot):
-        self._debugLevel = debugLevel
-        self._histogramPlot = histogramPlot
-        self._scatterPlot = scatterPlot
-        self._fitPlot = fitPlot
+    def __init__(self, debug_level):
+        self._debug_level = debug_level
         return
 
     # -------------------------------------------------------------------------
@@ -32,8 +29,8 @@ class PlotLib(object):
     #
     # Print trace debug (cus
     # -------------------------------------------------------------------------
-    def trace(self, value, override=False):
-        if ((self._debugLevel > 0) or override == True):
+    def trace(self, value):
+        if (self._debug_level > 0):
             print(value)
 
     # -------------------------------------------------------------------------
@@ -42,7 +39,7 @@ class PlotLib(object):
     # Generate and display image maps  for 2-dimensional list of masked arrays
     # -------------------------------------------------------------------------
     def plot_maps(self, masked_array_list, fn_list, figsize=(10, 5), title='Reflectance (%)',
-                  cmap_list=['RdYlGn', 'RdYlGn'], override=False):
+                  cmap_list=['RdYlGn', 'RdYlGn']):
         """
 
         :param masked_array_list:
@@ -52,7 +49,7 @@ class PlotLib(object):
         :param cmap_list:
         :param override:
         """
-        if (((self._debugLevel >= 2) and (self._histogramPlot == True)) or override == True):
+        if (self._debug_level >= 2):
             fig, axa = plt.subplots(nrows=1, ncols=len(fn_list), figsize=figsize, sharex=False, sharey=False)
             for i, ma in enumerate(masked_array_list):
                 f_name = fn_list[i]
@@ -71,7 +68,7 @@ class PlotLib(object):
     # Generate and display histograms for 2-dimensional list of masked arrays
     # -------------------------------------------------------------------------
     def plot_histograms(self, masked_array_list, fn_list, figsize=(10, 3),
-                        title="WARPED MASKED ARRAY", override=False):
+                        title="WARPED MASKED ARRAY"):
         """
 
         :param masked_array_list:
@@ -80,7 +77,7 @@ class PlotLib(object):
         :param title:
         :param override:
         """
-        if (((self._debugLevel >= 2) and (self._histogramPlot == True)) or override == True):
+        if (self._debug_level >= 2):
             fig, axa = plt.subplots(nrows=1, ncols=len(masked_array_list), figsize=figsize, sharex=True, sharey=True)
 
             for i, ma in enumerate(masked_array_list):
@@ -97,8 +94,8 @@ class PlotLib(object):
     #
     # Generate and display scatter plots for 2-dimensional list of masked arrays
     # -------------------------------------------------------------------------
-    def plot_scatter(self, x_data, y_data, title="Raster Data Scatter Plot", null_value=-10,
-                     override=False):
+    def plot_scatter(self, x_data, y_data, title="Raster Data Scatter Plot",
+                     null_value=-10):
         """
 
         :param x_data:
@@ -107,7 +104,7 @@ class PlotLib(object):
         :param null_value:
         :param override:
         """
-        if (((self._debugLevel >= 2) and (self._scatterPlot == True)) or override == True):
+        if (self._debug_level >= 2):
             plt.rcParams["font.family"] = "Times New Roman"
             # Declaring the figure, and hiding the ticks' labels
             fig, ax = plt.subplots(figsize=(15, 8))
@@ -126,16 +123,16 @@ class PlotLib(object):
     #
     # Generate and display scatter and line fit for 2-dimensional list of masked arrays
     # -------------------------------------------------------------------------
-    def plot_fit(self, x, y, slope, intercept, override=False):
+    def plot_fit(self, x, y, slope, intercept):
         """
 
         :param x:
         :param y:
         :param slope:
         :param intercept:
-        :param override:
+
         """
-        if (((self._debugLevel >= 2) and (self._fitPlot == True)) or override == True):
+        if (self._debug_level >= 2):
             print(ggplot()  # What data to use
                   # + aes(x="date", y="pop")  # What variable to use
                   + aes(x=x, y=y)  # What variable to use
@@ -150,18 +147,17 @@ class PlotLib(object):
     # Generate and display histograms for 2-dimensional list of masked arrays
     # -------------------------------------------------------------------------
     def plot_combo(self, fname, figsize=(10, 3),
-                        title="WARPED MASKED ARRAY", override=False):
+                        title="WARPED MASKED ARRAY"):
         """
 
         :param masked_array_list:
         :param fn_list:
         :param figsize:
         :param title:
-        :param override:
         """
         from rasterio.plot import show_hist
         from matplotlib import pyplot
-        if (((self._debugLevel >= 2) and (self._histogramPlot == True)) or override == True):
+        if (self._debug_level >= 2):
             imageSrc = rasterio.open(fname)
             fig, (axrgb, axhist) = pyplot.subplots(1, 2, figsize=figsize)
             show(imageSrc, ax=axrgb)

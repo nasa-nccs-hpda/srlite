@@ -22,7 +22,6 @@ from pygeotools.lib import iolib, malib
 from core.model.SystemCommand import SystemCommand
 from pathlib import Path
 
-from srlite.model.PlotLib import PlotLib
 from srlite.model.Context import Context
 from srlite.model.RasterLib import RasterLib
 from sklearn.linear_model import HuberRegressor, LinearRegression
@@ -42,7 +41,7 @@ sys.path.append('/adapt/nobackup/people/gtamkin/dev/srlite/src')
 def processBands(context, warp_ds_list, bandNamePairList,
                  bandPairIndicesList, fn_list,
                  r_fn_cloudmask_warp,
-                 override, plotLib, rasterLib):
+                 plotLib, rasterLib):
 
     import numpy.ma as ma
 
@@ -188,7 +187,7 @@ def processBands(context, warp_ds_list, bandNamePairList,
             model_data_only_band.intercept_) + ' slope: ' + str(model_data_only_band.coef_) + ' score: ' +
                  str(model_data_only_band.score(evhr_toa_data_only_band.reshape(-1, 1), ccdc_sr_data_only_band)))
         plotLib.plot_fit(evhr_toa_data_only_band, ccdc_sr_data_only_band, model_data_only_band.coef_[0],
-                    model_data_only_band.intercept_, override=override)
+                    model_data_only_band.intercept_)
 
         ########################################
         # #### Apply the model to the original EVHR (2m) to predict surface reflectance
@@ -222,8 +221,8 @@ def processBands(context, warp_ds_list, bandNamePairList,
         compare_name_list = ['EVHR TOA', 'EVHR SR-Lite']
 
         plotLib.plot_histograms(evhr_pre_post_ma_list, fn_list, figsize=(5, 3),
-                           title=str(bandNamePairList[bandPairIndex]) + " EVHR TOA vs EVHR SR", override=override)
-        plotLib.plot_maps(evhr_pre_post_ma_list, compare_name_list, figsize=(10, 50), override=override)
+                           title=str(bandNamePairList[bandPairIndex]) + " EVHR TOA vs EVHR SR")
+        plotLib.plot_maps(evhr_pre_post_ma_list, compare_name_list, figsize=(10, 50))
 
         ########################################
         ##### Compare the original CCDC histogram with result (CCDC SR vs EVHR SR)
@@ -241,13 +240,12 @@ def processBands(context, warp_ds_list, bandNamePairList,
         evhr_srlite_delta_list = [evhr_pre_post_ma_list[1], evhr_pre_post_ma_list[1] - evhr_pre_post_ma_list[0]]
         compare_name_list = ['EVHR TOA', 'EVHR SR-Lite']
         plotLib.plot_histograms(evhr_srlite_delta_list, fn_list, figsize=(5, 3),
-                           title=str(bandNamePairList[bandPairIndex]) + " EVHR TOA vs EVHR SR DELTA ",
-                           override=override)
+                           title=str(bandNamePairList[bandPairIndex]) + " EVHR TOA vs EVHR SR DELTA ")
         plotLib.plot_maps([evhr_pre_post_ma_list[1],
                       evhr_pre_post_ma_list[1] - evhr_pre_post_ma_list[0]],
                      [compare_name_list[1],
                       str(bandNamePairList[bandPairIndex]) + ' Difference: TOA-SR-Lite'], (10, 50),
-                     cmap_list=['RdYlGn', 'RdBu'], override=override)
+                     cmap_list=['RdYlGn', 'RdBu'])
         print(f"Finished with {str(bandNamePairList[bandPairIndex])} Band")
 
     return sr_prediction_list
@@ -262,27 +260,17 @@ def main():
     ##############################################
     start_time = time.time()  # record start time
     print(f'Command line executed:    {sys.argv}')
-    context = Context().getDict()
+
+    # initialize context
+    contextClazz = Context()
+    context = contextClazz.getDict()
 
     # Debug levels:  0-no debug, 1-trace, 2-visualization, 3-detailed diagnostics
     debug_level = int(context[Context.DEBUG_LEVEL])
 
-    # initialize clumsy visualization parameters
-    override = False
-    histogramPlot = scatterPlot = fitPlot = override = False
-    if (debug_level >= 2):
-        histogramPlot = scatterPlot = fitPlot = override = True
-    plotLib = PlotLib(debug_level, histogramPlot, scatterPlot, fitPlot)
+    # Get handles to plot and raster classes
+    plotLib = contextClazz.getPlotLib()
     rasterLib = RasterLib(debug_level, plotLib)
-
-    plotLib.trace(f'Initializing SRLite Regression script with the following parameters')
-    plotLib.trace(f'TOA Directory:    {context[Context.DIR_TOA]}')
-    plotLib.trace(f'CCDC Directory:    {context[Context.DIR_CCDC]}')
-    plotLib.trace(f'Cloudmask Directory:    {context[Context.DIR_CLOUDMASK]}')
-    plotLib.trace(f'Output Directory: {context[Context.DIR_OUTPUT]}')
-    plotLib.trace(f'Band pairs:    {context[Context.LIST_BAND_PAIRS]}')
-    plotLib.trace(f'Regression Model:    {context[Context.REGRESSION_MODEL]}')
-    plotLib.trace(f'Log: {context[Context.LOG_FLAG]}')
 
     # Retrieve and prepare paths
     evhrdir = context[Context.DIR_TOA]
@@ -334,7 +322,7 @@ def main():
 
          plotLib.trace('\n Process Bands ....')
          sr_prediction_list = processBands(context, warp_ds_list, bandNamePairList, bandPairIndicesList,
-                                           fn_list, r_fn_cloudmaskWarp, override, plotLib, rasterLib)
+                                           fn_list, r_fn_cloudmaskWarp, plotLib, rasterLib)
 
          plotLib.trace('\n Create Image....')
          outputname = rasterLib.createImage(str(r_fn_evhr), len(bandPairIndicesList), sr_prediction_list, name[0],

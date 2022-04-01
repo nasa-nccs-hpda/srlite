@@ -4,6 +4,7 @@ import os
 import sys
 import argparse  # system libraries
 from datetime import datetime
+from srlite.model.PlotLib import PlotLib
 
 # -----------------------------------------------------------------------------
 # class Context
@@ -20,7 +21,7 @@ class Context(object):
 
     REGRESSOR_SIMPLE = 'simple'
     REGRESSOR_ROBUST = 'robust'
-    REGRESSION_MODEL = REGRESSOR_ROBUST
+    REGRESSION_MODEL = 'regressor'
 
     DEBUG_NONE_VALUE = 0
     DEBUG_TRACE_VALUE = 1
@@ -30,6 +31,8 @@ class Context(object):
     LOG_FLAG = 'log_flag'
 
     context_dict = {}
+    plotLib = None
+    debug_level = 0
 
     # -------------------------------------------------------------------------
     # __init__
@@ -45,7 +48,7 @@ class Context(object):
             self.context_dict[Context.DIR_OUTPUT] = str(args.out_dir)
             self.context_dict[Context.LIST_BAND_PAIRS] = str(args.band_pairs_list)
             self.context_dict[Context.REGRESSION_MODEL]  = str(args.regressor)
-            self.context_dict[Context.DEBUG_LEVEL]  = str(args.debug_level)
+            self.context_dict[Context.DEBUG_LEVEL]  = int(args.debug_level)
             self.context_dict[Context.LOG_FLAG]  = str(args.logbool)
             if eval(self.context_dict[Context.LOG_FLAG]):
                 self._create_logfile(self.context_dict[Context.REGRESSION_MODEL],
@@ -56,6 +59,20 @@ class Context(object):
         except BaseException as err:
             print('Check arguments: ', err)
             sys.exit(1)
+
+        # Initialize serializable context for orchestration
+        self.debug_level = int(self.context_dict[Context.DEBUG_LEVEL])
+        plotLib = self.plot_lib = PlotLib(self.context_dict[Context.DEBUG_LEVEL])
+
+        # Echo input parameter values
+        plotLib.trace(f'Initializing SRLite Regression script with the following parameters')
+        plotLib.trace(f'TOA Directory:    {self.context_dict[Context.DIR_TOA]}')
+        plotLib.trace(f'CCDC Directory:    {self.context_dict[Context.DIR_CCDC]}')
+        plotLib.trace(f'Cloudmask Directory:    {self.context_dict[Context.DIR_CLOUDMASK]}')
+        plotLib.trace(f'Output Directory: {self.context_dict[Context.DIR_OUTPUT]}')
+        plotLib.trace(f'Band pairs:    {self.context_dict[Context.LIST_BAND_PAIRS]}')
+        plotLib.trace(f'Regression Model:    {self.context_dict[Context.REGRESSION_MODEL]}')
+        plotLib.trace(f'Log: {self.context_dict[Context.LOG_FLAG]}')
 
         return
 
@@ -115,6 +132,22 @@ class Context(object):
     # -------------------------------------------------------------------------
     def getDict(self):
         return self.context_dict
+
+    # -------------------------------------------------------------------------
+    # getPlotLib()
+    #
+    # Get handle to plotting library
+    # -------------------------------------------------------------------------
+    def getPlotLib(self):
+        return self.plot_lib
+
+    # -------------------------------------------------------------------------
+    # getPlotLib()
+    #
+    # Get handle to plotting library
+    # -------------------------------------------------------------------------
+    def getDebugLevel(self):
+        return self.debug_level
 
     # -------------------------------------------------------------------------
     # create_logfile()
