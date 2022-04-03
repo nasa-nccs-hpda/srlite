@@ -177,11 +177,11 @@ def processBands(context, warp_ds_list, bandNamePairList,
         ccdc_sr_data_only_band = ccdc_sr_band[ccdc_sr_band.mask == False]
         evhr_toa_data_only_band = evhr_toa_band[evhr_toa_band.mask == False]
 
-        # Perform regression fit based on model type
+        # Perform regression fit based on model type!
         if (context[Context.REGRESSION_MODEL] == Context.REGRESSOR_ROBUST):
             model_data_only_band = HuberRegressor().fit(evhr_toa_data_only_band.reshape(-1, 1), ccdc_sr_data_only_band)
         else:
-            model_data_only_band = LinearRegression().fit(evhr_toa_data_only_band.reshape(-1, 1), ccdc_sr_data_only_band)
+            model_data_only_band = LinearRegression().fit(evhr_toa_data_only_bad.reshape(-1, 1), ccdc_sr_data_only_band)
 
         plotLib.trace(str(bandNamePairList[bandPairIndex]) + '= > intercept: ' + str(
             model_data_only_band.intercept_) + ' slope: ' + str(model_data_only_band.coef_) + ' score: ' +

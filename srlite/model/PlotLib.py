@@ -36,7 +36,7 @@ class PlotLib(object):
     # -------------------------------------------------------------------------
     # plot_maps()
     #
-    # Generate and display image maps  for 2-dimensional list of masked arrays
+    # Generate and display image maps for 2-dimensional list of masked arrays
     # -------------------------------------------------------------------------
     def plot_maps(self, masked_array_list, fn_list, figsize=(10, 5), title='Reflectance (%)',
                   cmap_list=['RdYlGn', 'RdYlGn']):
