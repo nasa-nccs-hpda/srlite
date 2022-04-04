@@ -177,7 +177,7 @@ class Context(object):
             default=0, help="Specify debug level [0,1,2,3]"
         )
         parser.add_argument(
-            "--fc", "--fc", required=False, dest='cleanbool',
+            "--clean", "--clean", required=False, dest='cleanbool',
             action='store_true', help="Force cleaning of generated artifacts prior to run (e.g, warp files)."
         )
         parser.add_argument(

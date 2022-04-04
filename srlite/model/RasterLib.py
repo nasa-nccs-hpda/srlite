@@ -143,11 +143,15 @@ class RasterLib(object):
         now = datetime.now()  # current date and time
 
         #  Derive file names for intermediate files
-        head, tail = os.path.split(r_fn_evhr)
+#        head, tail = os.path.split(r_fn_evhr)
         output_name = "{}/{}".format(
             outdir, name
         ) + "_sr_02m-precog.tif"
         self._plot_lib.trace(f"\nCreating .tif image from band-based prediction layers...{output_name}")
+
+        if eval(context[Context.CLEAN_FLAG]):
+            if os.path.exists(output_name):
+                os.remove(output_name)
 
         # Read metadata of EVHR file
         with rasterio.open(r_fn_evhr) as src0:
@@ -173,14 +177,14 @@ class RasterLib(object):
 
     def createCOG(self, context):
         # Use gdalwarp to create Cloud-optimized Geotiff (COG)
+        cogname = context[Context.FN_SRC].replace("-precog.tif", ".tif")
         if eval(context[Context.CLEAN_FLAG]):
             if os.path.exists(context[Context.FN_DEST]):
                 os.remove(context[Context.FN_DEST])
+            if os.path.exists(cogname):
+                os.remove(cogname)
 
-        cogname = context[Context.FN_SRC].replace("-precog.tif", ".tif")
         command = 'gdalwarp -of cog ' + context[Context.FN_SRC] + ' ' + cogname
-        # cogname = outputname.replace("-precog.tif", ".tif")
-        # command = 'gdalwarp -of cog ' + outputname + ' ' + cogname
         SystemCommand(command)
         if os.path.exists(context[Context.FN_SRC]):
             os.remove(context[Context.FN_SRC])
@@ -255,7 +259,6 @@ class RasterLib(object):
         return srcband.DataType
 
     def warp(self, context):
-#        def warp(self, context, dest, src, dstSRS, outputType, xRes, yRes, extent):
 
         if eval(context[Context.CLEAN_FLAG]):
             if os.path.exists(context[Context.FN_DEST]):
