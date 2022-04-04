@@ -1,13 +1,16 @@
 #!/usr/bin/env python
 # coding: utf-8
 import os
+import os.path
 import sys
 from datetime import datetime
 import osgeo
-from osgeo import gdal
+from osgeo import gdal, osr
 from pygeotools.lib import iolib, warplib
 import rasterio
 import numpy as np
+from core.model.SystemCommand import SystemCommand
+from srlite.model.Context import Context
 
 # -----------------------------------------------------------------------------
 # class Context
@@ -114,9 +117,12 @@ class RasterLib(object):
         # ########################################
         warp_ds_list = warplib.memwarp_multi_fn(fn_list, res='first', extent='intersection', t_srs='first', r='average')
         warp_ma_list = [iolib.ds_getma(ds) for ds in warp_ds_list]
+
+        self._plot_lib.trace('\n CCDC shape=' + str(warp_ma_list[0].shape) + ' EVHR shape=' +
+                   str(warp_ma_list[1].shape))
         return warp_ds_list, warp_ma_list
 
-    def createImage(self, r_fn_evhr, numBandPairs, sr_prediction_list, name,
+    def createImage(self, context, r_fn_evhr, numBandPairs, sr_prediction_list, name,
                     bandNamePairList, outdir):
         ########################################
         # Create .tif image from band-based prediction layers
@@ -124,11 +130,9 @@ class RasterLib(object):
         self._plot_lib.trace(f"\nAppy coefficients to High Res File...{r_fn_evhr}")
 
         now = datetime.now()  # current date and time
-#        nowStr = now.strftime("%m%d%H%M")
 
         #  Derive file names for intermediate files
         head, tail = os.path.split(r_fn_evhr)
-#        filename = (tail.rsplit(".", 1)[0])
         output_name = "{}/{}".format(
             outdir, name
         ) + "_sr_02m-precog.tif"
@@ -147,30 +151,47 @@ class RasterLib(object):
         with rasterio.open(output_name, 'w', **meta) as dst:
             for id in range(1, numBandPairs):
                 bandPrediction = sr_prediction_list[id]
-                mean = bandPrediction.mean()
-                self._plot_lib.trace(f'BandPrediction.mean({mean})')
+                # mean = bandPrediction.mean()
+                # self._plot_lib.trace(f'BandPrediction.mean({mean})')
                 dst.set_band_description(id, bandNamePairList[id - 1][1])
                 bandPrediction1 = np.ma.masked_values(bandPrediction, -9999)
                 dst.write_band(id, bandPrediction1)
 
-        return output_name
+        # Create Cloud-optimized Geotiff (COG)
+        context[Context.FN_SRC] = str(output_name)
+        context[Context.FN_DEST] = str(context[Context.FN_WARP])
+        return self.createCOG(context)
+
+    def createCOG(self, context):
+        # Use gdalwarp to create Cloud-optimized Geotiff (COG)
+        if eval(context[Context.CLEAN_FLAG]):
+            if os.path.exists(context[Context.FN_DEST]):
+                os.remove(context[Context.FN_DEST])
+
+        cogname = context[Context.FN_SRC].replace("-precog.tif", ".tif")
+        command = 'gdalwarp -of cog ' + context[Context.FN_SRC] + ' ' + cogname
+        # cogname = outputname.replace("-precog.tif", ".tif")
+        # command = 'gdalwarp -of cog ' + outputname + ' ' + cogname
+        SystemCommand(command)
+        if os.path.exists(context[Context.FN_SRC]):
+            os.remove(context[Context.FN_SRC])
+        return cogname
 
     def getProjSrs(self, in_raster):
-        from osgeo import gdal, osr
+        # Get projection from raster
         ds = gdal.Open(in_raster)
         prj = ds.GetProjection()
-        self._plot_lib.trace('prj = {}'.format(prj))
+        self._plot_lib.trace("[ PRJ ] = {}".format(prj))
 
         srs = osr.SpatialReference(wkt=prj)
-        self._plot_lib.trace('srs = {}'.format(srs))
+        self._plot_lib.trace("[ SRS ] = {}".format(srs))
         if srs.IsProjected:
-            self._plot_lib.trace(srs.GetAttrValue('projcs'))
-        self._plot_lib.trace(srs.GetAttrValue('geogcs'))
+            self._plot_lib.trace("[ SRS.GetAttrValue('projcs') ] = {}".format(srs.GetAttrValue('projcs')))
+        self._plot_lib.trace("[ SRS.GetAttrValue('geogcs') ] = {}".format(srs.GetAttrValue('geogcs')))
         return prj, srs
 
     def getExtents(self, in_raster):
-        from osgeo import gdal
-
+        # Get extents from raster
         data = gdal.Open(in_raster, gdal.GA_ReadOnly)
         geoTransform = data.GetGeoTransform()
         minx = geoTransform[0]
@@ -179,6 +200,7 @@ class RasterLib(object):
         miny = maxy + geoTransform[5] * data.RasterYSize
         extent = [minx, miny, maxx, maxy]
         data = None
+        self._plot_lib.trace("[ EXTENT ] = {}".format(extent))
         return extent
 
     def getMetadata(self, band_num, input_file):
@@ -223,24 +245,30 @@ class RasterLib(object):
 
         return srcband.DataType
 
-    def warp(self, in_raster, outraster, dstSRS, outputType, xRes, yRes, extent):
-        from osgeo import gdal
-        ds = gdal.Warp(in_raster, outraster,
-                       dstSRS=dstSRS, outputType=outputType,
-                       xRes=xRes, yRes=yRes, outputBounds=extent)
-        ds = None
-        return outraster
+    def warp(self, context):
+#        def warp(self, context, dest, src, dstSRS, outputType, xRes, yRes, extent):
 
-    def downscale(self, targetAttributesFile, inFile, outFile, xRes=30.0, yRes=30.0):
-        import os.path
-        if not os.path.exists(str(outFile)):
-            outputType = self.getMetadata(1, str(targetAttributesFile))
-            new_projection, new_srs = self.getProjSrs(targetAttributesFile)
-            extent = self.getExtents(targetAttributesFile)
-            self._plot_lib.trace(extent)
-            outFile = self.warp(outFile, inFile, dstSRS=new_srs, outputType=outputType, xRes=xRes, yRes=yRes, extent=extent)
-            ds = None
-        return outFile
+        if eval(context[Context.CLEAN_FLAG]):
+            if os.path.exists(context[Context.FN_DEST]):
+                os.remove(context[Context.FN_DEST])
+
+        extent = self.getExtents(context[Context.TARGET_ATTR])
+        ds = gdal.Warp(context[Context.FN_DEST], context[Context.FN_SRC],
+                       dstSRS=context[Context.TARGET_SRS] , outputType=context[Context.TARGET_OUTPUT_TYPE] ,
+                       xRes=context[Context.TARGET_XRES] , yRes=context[Context.TARGET_YRES], outputBounds=extent)
+        ds = None
+
+
+#    def downscale(self, context, targetAttributesFile, inFile, outFile, xRes=30.0, yRes=30.0):
+    def downscale(self, context):
+        if eval(context[Context.CLEAN_FLAG]):
+            if os.path.exists(context[Context.FN_DEST]):
+                os.remove(context[Context.FN_DEST])
+
+        if not os.path.exists(context[Context.FN_DEST]):
+            context[Context.TARGET_OUTPUT_TYPE] = self.getMetadata(1, str(context[Context.TARGET_ATTR]))
+            context[Context.TARGET_PRJ], context[Context.TARGET_SRS] = self.getProjSrs(context[Context.TARGET_ATTR])
+            self.warp(context)
 
     def applyThreshold(self, min, max, bandMaArray):
         ########################################

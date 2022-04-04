@@ -19,7 +19,6 @@ import ast
 import time  # tracking time
 import numpy as np
 from pygeotools.lib import iolib, malib
-from core.model.SystemCommand import SystemCommand
 from pathlib import Path
 
 from srlite.model.Context import Context
@@ -181,7 +180,7 @@ def processBands(context, warp_ds_list, bandNamePairList,
         if (context[Context.REGRESSION_MODEL] == Context.REGRESSOR_ROBUST):
             model_data_only_band = HuberRegressor().fit(evhr_toa_data_only_band.reshape(-1, 1), ccdc_sr_data_only_band)
         else:
-            model_data_only_band = LinearRegression().fit(evhr_toa_data_only_bad.reshape(-1, 1), ccdc_sr_data_only_band)
+            model_data_only_band = LinearRegression().fit(evhr_toa_data_only_band.reshape(-1, 1), ccdc_sr_data_only_band)
 
         plotLib.trace(str(bandNamePairList[bandPairIndex]) + '= > intercept: ' + str(
             model_data_only_band.intercept_) + ' slope: ' + str(model_data_only_band.coef_) + ' score: ' +
@@ -274,12 +273,9 @@ def main():
 
     # for context[Context.FN_TOA] in sorted(Path(context[Context.DIR_TOA]).glob("*.tif")):
     for context[Context.FN_TOA] in (Path(context[Context.DIR_TOA]).glob("*.tif")):
-        #         prefix = str(context[Context.FN_TOA]).rsplit("/", 1)
+
+        # Generate file names based on incoming EVHR file and declared suffixes
         context = contextClazz.getFileNames(str(context[Context.FN_TOA]).rsplit("/", 1), context)
-        # name = str(prefix[1]).split("-toa.tif", 1)
-        # context[Context.FN_CCDC] = os.path.join(context[Context.DIR_CCDC] + '/' + name[0] + '-ccdc.tif')
-        # r_fn_cloudmask = os.path.join(context[Context.DIR_CLOUDMASK] + '/' + name[0] + '-toa_pred.tif')
-        # r_fn_cloudmaskWarp = os.path.join(context[Context.DIR_CLOUDMASK] + '/' + name[0] + '-toa_pred_warp.tif')
 
         # Get attributes of raw EVHR tif and create plot - assumes same root name suffixed by "-toa.tif")
         plotLib.trace('\nEVHR file=' + str(context[Context.FN_TOA]))
@@ -295,8 +291,13 @@ def main():
 
         #  Warp cloudmask to attributes of EVHR - suffix root name with '-toa_pred_warp.tif')
         plotLib.trace('\nCloudmask Warp=' + str(context[Context.FN_WARP]))
-        rasterLib.downscale(str(context[Context.FN_TOA]), str(context[Context.FN_CLOUDMASK]), str(context[Context.FN_WARP]),
-                         xRes=30.0, yRes=30.0)
+        context[Context.FN_SRC] = str(context[Context.FN_CLOUDMASK])
+        context[Context.FN_DEST] = str(context[Context.FN_WARP])
+        context[Context.TARGET_ATTR] = str(context[Context.FN_TOA])
+        rasterLib.downscale(context)
+        # rasterLib.downscale(context, str(context[Context.FN_TOA]), str(context[Context.FN_CLOUDMASK]),
+        #                     str(context[Context.FN_WARP]),
+        #                     xRes=30.0, yRes=30.0)
         rasterLib.getProjection(str(context[Context.FN_WARP]), "Cloudmask Warp Combo Plot")
         #    break;
 
@@ -307,26 +308,16 @@ def main():
         # Get the common pixel intersection values of the EVHR & CCDC files
         warp_ds_list, warp_ma_list = rasterLib.getIntersection(fn_list)
 
-        plotLib.trace('\n CCDC shape=' + str(warp_ma_list[0].shape) + ' EVHR shape=' +
-                   str(warp_ma_list[1].shape))
-
-        plotLib.trace('\n Process Bands ....')
+        # Perform regression to capture coefficients from intersected pixels and apply to 2m EVHR
         sr_prediction_list = processBands(context, warp_ds_list, list(ast.literal_eval(context[Context.LIST_BAND_PAIRS])), bandPairIndicesList,
                                        fn_list, context[Context.FN_WARP], plotLib, rasterLib)
 
-        plotLib.trace('\n Create Image....')
-        outputname = rasterLib.createImage(
+        # Create COG image from stack of processed bands
+        cogname = rasterLib.createImage(context,
             str(context[Context.FN_TOA]), len(bandPairIndicesList), sr_prediction_list,
-            str(context[Context.FN_PREFIX][0]),
+            str(context[Context.FN_PREFIX]),
             list(ast.literal_eval(context[Context.LIST_BAND_PAIRS])),
             context[Context.DIR_OUTPUT])
-
-        # Use gdalwarp to create Cloud-optimized Geotiff (COG)
-        cogname = outputname.replace("-precog.tif", ".tif")
-        command = 'gdalwarp -of cog ' + outputname + ' ' + cogname
-        SystemCommand(command)
-        if os.path.exists(outputname):
-            os.remove(outputname)
 
         break;
 

@@ -21,6 +21,9 @@ class Context(object):
     DIR_OUTPUT = 'dir_out'
 
     # File names
+    FN_DEST = 'fn_dest'
+    FN_SRC = 'fn_src'
+
     FN_TOA = 'fn_toa'
     FN_CCDC = 'fn_ccdc'
     FN_CLOUDMASK = 'fn_cloudmask'
@@ -36,6 +39,18 @@ class Context(object):
     # Band pairs
     LIST_BAND_PAIRS = 'band_pairs_list'
 
+    # Target vars and defaults
+    TARGET_ATTR = 'target_attr'
+    TARGET_EXTENT = 'target_extent'
+    TARGET_XRES = 'target_xres'
+    TARGET_YRES = 'target_yres'
+    TARGET_PRJ = 'target_prj'
+    TARGET_SRS = 'target_srs'
+    TARGET_OUTPUT_TYPE = 'target_output_type'
+
+    DEFAULT_XRES = 30.0
+    DEFAULT_YRES = 30.0
+
     # Regression algorithms
     REGRESSOR_SIMPLE = 'simple'
     REGRESSOR_ROBUST = 'robust'
@@ -47,6 +62,7 @@ class Context(object):
     DEBUG_VIZ_VALUE = 2
     DEBUG_LEVEL = 'debug_level'
     LOG_FLAG = 'log_flag'
+    CLEAN_FLAG = 'clean_log'
 
     # Global instance variables
     context_dict = {}
@@ -66,11 +82,19 @@ class Context(object):
             self.context_dict[Context.DIR_CLOUDMASK] = str(args.cloudmask_dir)
             self.context_dict[Context.DIR_OUTPUT] = str(args.out_dir)
             self.context_dict[Context.DIR_WARP] = self.context_dict[Context.DIR_OUTPUT]
-            if len(str(args.warp_dir)) > 0:
+            if not (args.warp_dir == None):
                 self.context_dict[Context.DIR_WARP] = str(args.warp_dir)
+
             self.context_dict[Context.LIST_BAND_PAIRS] = str(args.band_pairs_list)
+            self.context_dict[Context.TARGET_XRES] = self.DEFAULT_XRES
+            if not (args.target_xres == None):
+                self.context_dict[Context.TARGET_YRES] = float(args.target_xres)
+            self.context_dict[Context.TARGET_YRES] = self.DEFAULT_YRES
+            if not (args.target_yres == None):
+                self.context_dict[Context.TARGET_YRES] = float(args.target_yres)
             self.context_dict[Context.REGRESSION_MODEL] = str(args.regressor)
             self.context_dict[Context.DEBUG_LEVEL] = int(args.debug_level)
+            self.context_dict[Context.CLEAN_FLAG] = str(args.cleanbool)
             self.context_dict[Context.LOG_FLAG] = str(args.logbool)
             if eval(self.context_dict[Context.LOG_FLAG]):
                 self._create_logfile(self.context_dict[Context.REGRESSION_MODEL],
@@ -95,8 +119,10 @@ class Context(object):
         plotLib.trace(f'Cloudmask Directory:    {self.context_dict[Context.DIR_CLOUDMASK]}')
         plotLib.trace(f'Warp Directory:    {self.context_dict[Context.DIR_WARP]}')
         plotLib.trace(f'Output Directory: {self.context_dict[Context.DIR_OUTPUT]}')
-        plotLib.trace(f'Band pairs:    {self.context_dict[Context.LIST_BAND_PAIRS]}')
+        plotLib.trace(f'Band Pairs:    {self.context_dict[Context.LIST_BAND_PAIRS]}')
         plotLib.trace(f'Regression Model:    {self.context_dict[Context.REGRESSION_MODEL]}')
+        plotLib.trace(f'Debug Level: {self.context_dict[Context.DEBUG_LEVEL]}')
+        plotLib.trace(f'Clean Flag: {self.context_dict[Context.CLEAN_FLAG]}')
         plotLib.trace(f'Log: {self.context_dict[Context.LOG_FLAG]}')
 
         return
@@ -138,8 +164,20 @@ class Context(object):
             default=None, help="Specify directory path containing wapred files."
         )
         parser.add_argument(
+            "--xres", "--input-x-resolution", type=str, required=False, dest='target_xres',
+            default=None, help="Specify target X resolution (default = 30.0)."
+        )
+        parser.add_argument(
+            "--yres", "--input-y-resolution", type=str, required=False, dest='target_yres',
+            default=None, help="Specify target Y resolution (default = 30.0)."
+        )
+        parser.add_argument(
             "--debug", "--debug_level", type=int, required=False, dest='debug_level',
             default=0, help="Specify debug level [0,1,2,3]"
+        )
+        parser.add_argument(
+            "--fc", "--fc", required=False, dest='cleanbool',
+            action='store_true', help="Force cleaning of generated artifacts prior to run (e.g, warp files)."
         )
         parser.add_argument(
             "--log", "--log", required=False, dest='logbool',
@@ -189,15 +227,15 @@ class Context(object):
         :param context: input context object dictionary
         :return: updated context
         """
-        context[Context.FN_PREFIX] = str(prefix[1]).split("-toa.tif", 1)
+        context[Context.FN_PREFIX] = str((prefix[1]).split("-toa.tif", 1)[0])
         context[Context.FN_TOA] = os.path.join(context[Context.DIR_TOA] + '/' +
-                                               context[Context.FN_PREFIX][0] + self.FN_TOA_SUFFIX)
+                                               context[Context.FN_PREFIX] + self.FN_TOA_SUFFIX)
         context[Context.FN_CCDC] = os.path.join(context[Context.DIR_CCDC] + '/' +
-                                                context[Context.FN_PREFIX][0] + self.FN_CCDC_SUFFIX)
+                                                context[Context.FN_PREFIX] + self.FN_CCDC_SUFFIX)
         context[Context.FN_CLOUDMASK] = os.path.join(context[Context.DIR_CLOUDMASK] + '/' +
-                                                     context[Context.FN_PREFIX][0] + self.FN_CLOUDMASK_SUFFIX)
+                                                     context[Context.FN_PREFIX] + self.FN_CLOUDMASK_SUFFIX)
         context[Context.FN_WARP] = os.path.join(context[Context.DIR_WARP] + '/' +
-                                                context[Context.FN_PREFIX][0] + self.FN_CLOUDMASK_WARP_SUFFIX)
+                                                context[Context.FN_PREFIX] + self.FN_CLOUDMASK_WARP_SUFFIX)
 
         return context
 
