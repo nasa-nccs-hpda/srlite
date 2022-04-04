@@ -159,10 +159,10 @@ class RasterLib(object):
         from osgeo import gdal, osr
         ds = gdal.Open(in_raster)
         prj = ds.GetProjection()
-        self._plot_lib.trace(prj)
+        self._plot_lib.trace('prj = {}'.format(prj))
 
         srs = osr.SpatialReference(wkt=prj)
-        self._plot_lib.trace('srs=', srs)
+        self._plot_lib.trace('srs = {}'.format(srs))
         if srs.IsProjected:
             self._plot_lib.trace(srs.GetAttrValue('projcs'))
         self._plot_lib.trace(srs.GetAttrValue('geogcs'))
@@ -194,20 +194,16 @@ class RasterLib(object):
             print(err)
             sys.exit(1)
 
-        self._plot_lib.trace("[ METADATA] = ", src_ds.GetMetadata())
+        self._plot_lib.trace("[ METADATA] = {}".format(src_ds.GetMetadata()))
 
         stats = srcband.GetStatistics(True, True)
-        self._plot_lib.trace("[ STATS ] = Minimum=%.3f, Maximum=%.3f, Mean=%.3f, StdDev=%.3f", stats[0], stats[1], stats[2], stats[3])
+        self._plot_lib.trace("[ STATS ] = Minimum={}, Maximum={}, Mean={}, StdDev={}".format( stats[0], stats[1], stats[2], stats[3]))
 
-        # source_layer = srcband.GetLayer()
-        # x_min, x_max, y_min, y_max = source_layer.GetExtent()
-        # print ("[ EXTENTS] = ", x_min, x_max, y_min, y_max )
-
-        self._plot_lib.trace("[ NO DATA VALUE ] = ", srcband.GetNoDataValue())
-        self._plot_lib.trace("[ MIN ] = ", srcband.GetMinimum())
-        self._plot_lib.trace("[ MAX ] = ", srcband.GetMaximum())
-        self._plot_lib.trace("[ SCALE ] = ", srcband.GetScale())
-        self._plot_lib.trace("[ UNIT TYPE ] = ", srcband.GetUnitType())
+        self._plot_lib.trace("[ NO DATA VALUE ] = {}".format(srcband.GetNoDataValue()))
+        self._plot_lib.trace("[ MIN ] = {}".format(srcband.GetMinimum()))
+        self._plot_lib.trace("[ MAX ] = {}".format(srcband.GetMaximum()))
+        self._plot_lib.trace("[ SCALE ] = {}".format(srcband.GetScale()))
+        self._plot_lib.trace("[ UNIT TYPE ] = {}".format(srcband.GetUnitType()))
         ctable = srcband.GetColorTable()
 
         if ctable is None:

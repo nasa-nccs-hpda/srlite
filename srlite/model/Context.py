@@ -13,23 +13,42 @@ from srlite.model.PlotLib import PlotLib
 # -----------------------------------------------------------------------------
 class Context(object):
 
-    DIR_TOA = 'toa'
-    DIR_CCDC = 'ccdc'
-    DIR_CLOUDMASK = 'cloudmask'
-    DIR_OUTPUT = 'out_dir'
+    # Directories
+    DIR_TOA = 'dir_toa'
+    DIR_CCDC = 'dir_ccdc'
+    DIR_CLOUDMASK = 'dir_cloudmask'
+    DIR_WARP = 'dir_warp'
+    DIR_OUTPUT = 'dir_out'
+
+    # File names
+    FN_TOA = 'fn_toa'
+    FN_CCDC = 'fn_ccdc'
+    FN_CLOUDMASK = 'fn_cloudmask'
+    FN_WARP = 'fn_warp'
+    FN_PREFIX = 'fn_prefix'
+
+    # File name suffixes
+    FN_TOA_SUFFIX = '-toa.tif'
+    FN_CCDC_SUFFIX = '-ccdc.tif'
+    FN_CLOUDMASK_SUFFIX = '-toa_pred.tif'
+    FN_CLOUDMASK_WARP_SUFFIX = '-toa_pred_warp.tif'
+
+    # Band pairs
     LIST_BAND_PAIRS = 'band_pairs_list'
 
+    # Regression algorithms
     REGRESSOR_SIMPLE = 'simple'
     REGRESSOR_ROBUST = 'robust'
     REGRESSION_MODEL = 'regressor'
 
+    # Debug & log values
     DEBUG_NONE_VALUE = 0
     DEBUG_TRACE_VALUE = 1
     DEBUG_VIZ_VALUE = 2
     DEBUG_LEVEL = 'debug_level'
-
     LOG_FLAG = 'log_flag'
 
+    # Global instance variables
     context_dict = {}
     plotLib = None
     debug_level = 0
@@ -46,10 +65,13 @@ class Context(object):
             self.context_dict[Context.DIR_CCDC] = str(args.ccdc_dir)
             self.context_dict[Context.DIR_CLOUDMASK] = str(args.cloudmask_dir)
             self.context_dict[Context.DIR_OUTPUT] = str(args.out_dir)
+            self.context_dict[Context.DIR_WARP] = self.context_dict[Context.DIR_OUTPUT]
+            if len(str(args.warp_dir)) > 0:
+                self.context_dict[Context.DIR_WARP] = str(args.warp_dir)
             self.context_dict[Context.LIST_BAND_PAIRS] = str(args.band_pairs_list)
-            self.context_dict[Context.REGRESSION_MODEL]  = str(args.regressor)
-            self.context_dict[Context.DEBUG_LEVEL]  = int(args.debug_level)
-            self.context_dict[Context.LOG_FLAG]  = str(args.logbool)
+            self.context_dict[Context.REGRESSION_MODEL] = str(args.regressor)
+            self.context_dict[Context.DEBUG_LEVEL] = int(args.debug_level)
+            self.context_dict[Context.LOG_FLAG] = str(args.logbool)
             if eval(self.context_dict[Context.LOG_FLAG]):
                 self._create_logfile(self.context_dict[Context.REGRESSION_MODEL],
                                      self.context_dict[Context.DIR_OUTPUT])
@@ -60,15 +82,18 @@ class Context(object):
             print('Check arguments: ', err)
             sys.exit(1)
 
-        # Initialize serializable context for orchestration
+        # Initialize instance variables
         self.debug_level = int(self.context_dict[Context.DEBUG_LEVEL])
         plotLib = self.plot_lib = PlotLib(self.context_dict[Context.DEBUG_LEVEL])
+        os.system(f'mkdir -p {self.context_dict[Context.DIR_OUTPUT]}')
+        os.system(f'mkdir -p {self.context_dict[Context.DIR_WARP]}')
 
         # Echo input parameter values
         plotLib.trace(f'Initializing SRLite Regression script with the following parameters')
         plotLib.trace(f'TOA Directory:    {self.context_dict[Context.DIR_TOA]}')
         plotLib.trace(f'CCDC Directory:    {self.context_dict[Context.DIR_CCDC]}')
         plotLib.trace(f'Cloudmask Directory:    {self.context_dict[Context.DIR_CLOUDMASK]}')
+        plotLib.trace(f'Warp Directory:    {self.context_dict[Context.DIR_WARP]}')
         plotLib.trace(f'Output Directory: {self.context_dict[Context.DIR_OUTPUT]}')
         plotLib.trace(f'Band pairs:    {self.context_dict[Context.LIST_BAND_PAIRS]}')
         plotLib.trace(f'Regression Model:    {self.context_dict[Context.REGRESSION_MODEL]}')
@@ -109,6 +134,10 @@ class Context(object):
             default="./", help="Specify output directory."
         )
         parser.add_argument(
+            "--warp", "--input-warp-dir", type=str, required=False, dest='warp_dir',
+            default=None, help="Specify directory path containing wapred files."
+        )
+        parser.add_argument(
             "--debug", "--debug_level", type=int, required=False, dest='debug_level',
             default=0, help="Specify debug level [0,1,2,3]"
         )
@@ -142,12 +171,35 @@ class Context(object):
         return self.plot_lib
 
     # -------------------------------------------------------------------------
-    # getPlotLib()
+    # getDebugLevel()
     #
-    # Get handle to plotting library
+    # Get debug_level
     # -------------------------------------------------------------------------
     def getDebugLevel(self):
         return self.debug_level
+
+    # -------------------------------------------------------------------------
+    # getFileNames()
+    #
+    # Get input file names
+    # -------------------------------------------------------------------------
+    def getFileNames(self, prefix, context):
+        """
+        :param prefix: core TOA file name (must match core ccdc and cloudmask file name)
+        :param context: input context object dictionary
+        :return: updated context
+        """
+        context[Context.FN_PREFIX] = str(prefix[1]).split("-toa.tif", 1)
+        context[Context.FN_TOA] = os.path.join(context[Context.DIR_TOA] + '/' +
+                                               context[Context.FN_PREFIX][0] + self.FN_TOA_SUFFIX)
+        context[Context.FN_CCDC] = os.path.join(context[Context.DIR_CCDC] + '/' +
+                                                context[Context.FN_PREFIX][0] + self.FN_CCDC_SUFFIX)
+        context[Context.FN_CLOUDMASK] = os.path.join(context[Context.DIR_CLOUDMASK] + '/' +
+                                                     context[Context.FN_PREFIX][0] + self.FN_CLOUDMASK_SUFFIX)
+        context[Context.FN_WARP] = os.path.join(context[Context.DIR_WARP] + '/' +
+                                                context[Context.FN_PREFIX][0] + self.FN_CLOUDMASK_WARP_SUFFIX)
+
+        return context
 
     # -------------------------------------------------------------------------
     # create_logfile()

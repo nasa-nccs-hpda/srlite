@@ -272,47 +272,39 @@ def main():
     plotLib = contextClazz.getPlotLib()
     rasterLib = RasterLib(debug_level, plotLib)
 
-    # Retrieve and prepare paths
-    evhrdir = context[Context.DIR_TOA]
-    ccdcdir = context[Context.DIR_CCDC]
-    cloudmaskdir = cloudmaskWarpdir = context[Context.DIR_CLOUDMASK]
-    outpath = context[Context.DIR_OUTPUT]
-    os.system(f'mkdir -p {context[Context.DIR_OUTPUT]}')
-    bandNamePairList = \
-        list(ast.literal_eval(context[Context.LIST_BAND_PAIRS]))
+    # for context[Context.FN_TOA] in sorted(Path(context[Context.DIR_TOA]).glob("*.tif")):
+    for context[Context.FN_TOA] in (Path(context[Context.DIR_TOA]).glob("*.tif")):
+#         prefix = str(context[Context.FN_TOA]).rsplit("/", 1)
+         context = contextClazz.getFileNames(str(context[Context.FN_TOA]).rsplit("/", 1), context)
+         # name = str(prefix[1]).split("-toa.tif", 1)
+         # context[Context.FN_CCDC] = os.path.join(context[Context.DIR_CCDC] + '/' + name[0] + '-ccdc.tif')
+         # r_fn_cloudmask = os.path.join(context[Context.DIR_CLOUDMASK] + '/' + name[0] + '-toa_pred.tif')
+         # r_fn_cloudmaskWarp = os.path.join(context[Context.DIR_CLOUDMASK] + '/' + name[0] + '-toa_pred_warp.tif')
 
-    # for r_fn_evhr in sorted(Path(evhrdir).glob("*.tif")):
-    for r_fn_evhr in (Path(evhrdir).glob("*.tif")):
-         prefix = str(r_fn_evhr).rsplit("/", 1)
-         name = str(prefix[1]).split("-toa.tif", 1)
-         r_fn_ccdc = os.path.join(ccdcdir + '/' + name[0] + '-ccdc.tif')
-         r_fn_cloudmask = os.path.join(cloudmaskdir + '/' + name[0] + '-toa_pred.tif')
-         r_fn_cloudmaskWarp = os.path.join(cloudmaskWarpdir + '/' + name[0] + '-toa_pred_warp.tif')
-
-         plotLib.trace(f'Processing files: {r_fn_evhr, r_fn_ccdc, r_fn_cloudmask}')
+         plotLib.trace(f'Processing files: {context[Context.FN_TOA], context[Context.FN_CCDC] , context[Context.FN_CLOUDMASK] }')
 
          # Get attributes of raw EVHR tif and create plot - assumes same root name suffixed by "-toa.tif")
-         plotLib.trace('\nEVHR file=' + str(r_fn_evhr))
-         rasterLib.getProjection(str(r_fn_evhr), "EVHR Combo Plot")
+         plotLib.trace('\nEVHR file=' + str(context[Context.FN_TOA]))
+         rasterLib.getProjection(str(context[Context.FN_TOA]), "EVHR Combo Plot")
 
          # Get attributes of raw CCDC tif and create plot - assumes same root name suffixed by '-ccdc.tif')
-         plotLib.trace('\nCCDC file=' + str(r_fn_ccdc))
-         rasterLib.getProjection(str(r_fn_ccdc), "CCDC Combo Plot")
+         plotLib.trace('\nCCDC file=' + str(context[Context.FN_CCDC]))
+         rasterLib.getProjection(str(context[Context.FN_CCDC]), "CCDC Combo Plot")
 
          # Get attributes of raw cloudmask tif and create plot - assumes same root name suffixed by '-toa_pred.tif')
-         plotLib.trace('\nCloudmask file=' + str(r_fn_cloudmask))
-         rasterLib.getProjection(str(r_fn_cloudmask), "Cloudmask Combo Plot")
+         plotLib.trace('\nCloudmask file=' + str(context[Context.FN_CLOUDMASK]))
+         rasterLib.getProjection(str(context[Context.FN_CLOUDMASK]), "Cloudmask Combo Plot")
 
          #  Warp cloudmask to attributes of EVHR - suffix root name with '-toa_pred_warp.tif')
-         plotLib.trace('\nCloudmask Warp=' + str(r_fn_cloudmaskWarp))
-         rasterLib.downscale(str(r_fn_evhr), str(r_fn_cloudmask), str(r_fn_cloudmaskWarp), 
+         plotLib.trace('\nCloudmask Warp=' + str(context[Context.FN_WARP]))
+         rasterLib.downscale(str(context[Context.FN_TOA]), str(context[Context.FN_CLOUDMASK]), str(context[Context.FN_WARP]), 
                              xRes=30.0, yRes=30.0)
-         rasterLib.getProjection(str(r_fn_cloudmaskWarp), "Cloudmask Warp Combo Plot")
+         rasterLib.getProjection(str(context[Context.FN_WARP]), "Cloudmask Warp Combo Plot")
          #    break;
 
          # Validate that input band name pairs exist in EVHR & CCDC files
-         fn_list = [str(r_fn_ccdc), str(r_fn_evhr)]
-         bandPairIndicesList = rasterLib.validateBands(bandNamePairList, fn_list)
+         fn_list = [str(context[Context.FN_CCDC]), str(context[Context.FN_TOA])]
+         bandPairIndicesList = rasterLib.validateBands(list(ast.literal_eval(context[Context.LIST_BAND_PAIRS])), fn_list)
 
          # Get the common pixel intersection values of the EVHR & CCDC files
          warp_ds_list, warp_ma_list = rasterLib.getIntersection(fn_list)
@@ -321,12 +313,14 @@ def main():
                        str(warp_ma_list[1].shape))
 
          plotLib.trace('\n Process Bands ....')
-         sr_prediction_list = processBands(context, warp_ds_list, bandNamePairList, bandPairIndicesList,
-                                           fn_list, r_fn_cloudmaskWarp, plotLib, rasterLib)
+         sr_prediction_list = processBands(context, warp_ds_list, list(ast.literal_eval(context[Context.LIST_BAND_PAIRS])), bandPairIndicesList,
+                                           fn_list, context[Context.FN_WARP], plotLib, rasterLib)
 
          plotLib.trace('\n Create Image....')
-         outputname = rasterLib.createImage(str(r_fn_evhr), len(bandPairIndicesList), sr_prediction_list, name[0],
-                                  bandNamePairList, outpath)
+         outputname = rasterLib.createImage(str(context[Context.FN_TOA]), len(bandPairIndicesList), sr_prediction_list,
+                                            str(context[Context.FN_PREFIX],
+                                                list(ast.literal_eval(context[Context.LIST_BAND_PAIRS])),
+                                                context[Context.DIR_OUTPUT]))
 
          # Use gdalwarp to create Cloud-optimized Geotiff (COG)
          cogname = outputname.replace("-precog.tif", ".tif")
