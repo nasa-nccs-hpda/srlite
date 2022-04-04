@@ -23,6 +23,7 @@ class Context(object):
     # File names
     FN_DEST = 'fn_dest'
     FN_SRC = 'fn_src'
+    FN_LIST = 'fn_list'
 
     FN_TOA = 'fn_toa'
     FN_CCDC = 'fn_ccdc'

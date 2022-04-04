@@ -3,6 +3,7 @@
 import os
 import os.path
 import sys
+import ast
 from datetime import datetime
 import osgeo
 from osgeo import gdal, osr
@@ -38,23 +39,41 @@ class RasterLib(object):
             sys.exit(1)
         return
 
-    def getBandIndices(self, fn_list, bandNamePair):
+    # def getBands(self, context):
+    # #def getBands(self, bandNamePairList, fn_list):
+    #
+    #     ########################################
+    #     # Validate Band Pairs and Retrieve Corresponding Array Indices
+    #     ########################################
+    #     bandNamePairList = list(ast.literal_eval(context[Context.LIST_BAND_PAIRS]))
+    #     self._plot_lib.trace('bandNamePairList=' + str(bandNamePairList))
+    #     bandPairIndicesList = self.getBandIndices(list(context[Context.FN_LIST]), bandNamePairList)
+    #     self._plot_lib.trace('bandIndices=' + str(bandPairIndicesList))
+    #     return bandPairIndicesList
+
+    def getBandIndices(self, context):
+#        def getBandIndices(self, fn_list, bandNamePair):
+
         """
         Validate band name pairs and return corresponding gdal indices
         """
+        bandNamePairList = list(ast.literal_eval(context[Context.LIST_BAND_PAIRS]))
+        self._plot_lib.trace('bandNamePairList=' + str(bandNamePairList))
+
+        fn_list = context[Context.FN_LIST]
         ccdcDs = gdal.Open(fn_list[0], gdal.GA_ReadOnly)
         ccdcBands = ccdcDs.RasterCount
         evhrDs = gdal.Open(fn_list[1], gdal.GA_ReadOnly)
         evhrBands = evhrDs.RasterCount
 
-        self._plot_lib.trace('bandNamePair: ' + str(bandNamePair))
-        numBandPairs = len(bandNamePair)
+        self._plot_lib.trace('bandNamePair: ' + str(bandNamePairList))
+        numBandPairs = len(bandNamePairList)
         bandIndices = [numBandPairs]
 
         for bandPairIndex in range(0, numBandPairs):
 
             ccdcBandIndex = evhrBandIndex = -1
-            currentBandPair = bandNamePair[bandPairIndex]
+            currentBandPair = bandNamePairList[bandPairIndex]
 
             for ccdcIndex in range(1, ccdcBands + 1):
                 # read in bands from image
@@ -82,6 +101,7 @@ class RasterLib(object):
             bandIndices.append([ccdcIndex, evhrIndex])
 
         ccdcDs = evhrDs = None
+        self._plot_lib.trace('validated bandIndices=' + str(bandIndices))
         return bandIndices
 
     def getProjection(self, r_fn, title):
@@ -101,15 +121,6 @@ class RasterLib(object):
 
         if (self._debug_level >= 2):
             self._plot_lib.plot_combo(r_fn, figsize=(14, 7), title=title)
-
-    def validateBands(self, bandNamePairList, fn_list):
-        ########################################
-        # Validate Band Pairs and Retrieve Corresponding Array Indices
-        ########################################
-        self._plot_lib.trace('bandNamePairList=' + str(bandNamePairList))
-        bandPairIndicesList = self.getBandIndices(fn_list, bandNamePairList)
-        self._plot_lib.trace('bandIndices=' + str(bandPairIndicesList))
-        return bandPairIndicesList
 
     def getIntersection(self, fn_list):
         # ########################################
@@ -151,8 +162,6 @@ class RasterLib(object):
         with rasterio.open(output_name, 'w', **meta) as dst:
             for id in range(1, numBandPairs):
                 bandPrediction = sr_prediction_list[id]
-                # mean = bandPrediction.mean()
-                # self._plot_lib.trace(f'BandPrediction.mean({mean})')
                 dst.set_band_description(id, bandNamePairList[id - 1][1])
                 bandPrediction1 = np.ma.masked_values(bandPrediction, -9999)
                 dst.write_band(id, bandPrediction1)

@@ -295,22 +295,19 @@ def main():
         context[Context.FN_DEST] = str(context[Context.FN_WARP])
         context[Context.TARGET_ATTR] = str(context[Context.FN_TOA])
         rasterLib.downscale(context)
-        # rasterLib.downscale(context, str(context[Context.FN_TOA]), str(context[Context.FN_CLOUDMASK]),
-        #                     str(context[Context.FN_WARP]),
-        #                     xRes=30.0, yRes=30.0)
         rasterLib.getProjection(str(context[Context.FN_WARP]), "Cloudmask Warp Combo Plot")
-        #    break;
 
         # Validate that input band name pairs exist in EVHR & CCDC files
-        fn_list = [str(context[Context.FN_CCDC]), str(context[Context.FN_TOA])]
-        bandPairIndicesList = rasterLib.validateBands(list(ast.literal_eval(context[Context.LIST_BAND_PAIRS])), fn_list)
+#        fn_list = [str(context[Context.FN_CCDC]), str(context[Context.FN_TOA])]
+        context[Context.FN_LIST] = [str(context[Context.FN_CCDC]), str(context[Context.FN_TOA])]
+        bandPairIndicesList = rasterLib.getBandIndices(context)
 
         # Get the common pixel intersection values of the EVHR & CCDC files
-        warp_ds_list, warp_ma_list = rasterLib.getIntersection(fn_list)
+        warp_ds_list, warp_ma_list = rasterLib.getIntersection(context[Context.FN_LIST])
 
         # Perform regression to capture coefficients from intersected pixels and apply to 2m EVHR
         sr_prediction_list = processBands(context, warp_ds_list, list(ast.literal_eval(context[Context.LIST_BAND_PAIRS])), bandPairIndicesList,
-                                       fn_list, context[Context.FN_WARP], plotLib, rasterLib)
+                                       context[Context.FN_LIST], context[Context.FN_WARP], plotLib, rasterLib)
 
         # Create COG image from stack of processed bands
         cogname = rasterLib.createImage(context,
