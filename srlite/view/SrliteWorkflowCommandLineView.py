@@ -314,19 +314,11 @@ def main():
         sr_prediction_list = processBands(context, warp_ds_list, list(ast.literal_eval(context[Context.LIST_BAND_PAIRS])), bandPairIndicesList,
                                        fn_list, context[Context.FN_WARP], plotLib, rasterLib)
 
-
-        bandNamePairList = list(ast.literal_eval(context[Context.LIST_BAND_PAIRS]))
-
         plotLib.trace('\n Create Image....')
-
-
-        # outputname = rasterLib.createImage(str(r_fn_evhr), len(bandPairIndicesList), sr_prediction_list, name[0],
-        #                            bandNamePairList, outpath)
-
         outputname = rasterLib.createImage(
             str(context[Context.FN_TOA]), len(bandPairIndicesList), sr_prediction_list,
             str(context[Context.FN_PREFIX][0]),
-            bandNamePairList,
+            list(ast.literal_eval(context[Context.LIST_BAND_PAIRS])),
             context[Context.DIR_OUTPUT])
 
         # Use gdalwarp to create Cloud-optimized Geotiff (COG)
