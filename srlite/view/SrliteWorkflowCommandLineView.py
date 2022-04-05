@@ -279,10 +279,12 @@ def main():
 
         # Get attributes of raw EVHR tif and create plot - assumes same root name suffixed by "-toa.tif")
         plotLib.trace('\nEVHR file=' + str(context[Context.FN_TOA]))
+        if eval(context[Context.WARP_EVHR_FLAG]):  rasterLib.downscale(context)
         rasterLib.getProjection(str(context[Context.FN_TOA]), "EVHR Combo Plot")
 
         # Get attributes of raw CCDC tif and create plot - assumes same root name suffixed by '-ccdc.tif')
         plotLib.trace('\nCCDC file=' + str(context[Context.FN_CCDC]))
+        if eval(context[Context.WARP_CCDC_FLAG]):  rasterLib.downscale(context)
         rasterLib.getProjection(str(context[Context.FN_CCDC]), "CCDC Combo Plot")
 
         # Get attributes of raw cloudmask tif and create plot - assumes same root name suffixed by '-toa_pred.tif')
@@ -294,11 +296,10 @@ def main():
         context[Context.FN_SRC] = str(context[Context.FN_CLOUDMASK])
         context[Context.FN_DEST] = str(context[Context.FN_WARP])
         context[Context.TARGET_ATTR] = str(context[Context.FN_TOA])
-        rasterLib.downscale(context)
+        if eval(context[Context.WARP_CLOUDMASK_FLAG]): rasterLib.downscale(context)
         rasterLib.getProjection(str(context[Context.FN_WARP]), "Cloudmask Warp Combo Plot")
 
         # Validate that input band name pairs exist in EVHR & CCDC files
-#        fn_list = [str(context[Context.FN_CCDC]), str(context[Context.FN_TOA])]
         context[Context.FN_LIST] = [str(context[Context.FN_CCDC]), str(context[Context.FN_TOA])]
         bandPairIndicesList = rasterLib.getBandIndices(context)
 

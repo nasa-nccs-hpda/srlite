@@ -49,6 +49,12 @@ class Context(object):
     TARGET_SRS = 'target_srs'
     TARGET_OUTPUT_TYPE = 'target_output_type'
 
+    # Warp flags
+    WARP_EVHR_FLAG = 'warp_evhr_flag'
+    WARP_CCDC_FLAG  = 'warp_ccdc_flag'
+    WARP_CLOUDMASK_FLAG  = 'warp_cloudmask_flag'
+
+    # Default values
     DEFAULT_XRES = 30.0
     DEFAULT_YRES = 30.0
 
@@ -63,7 +69,7 @@ class Context(object):
     DEBUG_VIZ_VALUE = 2
     DEBUG_LEVEL = 'debug_level'
     LOG_FLAG = 'log_flag'
-    CLEAN_FLAG = 'clean_log'
+    CLEAN_FLAG = 'clean_flag'
 
     # Global instance variables
     context_dict = {}
@@ -96,6 +102,9 @@ class Context(object):
             self.context_dict[Context.REGRESSION_MODEL] = str(args.regressor)
             self.context_dict[Context.DEBUG_LEVEL] = int(args.debug_level)
             self.context_dict[Context.CLEAN_FLAG] = str(args.cleanbool)
+            self.context_dict[Context.WARP_EVHR_FLAG] = str(args.warp_evhr_bool)
+            self.context_dict[Context.WARP_CCDC_FLAG] = str(args.warp_ccdc_bool)
+            self.context_dict[Context.WARP_CLOUDMASK_FLAG] = str(args.warp_cloudmask_bool)
             self.context_dict[Context.LOG_FLAG] = str(args.logbool)
             if eval(self.context_dict[Context.LOG_FLAG]):
                 self._create_logfile(self.context_dict[Context.REGRESSION_MODEL],
@@ -124,6 +133,9 @@ class Context(object):
         plotLib.trace(f'Regression Model:    {self.context_dict[Context.REGRESSION_MODEL]}')
         plotLib.trace(f'Debug Level: {self.context_dict[Context.DEBUG_LEVEL]}')
         plotLib.trace(f'Clean Flag: {self.context_dict[Context.CLEAN_FLAG]}')
+        plotLib.trace(f'Warp EVHR Flag: {self.context_dict[Context.WARP_EVHR_FLAG]}')
+        plotLib.trace(f'Warp CCDC Flag: {self.context_dict[Context.WARP_CCDC_FLAG]}')
+        plotLib.trace(f'Warp Cloudmask Flag: {self.context_dict[Context.WARP_CLOUDMASK_FLAG]}')
         plotLib.trace(f'Log: {self.context_dict[Context.LOG_FLAG]}')
 
         return
@@ -140,15 +152,15 @@ class Context(object):
         parser = argparse.ArgumentParser()
 
         parser.add_argument(
-            "-toa", "--input-toa-dir", type=str, required=True, dest='toa_dir',
+            "-toa_dir", "--input-toa-dir", type=str, required=True, dest='toa_dir',
             default=None, help="Specify directory path containing TOA files."
         )
         parser.add_argument(
-            "-ccdc", "--input-ccdc-dir", type=str, required=False, dest='ccdc_dir',
+            "-ccdc_dir", "--input-ccdc-dir", type=str, required=False, dest='ccdc_dir',
             default=None, help="Specify directory path containing CCDC files."
         )
         parser.add_argument(
-            "-cloudmask", "--input-cloudmask-dir", type=str, required=True, dest='cloudmask_dir',
+            "-cloudmask_dir", "--input-cloudmask-dir", type=str, required=True, dest='cloudmask_dir',
             default=None, help="Specify directory path containing Cloudmask files."
         )
         parser.add_argument(
@@ -157,11 +169,11 @@ class Context(object):
             help="Specify list of band pairs to be processed per scene."
         )
         parser.add_argument(
-            "-o", "--output-directory", type=str, required=False, dest='out_dir',
+            "-output_dir", "--output-directory", type=str, required=False, dest='out_dir',
             default="./", help="Specify output directory."
         )
         parser.add_argument(
-            "--warp", "--input-warp-dir", type=str, required=False, dest='warp_dir',
+            "--warp_dir", "--input-warp-dir", type=str, required=False, dest='warp_dir',
             default=None, help="Specify directory path containing wapred files."
         )
         parser.add_argument(
@@ -179,6 +191,18 @@ class Context(object):
         parser.add_argument(
             "--clean", "--clean", required=False, dest='cleanbool',
             action='store_true', help="Force cleaning of generated artifacts prior to run (e.g, warp files)."
+        )
+        parser.add_argument(
+            "--warp_evhr", "--warp_evhr", required=False, dest='warp_evhr_bool',
+            action='store_true', help="Warp EVHR to match specified projection, resolution, extents, etc."
+        )
+        parser.add_argument(
+            "--warp_ccdc", "--warp_ccdc", required=False, dest='warp_ccdc_bool',
+            action='store_true', help="Warp CCDC to match EVHR projection, resolution, extents, etc."
+        )
+        parser.add_argument(
+            "--warp_cloudmask", "--warp_cloudmask", required=False, dest='warp_cloudmask_bool',
+            action='store_true', help="Warp Cloudmask to match EVHR projection, resolution, extents, etc."
         )
         parser.add_argument(
             "--log", "--log", required=False, dest='logbool',
