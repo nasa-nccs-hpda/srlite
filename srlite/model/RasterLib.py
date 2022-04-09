@@ -39,20 +39,7 @@ class RasterLib(object):
             sys.exit(1)
         return
 
-    # def getBands(self, context):
-    # #def getBands(self, bandNamePairList, fn_list):
-    #
-    #     ########################################
-    #     # Validate Band Pairs and Retrieve Corresponding Array Indices
-    #     ########################################
-    #     bandNamePairList = list(ast.literal_eval(context[Context.LIST_BAND_PAIRS]))
-    #     self._plot_lib.trace('bandNamePairList=' + str(bandNamePairList))
-    #     bandPairIndicesList = self.getBandIndices(list(context[Context.FN_LIST]), bandNamePairList)
-    #     self._plot_lib.trace('bandIndices=' + str(bandPairIndicesList))
-    #     return bandPairIndicesList
-
     def getBandIndices(self, context):
-#        def getBandIndices(self, fn_list, bandNamePair):
 
         """
         Validate band name pairs and return corresponding gdal indices
@@ -265,6 +252,7 @@ class RasterLib(object):
                 os.remove(context[Context.FN_DEST])
 
         extent = self.getExtents(context[Context.TARGET_ATTR])
+        self._plot_lib.trace(' warp() target extent =' + str(extent))
         ds = gdal.Warp(context[Context.FN_DEST], context[Context.FN_SRC],
                        dstSRS=context[Context.TARGET_SRS] , outputType=context[Context.TARGET_OUTPUT_TYPE] ,
                        xRes=context[Context.TARGET_XRES] , yRes=context[Context.TARGET_YRES], outputBounds=extent)

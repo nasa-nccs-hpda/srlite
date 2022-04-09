@@ -270,54 +270,60 @@ def main():
     # Get handles to plot and raster classes
     plotLib = contextClazz.getPlotLib()
     rasterLib = RasterLib(debug_level, plotLib)
+    cogname = "No File"
 
-    # for context[Context.FN_TOA] in sorted(Path(context[Context.DIR_TOA]).glob("*.tif")):
-    for context[Context.FN_TOA] in (Path(context[Context.DIR_TOA]).glob("*.tif")):
+    for context[Context.FN_TOA] in sorted(Path(context[Context.DIR_TOA]).glob("*.tif")):
+#    for context[Context.FN_TOA] in (Path(context[Context.DIR_TOA]).glob("*.tif")):
 
-        # Generate file names based on incoming EVHR file and declared suffixes
-        context = contextClazz.getFileNames(str(context[Context.FN_TOA]).rsplit("/", 1), context)
+        try:
+            # Generate file names based on incoming EVHR file and declared suffixes
+            context = contextClazz.getFileNames(str(context[Context.FN_TOA]).rsplit("/", 1), context)
 
-        # Get attributes of raw EVHR tif and create plot - assumes same root name suffixed by "-toa.tif")
-        plotLib.trace('\nEVHR file=' + str(context[Context.FN_TOA]))
-        if eval(context[Context.WARP_EVHR_FLAG]):  rasterLib.downscale(context)
-        rasterLib.getProjection(str(context[Context.FN_TOA]), "EVHR Combo Plot")
+            # Get attributes of raw EVHR tif and create plot - assumes same root name suffixed by "-toa.tif")
+            plotLib.trace('\nEVHR file=' + str(context[Context.FN_TOA]))
+            rasterLib.getProjection(str(context[Context.FN_TOA]), "EVHR Combo Plot")
 
-        # Get attributes of raw CCDC tif and create plot - assumes same root name suffixed by '-ccdc.tif')
-        plotLib.trace('\nCCDC file=' + str(context[Context.FN_CCDC]))
-        if eval(context[Context.WARP_CCDC_FLAG]):  rasterLib.downscale(context)
-        rasterLib.getProjection(str(context[Context.FN_CCDC]), "CCDC Combo Plot")
+            # Get attributes of raw CCDC tif and create plot - assumes same root name suffixed by '-ccdc.tif')
+            plotLib.trace('\nCCDC file=' + str(context[Context.FN_CCDC]))
+            rasterLib.getProjection(str(context[Context.FN_CCDC]), "CCDC Combo Plot")
 
-        # Get attributes of raw cloudmask tif and create plot - assumes same root name suffixed by '-toa_pred.tif')
-        plotLib.trace('\nCloudmask file=' + str(context[Context.FN_CLOUDMASK]))
-        rasterLib.getProjection(str(context[Context.FN_CLOUDMASK]), "Cloudmask Combo Plot")
+            # Get attributes of raw cloudmask tif and create plot - assumes same root name suffixed by '-toa_pred.tif')
+            plotLib.trace('\nCloudmask file=' + str(context[Context.FN_CLOUDMASK]))
+            rasterLib.getProjection(str(context[Context.FN_CLOUDMASK]), "Cloudmask Combo Plot")
 
-        #  Warp cloudmask to attributes of EVHR - suffix root name with '-toa_pred_warp.tif')
-        plotLib.trace('\nCloudmask Warp=' + str(context[Context.FN_WARP]))
-        context[Context.FN_SRC] = str(context[Context.FN_CLOUDMASK])
-        context[Context.FN_DEST] = str(context[Context.FN_WARP])
-        context[Context.TARGET_ATTR] = str(context[Context.FN_TOA])
-        if eval(context[Context.WARP_CLOUDMASK_FLAG]): rasterLib.downscale(context)
-        rasterLib.getProjection(str(context[Context.FN_WARP]), "Cloudmask Warp Combo Plot")
+            #  Warp cloudmask to attributes of EVHR - suffix root name with '-toa_pred_warp.tif')
+            plotLib.trace('\nCloudmask Warp=' + str(context[Context.FN_WARP]))
+            context[Context.FN_SRC] = str(context[Context.FN_CLOUDMASK])
+            context[Context.FN_DEST] = str(context[Context.FN_WARP])
+            context[Context.TARGET_ATTR] = str(context[Context.FN_TOA])
+            rasterLib.downscale(context)
+            rasterLib.getProjection(str(context[Context.FN_WARP]), "Cloudmask Warp Combo Plot")
 
-        # Validate that input band name pairs exist in EVHR & CCDC files
-        context[Context.FN_LIST] = [str(context[Context.FN_CCDC]), str(context[Context.FN_TOA])]
-        bandPairIndicesList = rasterLib.getBandIndices(context)
+            # Validate that input band name pairs exist in EVHR & CCDC files
+            context[Context.FN_LIST] = [str(context[Context.FN_CCDC]), str(context[Context.FN_TOA])]
+            bandPairIndicesList = rasterLib.getBandIndices(context)
 
-        # Get the common pixel intersection values of the EVHR & CCDC files
-        warp_ds_list, warp_ma_list = rasterLib.getIntersection(context[Context.FN_LIST])
+            # Get the common pixel intersection values of the EVHR & CCDC files
+            warp_ds_list, warp_ma_list = rasterLib.getIntersection(context[Context.FN_LIST])
 
-        # Perform regression to capture coefficients from intersected pixels and apply to 2m EVHR
-        sr_prediction_list = processBands(context, warp_ds_list, list(ast.literal_eval(context[Context.LIST_BAND_PAIRS])), bandPairIndicesList,
-                                       context[Context.FN_LIST], context[Context.FN_WARP], plotLib, rasterLib)
+            # Perform regression to capture coefficients from intersected pixels and apply to 2m EVHR
+            sr_prediction_list = processBands(context, warp_ds_list, list(ast.literal_eval(context[Context.LIST_BAND_PAIRS])), bandPairIndicesList,
+                                           context[Context.FN_LIST], context[Context.FN_WARP], plotLib, rasterLib)
 
-        # Create COG image from stack of processed bands
-        cogname = rasterLib.createImage(context,
-            str(context[Context.FN_TOA]), len(bandPairIndicesList), sr_prediction_list,
-            str(context[Context.FN_PREFIX]),
-            list(ast.literal_eval(context[Context.LIST_BAND_PAIRS])),
-            context[Context.DIR_OUTPUT])
+            # Create COG image from stack of processed bands
+            cogname = rasterLib.createImage(context,
+                str(context[Context.FN_TOA]), len(bandPairIndicesList), sr_prediction_list,
+                str(context[Context.FN_PREFIX]),
+                list(ast.literal_eval(context[Context.LIST_BAND_PAIRS])),
+                context[Context.DIR_OUTPUT])
 
-        break;
+        except FileNotFoundError as exc:
+            print(exc);
+        except BaseException as err:
+            print('Run abended.  Error: ', err)
+            sys.exit(1)
+
+#        break;
 
     print("\nTotal Elapsed Time for " + cogname + ': ',
            (time.time() - start_time) / 60.0)  # time in min

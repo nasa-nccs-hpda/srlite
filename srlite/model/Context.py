@@ -34,7 +34,7 @@ class Context(object):
     # File name suffixes
     FN_TOA_SUFFIX = '-toa.tif'
     FN_CCDC_SUFFIX = '-ccdc.tif'
-    FN_CLOUDMASK_SUFFIX = '-toa_pred.tif'
+    FN_CLOUDMASK_SUFFIX = '-toa.clouds.tif'
     FN_CLOUDMASK_WARP_SUFFIX = '-toa_pred_warp.tif'
 
     # Band pairs
@@ -102,9 +102,6 @@ class Context(object):
             self.context_dict[Context.REGRESSION_MODEL] = str(args.regressor)
             self.context_dict[Context.DEBUG_LEVEL] = int(args.debug_level)
             self.context_dict[Context.CLEAN_FLAG] = str(args.cleanbool)
-            self.context_dict[Context.WARP_EVHR_FLAG] = str(args.warp_evhr_bool)
-            self.context_dict[Context.WARP_CCDC_FLAG] = str(args.warp_ccdc_bool)
-            self.context_dict[Context.WARP_CLOUDMASK_FLAG] = str(args.warp_cloudmask_bool)
             self.context_dict[Context.LOG_FLAG] = str(args.logbool)
             if eval(self.context_dict[Context.LOG_FLAG]):
                 self._create_logfile(self.context_dict[Context.REGRESSION_MODEL],
@@ -133,9 +130,6 @@ class Context(object):
         plotLib.trace(f'Regression Model:    {self.context_dict[Context.REGRESSION_MODEL]}')
         plotLib.trace(f'Debug Level: {self.context_dict[Context.DEBUG_LEVEL]}')
         plotLib.trace(f'Clean Flag: {self.context_dict[Context.CLEAN_FLAG]}')
-        plotLib.trace(f'Warp EVHR Flag: {self.context_dict[Context.WARP_EVHR_FLAG]}')
-        plotLib.trace(f'Warp CCDC Flag: {self.context_dict[Context.WARP_CCDC_FLAG]}')
-        plotLib.trace(f'Warp Cloudmask Flag: {self.context_dict[Context.WARP_CLOUDMASK_FLAG]}')
         plotLib.trace(f'Log: {self.context_dict[Context.LOG_FLAG]}')
 
         return
@@ -191,18 +185,6 @@ class Context(object):
         parser.add_argument(
             "--clean", "--clean", required=False, dest='cleanbool',
             action='store_true', help="Force cleaning of generated artifacts prior to run (e.g, warp files)."
-        )
-        parser.add_argument(
-            "--warp_evhr", "--warp_evhr", required=False, dest='warp_evhr_bool',
-            action='store_true', help="Warp EVHR to match specified projection, resolution, extents, etc."
-        )
-        parser.add_argument(
-            "--warp_ccdc", "--warp_ccdc", required=False, dest='warp_ccdc_bool',
-            action='store_true', help="Warp CCDC to match EVHR projection, resolution, extents, etc."
-        )
-        parser.add_argument(
-            "--warp_cloudmask", "--warp_cloudmask", required=False, dest='warp_cloudmask_bool',
-            action='store_true', help="Warp Cloudmask to match EVHR projection, resolution, extents, etc."
         )
         parser.add_argument(
             "--log", "--log", required=False, dest='logbool',
@@ -261,6 +243,13 @@ class Context(object):
                                                      context[Context.FN_PREFIX] + self.FN_CLOUDMASK_SUFFIX)
         context[Context.FN_WARP] = os.path.join(context[Context.DIR_WARP] + '/' +
                                                 context[Context.FN_PREFIX] + self.FN_CLOUDMASK_WARP_SUFFIX)
+
+        if not (os.path.exists(context[Context.FN_TOA])):
+            raise FileNotFoundError("TOA File not found: {}".format(context[Context.FN_TOA]))
+        if not (os.path.exists(context[Context.FN_CCDC])):
+            raise FileNotFoundError("CCDC File not found: {}".format(context[Context.FN_CCDC]))
+        if not (os.path.exists(context[Context.FN_CLOUDMASK])):
+            raise FileNotFoundError("Cloudmask File not found: {}".format(context[Context.FN_CLOUDMASK]))
 
         return context
 
