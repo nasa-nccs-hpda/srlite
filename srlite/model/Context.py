@@ -24,12 +24,16 @@ class Context(object):
     FN_DEST = 'fn_dest'
     FN_SRC = 'fn_src'
     FN_LIST = 'fn_list'
+    DS_LIST = 'ds_list'
+    MA_LIST = 'ma_list'
+    PRED_LIST = 'pred_list'
 
     FN_TOA = 'fn_toa'
     FN_CCDC = 'fn_ccdc'
     FN_CLOUDMASK = 'fn_cloudmask'
     FN_WARP = 'fn_warp'
     FN_PREFIX = 'fn_prefix'
+    FN_COG = 'fn_cog'
 
     # File name suffixes
     FN_TOA_SUFFIX = '-toa.tif'
@@ -39,6 +43,7 @@ class Context(object):
 
     # Band pairs
     LIST_BAND_PAIRS = 'band_pairs_list'
+    LIST_BAND_PAIR_INDICES = 'band_pairs_list_indices'
 
     # Target vars and defaults
     TARGET_ATTR = 'target_attr'
