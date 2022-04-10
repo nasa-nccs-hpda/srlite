@@ -62,7 +62,7 @@ def main():
             context[Context.FN_SRC] = str(context[Context.FN_CLOUDMASK])
             context[Context.FN_DEST] = str(context[Context.FN_WARP])
             context[Context.TARGET_ATTR] = str(context[Context.FN_TOA])
-            rasterLib.downscale(context)
+            rasterLib.translate(context)
             rasterLib.getAttributes(str(context[Context.FN_WARP]), "Cloudmask Warp Combo Plot")
 
             # Validate that input band name pairs exist in EVHR & CCDC files
@@ -70,7 +70,7 @@ def main():
             context[Context.LIST_BAND_PAIR_INDICES] = rasterLib.getBandIndices(context)
 
             # Get the common pixel intersection values of the EVHR & CCDC files
-            context[Context.DS_LIST], context[Context.MA_LIST] = rasterLib.getIntersection(context[Context.FN_LIST])
+            context[Context.DS_LIST], context[Context.MA_LIST] = rasterLib.getIntersection(context)
 
             # Perform regression to capture coefficients from intersected pixels and apply to 2m EVHR
             context[Context.PRED_LIST] = rasterLib.performRegression(context)

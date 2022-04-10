@@ -40,7 +40,23 @@ class RasterLib(object):
             sys.exit(1)
         return
 
+    def _validateParms(self, context, requiredList):
+
+        """
+        Verify that required parameters exist in Context()
+        """
+        for parm in requiredList:
+            parmExists = False
+            for item in context:
+                if (item == parm):
+                    parmExists = True
+                    break;
+            if (parmExists == False):
+                print("Error: Missing required parameter: " + str(parm))
+                exit(1)
+
     def getBandIndices(self, context):
+        self._validateParms(context, [Context.LIST_BAND_PAIRS, Context.FN_LIST])
 
         """
         Validate band name pairs and return corresponding gdal indices
@@ -93,6 +109,7 @@ class RasterLib(object):
         return bandIndices
 
     def getAttributeSnapshot(self, context):
+        self._validateParms(context, [Context.FN_TOA, Context.FN_CCDC, Context.FN_CLOUDMASK])
 
         # Get snapshot of attributes of EVHR, CCDC, and Cloudmask tifs and create plot")
         self.getAttributes(str(context[Context.FN_TOA]), "EVHR Combo Plot")
@@ -118,11 +135,14 @@ class RasterLib(object):
         if (self._debug_level >= 2):
             self._plot_lib.plot_combo(r_fn, figsize=(14, 7), title=title)
 
-    def getIntersection(self, fn_list):
+    def getIntersection(self, context):
+        self._validateParms(context, [Context.FN_LIST])
+
         # ########################################
         # # Align the CCDC and EVHR images, then take the intersection of the grid points
         # ########################################
-        warp_ds_list = warplib.memwarp_multi_fn(fn_list, res='first', extent='intersection', t_srs='first', r='average')
+        warp_ds_list = warplib.memwarp_multi_fn(
+            context[Context.FN_LIST], res='first', extent='intersection', t_srs='first', r='average')
         warp_ma_list = [iolib.ds_getma(ds) for ds in warp_ds_list]
 
         self._plot_lib.trace('\n CCDC shape=' + str(warp_ma_list[0].shape) + ' EVHR shape=' +
@@ -130,6 +150,9 @@ class RasterLib(object):
         return warp_ds_list, warp_ma_list
 
     def performRegression(self, context):
+        self._validateParms(context,
+                            [Context.DS_LIST, Context.LIST_BAND_PAIRS, Context.LIST_BAND_PAIR_INDICES,
+                             Context.FN_WARP, Context.REGRESSION_MODEL, Context.FN_LIST])
 
         warp_ds_list = context[Context.DS_LIST]
         bandNamePairList = list(ast.literal_eval(context[Context.LIST_BAND_PAIRS]))
@@ -221,7 +244,7 @@ class RasterLib(object):
             #  Assumes Blue-band is first indice pair, so collect mask on 1st iteration only.
             if (threshold == True):
                 if (firstBand == True):
-                    evhrBandMaArray = self.applyThreshold(evhrBandMaArrayThresholdMin, evhrBandMaArrayThresholdMax,
+                    evhrBandMaArray = self._applyThreshold(evhrBandMaArrayThresholdMin, evhrBandMaArrayThresholdMax,
                                                                evhrBandMaArray)
                     firstBand = False
 
@@ -332,48 +355,13 @@ class RasterLib(object):
 
         return sr_prediction_list
 
-    def _createImage(self, context, r_fn_evhr, numBandPairs, sr_prediction_list, name,
-                    bandNamePairList, outdir):
-        ########################################
-        # Create .tif image from band-based prediction layers
-        ########################################
-        self._plot_lib.trace(f"\nAppy coefficients to High Res File...{r_fn_evhr}")
-
-        now = datetime.now()  # current date and time
-
-        #  Derive file names for intermediate files
-        output_name = "{}/{}".format(
-            outdir, name
-        ) + "_sr_02m-precog.tif"
-        self._plot_lib.trace(f"\nCreating .tif image from band-based prediction layers...{output_name}")
-
-        if eval(context[Context.CLEAN_FLAG]):
-            if os.path.exists(output_name):
-                os.remove(output_name)
-
-        # Read metadata of EVHR file
-        with rasterio.open(r_fn_evhr) as src0:
-            meta = src0.meta
-
-        # Update meta to reflect the number of layers
-        meta.update(count=numBandPairs - 1)
-
-        ########################################
-        # Read each layer and write it to stack
-        ########################################
-        with rasterio.open(output_name, 'w', **meta) as dst:
-            for id in range(1, numBandPairs):
-                bandPrediction = sr_prediction_list[id]
-                dst.set_band_description(id, bandNamePairList[id - 1][1])
-                bandPrediction1 = np.ma.masked_values(bandPrediction, -9999)
-                dst.write_band(id, bandPrediction1)
-
-        # Create Cloud-optimized Geotiff (COG)
-        context[Context.FN_SRC] = str(output_name)
-        context[Context.FN_DEST] = str(context[Context.FN_WARP])
-        return self.createCOG(context)
-
     def createImage(self, context):
+        self._validateParms(context, [Context.DIR_OUTPUT, Context.FN_PREFIX,
+                                      Context.CLEAN_FLAG, Context.FN_TOA,
+                                      Context.LIST_BAND_PAIR_INDICES, Context.FN_SRC,
+                                      Context.FN_DEST, Context.FN_WARP,
+                                      Context.LIST_BAND_PAIRS, Context.PRED_LIST])
+
         ########################################
         # Create .tif image from band-based prediction layers
         ########################################
@@ -418,6 +406,9 @@ class RasterLib(object):
         return self.createCOG(context)
 
     def createCOG(self, context):
+        self._validateParms(context, [Context.FN_SRC, Context.CLEAN_FLAG,
+                            Context.FN_DEST])
+
         # Use gdalwarp to create Cloud-optimized Geotiff (COG)
         cogname = context[Context.FN_SRC].replace("-precog.tif", ".tif")
         if eval(context[Context.CLEAN_FLAG]):
@@ -432,7 +423,7 @@ class RasterLib(object):
             os.remove(context[Context.FN_SRC])
         return cogname
 
-    def getProjSrs(self, in_raster):
+    def _getProjSrs(self, in_raster):
         # Get projection from raster
         ds = gdal.Open(in_raster)
         prj = ds.GetProjection()
@@ -445,7 +436,7 @@ class RasterLib(object):
         self._plot_lib.trace("[ SRS.GetAttrValue('geogcs') ] = {}".format(srs.GetAttrValue('geogcs')))
         return prj, srs
 
-    def getExtents(self, in_raster):
+    def _getExtents(self, in_raster):
         # Get extents from raster
         data = gdal.Open(in_raster, gdal.GA_ReadOnly)
         geoTransform = data.GetGeoTransform()
@@ -458,7 +449,7 @@ class RasterLib(object):
         self._plot_lib.trace("[ EXTENT ] = {}".format(extent))
         return extent
 
-    def getMetadata(self, band_num, input_file):
+    def _getMetadata(self, band_num, input_file):
         src_ds = gdal.Open(input_file)
         if src_ds is None:
             print('Unable to open %s' % input_file)
@@ -501,18 +492,26 @@ class RasterLib(object):
         return srcband.DataType
 
     def warp(self, context):
+        self._validateParms(context, [Context.CLEAN_FLAG, Context.FN_DEST,
+                                      Context.TARGET_ATTR, Context.FN_DEST,
+                                      Context.FN_SRC,
+                                      Context.TARGET_SRS, Context.TARGET_OUTPUT_TYPE,
+                                      Context.TARGET_XRES, Context.TARGET_YRES])
 
         if eval(context[Context.CLEAN_FLAG]):
             if os.path.exists(context[Context.FN_DEST]):
                 os.remove(context[Context.FN_DEST])
 
-        extent = self.getExtents(context[Context.TARGET_ATTR])
+        extent = self._getExtents(context[Context.TARGET_ATTR])
         ds = gdal.Warp(context[Context.FN_DEST], context[Context.FN_SRC],
                        dstSRS=context[Context.TARGET_SRS] , outputType=context[Context.TARGET_OUTPUT_TYPE] ,
                        xRes=context[Context.TARGET_XRES] , yRes=context[Context.TARGET_YRES], outputBounds=extent)
         ds = None
 
     def translate(self, context):
+        self._validateParms(context, [Context.CLEAN_FLAG, Context.FN_DEST,
+                                      Context.FN_SRC,
+                                      Context.TARGET_XRES, Context.TARGET_YRES])
 
         if eval(context[Context.CLEAN_FLAG]):
             if os.path.exists(context[Context.FN_DEST]):
@@ -522,18 +521,8 @@ class RasterLib(object):
                        xRes=context[Context.TARGET_XRES] , yRes=context[Context.TARGET_YRES])
         ds = None
 
-    def downscale(self, context):
-        if eval(context[Context.CLEAN_FLAG]):
-            if os.path.exists(context[Context.FN_DEST]):
-                os.remove(context[Context.FN_DEST])
 
-        if not os.path.exists(context[Context.FN_DEST]):
-            context[Context.TARGET_OUTPUT_TYPE] = self.getMetadata(1, str(context[Context.TARGET_ATTR]))
-            context[Context.TARGET_PRJ], context[Context.TARGET_SRS] = self.getProjSrs(context[Context.TARGET_ATTR])
-#            self.warp(context)
-            self.translate(context)
-
-    def applyThreshold(self, min, max, bandMaArray):
+    def _applyThreshold(self, min, max, bandMaArray):
         ########################################
         # Mask threshold values (e.g., (median - threshold) < range < (median + threshold)
         #  prior to generating common mask to reduce outliers ++++++[as per MC - 02/07/2022]
