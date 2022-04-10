@@ -50,8 +50,8 @@ def main():
     plotLib = contextClazz.getPlotLib()
     rasterLib = RasterLib(int(context[Context.DEBUG_LEVEL]), plotLib)
 
-#    for context[Context.FN_TOA] in sorted(Path(context[Context.DIR_TOA]).glob("*.tif")):
-    for context[Context.FN_TOA] in (Path(context[Context.DIR_TOA]).glob("*.tif")):
+    for context[Context.FN_TOA] in sorted(Path(context[Context.DIR_TOA]).glob("*.tif")):
+#    for context[Context.FN_TOA] in (Path(context[Context.DIR_TOA]).glob("*.tif")):
 
         try:
             # Generate file names based on incoming EVHR file and declared suffixes - get snapshot
@@ -84,7 +84,7 @@ def main():
             print('Run abended.  Error: ', err)
             sys.exit(1)
 
-        break;
+#        break;
 
     print("\nTotal Elapsed Time for " + context[Context.FN_COG] + ': ',
            (time.time() - start_time) / 60.0)  # time in min
