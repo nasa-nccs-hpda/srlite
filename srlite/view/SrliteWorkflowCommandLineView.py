@@ -49,19 +49,14 @@ def main():
     # Get handles to plot and raster classes
     plotLib = contextClazz.getPlotLib()
     rasterLib = RasterLib(int(context[Context.DEBUG_LEVEL]), plotLib)
-    cogname = "No File"
 
 #    for context[Context.FN_TOA] in sorted(Path(context[Context.DIR_TOA]).glob("*.tif")):
     for context[Context.FN_TOA] in (Path(context[Context.DIR_TOA]).glob("*.tif")):
 
         try:
-            # Generate file names based on incoming EVHR file and declared suffixes
+            # Generate file names based on incoming EVHR file and declared suffixes - get snapshot
             context = contextClazz.getFileNames(str(context[Context.FN_TOA]).rsplit("/", 1), context)
-
-            # Get attributes of EVHR, CCDC, and Cloudmask tifs and create plot")
-            rasterLib.getAttributes(str(context[Context.FN_TOA]), "EVHR Combo Plot")
-            rasterLib.getAttributes(str(context[Context.FN_CCDC]), "CCDC Combo Plot")
-            rasterLib.getAttributes(str(context[Context.FN_CLOUDMASK]), "Cloudmask Combo Plot")
+            rasterLib.getAttributeSnapshot(context)
 
             #  Warp cloudmask to attributes of EVHR - suffix root name with '-toa_pred_warp.tif')
             context[Context.FN_SRC] = str(context[Context.FN_CLOUDMASK])

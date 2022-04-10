@@ -92,6 +92,13 @@ class RasterLib(object):
         self._plot_lib.trace('validated bandIndices=' + str(bandIndices))
         return bandIndices
 
+    def getAttributeSnapshot(self, context):
+
+        # Get snapshot of attributes of EVHR, CCDC, and Cloudmask tifs and create plot")
+        self.getAttributes(str(context[Context.FN_TOA]), "EVHR Combo Plot")
+        self.getAttributes(str(context[Context.FN_CCDC]), "CCDC Combo Plot")
+        self.getAttributes(str(context[Context.FN_CLOUDMASK]), "Cloudmask Combo Plot")
+
     def getAttributes(self, r_fn, title):
         r_ds = iolib.fn_getds(r_fn)
         if (self._debug_level >= 1):
@@ -123,26 +130,12 @@ class RasterLib(object):
         return warp_ds_list, warp_ma_list
 
     def performRegression(self, context):
-    # def processBands(context, 
-    # warp_ds_list, warp_ds_list, 
-    # bandNamePairList,:list(ast.literal_eval(context[Context.LIST_BAND_PAIRS])), 
-    # bandPairIndicesList, : bandPairIndicesList,
-    # fn_list, : context[Context.FN_LIST], 
-    # r_fn_cloudmask_warp, : context[Context.FN_WARP]
 
         warp_ds_list = context[Context.DS_LIST]
-#        ccdc_warp_ds = warp_ds_list[0]
-#        evhr_warp_ds = warp_ds_list[1]
         bandNamePairList = list(ast.literal_eval(context[Context.LIST_BAND_PAIRS]))
-#        bandPairIndicesList = list(ast.literal_eval(context[Context.LIST_BAND_PAIR_INDICES]))
-
-        #bandNamePairList = context[Context.LIST_BAND_PAIRS]
         bandPairIndicesList = context[Context.LIST_BAND_PAIR_INDICES]
 
-#    bandNamePairList = list(ast.literal_eval(context[Context.LIST_BAND_PAIRS]))
-#    bandPairIndicesList = list(ast.literal_eval(context[Context.LIST_BAND_PAIR_INDICES]))
-
-    ########################################
+        ########################################
         # ### PREPARE CLOUDMASK
         # After retrieving the masked array from the warped cloudmask, further reduce it by suppressing the one ("1") value pixels
         ########################################
@@ -221,8 +214,6 @@ class RasterLib(object):
             bandPairIndices = bandPairIndicesList[bandPairIndex + 1]
 
             # Get 30m CCDC Masked Arrays
-            # ccdcBandMaArray = iolib.ds_getma(ccdc_warp_ds, 1)
-            # evhrBandMaArray = iolib.ds_getma(evhr_warp_ds, 2)
             ccdcBandMaArray = iolib.ds_getma(warp_ds_list[0], bandPairIndices[0])
             evhrBandMaArray = iolib.ds_getma(warp_ds_list[1], bandPairIndices[1])
 
@@ -237,18 +228,6 @@ class RasterLib(object):
             #  Create a common mask that intersects the CCDC, EVHR, and Cloudmask - this will then be used to correct the input EVHR & CCDC
             warp_ma_band_list_all = [ccdcBandMaArray, evhrBandMaArray, cloudmaskWarpExternalBandMaArrayMasked]
             common_mask_band_all = malib.common_mask(warp_ma_band_list_all)
-            # self._plot_lib.trace(f'common_mask_band_all hist: {np.histogram(common_mask_band_all)}')
-            # self._plot_lib.trace(f'common_mask_band_all array shape: {common_mask_band_all.shape}')
-            # self._plot_lib.trace(f'common_mask_band_all array sum: {common_mask_band_all.sum()}')
-            # # self._plot_lib.trace(f'common_mask_band_data_only array count: {common_mask_band_all.count}')
-            # self._plot_lib.trace(f'common_mask_band_all array max: {common_mask_band_all.max()}')
-            # self._plot_lib.trace(f'common_mask_band_all array min: {common_mask_band_all.min()}')
-            # # plot_combo(common_mask_band_all, figsize=(14,7), title='common_mask_band_all')
-            # count_non_masked = ma.count(int(common_mask_band_all))
-            # count_masked = ma.count_masked(common_mask_band_all)
-            # self._plot_lib.trace(f'common_mask_band_all ma.count (masked)=' + str(count_non_masked))
-            # self._plot_lib.trace(f'common_mask_band_all ma.count_masked (non-masked)=' + str(count_masked))
-            # self._plot_lib.trace(f'common_mask_band_all total count (masked + non-masked)=' + str(count_masked + count_non_masked))
 
             # Apply the 3-way common mask to the CCDC and EVHR bands
             warp_ma_masked_band_list = [np.ma.array(ccdcBandMaArray, mask=common_mask_band_all),
@@ -313,7 +292,6 @@ class RasterLib(object):
 
             # Check resulting ma
             self._plot_lib.trace(f'Final masked array shape: {evhr_sr_ma_band.shape}')
-            #    self._plot_lib.trace('evhr_sr_ma=\n' + str(evhr_sr_ma_band))
 
             ########### save prediction #############
             sr_prediction_list.append(evhr_sr_ma_band)
@@ -364,7 +342,6 @@ class RasterLib(object):
         now = datetime.now()  # current date and time
 
         #  Derive file names for intermediate files
-#        head, tail = os.path.split(r_fn_evhr)
         output_name = "{}/{}".format(
             outdir, name
         ) + "_sr_02m-precog.tif"
@@ -397,8 +374,6 @@ class RasterLib(object):
         return self.createCOG(context)
 
     def createImage(self, context):
-    # def createImage(self, context, r_fn_evhr, numBandPairs, sr_prediction_list, name,
-    #                     bandNamePairList, outdir):
         ########################################
         # Create .tif image from band-based prediction layers
         ########################################
@@ -537,8 +512,16 @@ class RasterLib(object):
                        xRes=context[Context.TARGET_XRES] , yRes=context[Context.TARGET_YRES], outputBounds=extent)
         ds = None
 
+    def translate(self, context):
 
-#    def downscale(self, context, targetAttributesFile, inFile, outFile, xRes=30.0, yRes=30.0):
+        if eval(context[Context.CLEAN_FLAG]):
+            if os.path.exists(context[Context.FN_DEST]):
+                os.remove(context[Context.FN_DEST])
+
+        ds = gdal.Translate(context[Context.FN_DEST], context[Context.FN_SRC],
+                       xRes=context[Context.TARGET_XRES] , yRes=context[Context.TARGET_YRES])
+        ds = None
+
     def downscale(self, context):
         if eval(context[Context.CLEAN_FLAG]):
             if os.path.exists(context[Context.FN_DEST]):
@@ -547,7 +530,8 @@ class RasterLib(object):
         if not os.path.exists(context[Context.FN_DEST]):
             context[Context.TARGET_OUTPUT_TYPE] = self.getMetadata(1, str(context[Context.TARGET_ATTR]))
             context[Context.TARGET_PRJ], context[Context.TARGET_SRS] = self.getProjSrs(context[Context.TARGET_ATTR])
-            self.warp(context)
+#            self.warp(context)
+            self.translate(context)
 
     def applyThreshold(self, min, max, bandMaArray):
         ########################################
