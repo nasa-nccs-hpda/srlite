@@ -41,7 +41,6 @@ class RasterLib(object):
         return
 
     def _validateParms(self, context, requiredList):
-
         """
         Verify that required parameters exist in Context()
         """
@@ -57,7 +56,6 @@ class RasterLib(object):
 
     def getBandIndices(self, context):
         self._validateParms(context, [Context.LIST_BAND_PAIRS, Context.FN_LIST])
-
         """
         Validate band name pairs and return corresponding gdal indices
         """
@@ -70,7 +68,6 @@ class RasterLib(object):
         evhrDs = gdal.Open(fn_list[1], gdal.GA_ReadOnly)
         evhrBands = evhrDs.RasterCount
 
-#        self._plot_lib.trace('bandNamePair: ' + str(bandNamePairList))
         numBandPairs = len(bandNamePairList)
         bandIndices = [numBandPairs]
 
@@ -375,9 +372,8 @@ class RasterLib(object):
         ) + "_sr_02m-precog.tif"
         self._plot_lib.trace(f"\nCreating .tif image from band-based prediction layers...{output_name}")
 
-        if eval(context[Context.CLEAN_FLAG]):
-            if os.path.exists(output_name):
-                os.remove(output_name)
+        # Remove pre-COG image
+        self.removeFile(output_name, context[Context.CLEAN_FLAG])
 
         # Read metadata of EVHR file
         with rasterio.open(str(context[Context.FN_TOA])) as src0:
@@ -405,23 +401,27 @@ class RasterLib(object):
         context[Context.FN_DEST] = str(context[Context.FN_WARP])
         return self.createCOG(context)
 
+    def removeFile(self, fileName, cleanFlag):
+
+        if eval(cleanFlag):
+            if os.path.exists(fileName):
+                os.remove(fileName)
+
     def createCOG(self, context):
         self._validateParms(context, [Context.FN_SRC, Context.CLEAN_FLAG,
                             Context.FN_DEST])
 
         # Use gdalwarp to create Cloud-optimized Geotiff (COG)
         cogname = context[Context.FN_SRC].replace("-precog.tif", ".tif")
-        if eval(context[Context.CLEAN_FLAG]):
-            if os.path.exists(context[Context.FN_DEST]):
-                os.remove(context[Context.FN_DEST])
-            if os.path.exists(cogname):
-                os.remove(cogname)
+
+        # Clean pre-COG image
+        self.removeFile(context[Context.FN_DEST], context[Context.CLEAN_FLAG])
+        self.removeFile(cogname, context[Context.CLEAN_FLAG])
 
         command = 'gdalwarp -of cog ' + context[Context.FN_SRC] + ' ' + cogname
         SystemCommand(command)
-        if eval(context[Context.CLEAN_FLAG]):
-            if os.path.exists(context[Context.FN_SRC]):
-                os.remove(context[Context.FN_SRC])
+        self.removeFile(context[Context.FN_SRC], context[Context.CLEAN_FLAG])
+
         return cogname
 
     def _getProjSrs(self, in_raster):
@@ -499,10 +499,7 @@ class RasterLib(object):
                                       Context.TARGET_SRS, Context.TARGET_OUTPUT_TYPE,
                                       Context.TARGET_XRES, Context.TARGET_YRES])
 
-        if eval(context[Context.CLEAN_FLAG]):
-            if os.path.exists(context[Context.FN_DEST]):
-                os.remove(context[Context.FN_DEST])
-
+        self.removeFile(context[Context.FN_DEST], context[Context.CLEAN_FLAG])
         extent = self._getExtents(context[Context.TARGET_ATTR])
         ds = gdal.Warp(context[Context.FN_DEST], context[Context.FN_SRC],
                        dstSRS=context[Context.TARGET_SRS] , outputType=context[Context.TARGET_OUTPUT_TYPE] ,
@@ -514,10 +511,7 @@ class RasterLib(object):
                                       Context.FN_SRC,
                                       Context.TARGET_XRES, Context.TARGET_YRES])
 
-        if eval(context[Context.CLEAN_FLAG]):
-            if os.path.exists(context[Context.FN_DEST]):
-                os.remove(context[Context.FN_DEST])
-
+        self.removeFile(context[Context.FN_DEST], context[Context.CLEAN_FLAG])
         ds = gdal.Translate(context[Context.FN_DEST], context[Context.FN_SRC],
                        xRes=context[Context.TARGET_XRES] , yRes=context[Context.TARGET_YRES])
         ds = None

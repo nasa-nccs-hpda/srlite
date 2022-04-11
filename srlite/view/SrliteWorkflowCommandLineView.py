@@ -50,18 +50,21 @@ def main():
     plotLib = contextClazz.getPlotLib()
     rasterLib = RasterLib(int(context[Context.DEBUG_LEVEL]), plotLib)
 
-#    for context[Context.FN_TOA] in sorted(Path(context[Context.DIR_TOA]).glob("*.tif")):
-    for context[Context.FN_TOA] in (Path(context[Context.DIR_TOA]).glob("*.tif")):
+    for context[Context.FN_TOA] in sorted(Path(context[Context.DIR_TOA]).glob("*.tif")):
+#    for context[Context.FN_TOA] in (Path(context[Context.DIR_TOA]).glob("*.tif")):
+        try:
+            # Generate file names based on incoming EVHR file and declared suffixes - get snapshot
+            context = contextClazz.getFileNames(str(context[Context.FN_TOA]).rsplit("/", 1), context)
+            cogname = str(context[Context.DIR_OUTPUT]) + str('/') + \
+                      str(context[Context.FN_PREFIX]) + str(Context.FN_SRLITE_SUFFIX)
 
-        # Generate file names based on incoming EVHR file and declared suffixes - get snapshot
-        context = contextClazz.getFileNames(str(context[Context.FN_TOA]).rsplit("/", 1), context)
-        cogname = str(context[Context.DIR_OUTPUT]) + str('/') + \
-                  str(context[Context.FN_PREFIX]) + str(Context.FN_SRLITE_SUFFIX)
-        if (os.path.exists(cogname)) and (eval(context[Context.CLEAN_FLAG])):
-            os.remove(cogname)
+            # Remove existing SR-Lite output if clean_flag is activated
+            fileExists = (os.path.exists(cogname))
+            if fileExists and (eval(context[Context.CLEAN_FLAG])):
+                rasterLib.removeFile(cogname, context[Context.CLEAN_FLAG])
 
-        if not (os.path.exists(cogname)):
-            try:
+            # Proceed if SR-Lite output does not exist
+            if not fileExists:
 
                 #  Warp cloudmask to attributes of EVHR - suffix root name with '-toa_pred_warp.tif')
                 rasterLib.getAttributeSnapshot(context)
@@ -84,13 +87,11 @@ def main():
                 # Create COG image from stack of processed bands
                 context[Context.FN_COG] = rasterLib.createImage(context)
 
-            except FileNotFoundError as exc:
-                print(exc);
-            except BaseException as err:
-                print('Run abended.  Error: ', err)
-                sys.exit(1)
-
-    #        break;
+        except FileNotFoundError as exc:
+            print('File Not Found - Error details: ', exc)
+        except BaseException as err:
+            print('Run abended - Error details: ', err)
+            sys.exit(1)
 
     print("\nTotal Elapsed Time for " + str(context[Context.DIR_OUTPUT])  + ': ',
            (time.time() - start_time) / 60.0)  # time in min
