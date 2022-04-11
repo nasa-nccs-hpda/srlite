@@ -50,43 +50,49 @@ def main():
     plotLib = contextClazz.getPlotLib()
     rasterLib = RasterLib(int(context[Context.DEBUG_LEVEL]), plotLib)
 
-    for context[Context.FN_TOA] in sorted(Path(context[Context.DIR_TOA]).glob("*.tif")):
-#    for context[Context.FN_TOA] in (Path(context[Context.DIR_TOA]).glob("*.tif")):
+#    for context[Context.FN_TOA] in sorted(Path(context[Context.DIR_TOA]).glob("*.tif")):
+    for context[Context.FN_TOA] in (Path(context[Context.DIR_TOA]).glob("*.tif")):
 
-        try:
-            # Generate file names based on incoming EVHR file and declared suffixes - get snapshot
-            context = contextClazz.getFileNames(str(context[Context.FN_TOA]).rsplit("/", 1), context)
-            rasterLib.getAttributeSnapshot(context)
+        # Generate file names based on incoming EVHR file and declared suffixes - get snapshot
+        context = contextClazz.getFileNames(str(context[Context.FN_TOA]).rsplit("/", 1), context)
+        cogname = str(context[Context.DIR_OUTPUT]) + str('/') + \
+                  str(context[Context.FN_PREFIX]) + str(Context.FN_SRLITE_SUFFIX)
+        if (os.path.exists(cogname)) and (eval(context[Context.CLEAN_FLAG])):
+            os.remove(cogname)
 
-            #  Warp cloudmask to attributes of EVHR - suffix root name with '-toa_pred_warp.tif')
-            context[Context.FN_SRC] = str(context[Context.FN_CLOUDMASK])
-            context[Context.FN_DEST] = str(context[Context.FN_WARP])
-            context[Context.TARGET_ATTR] = str(context[Context.FN_TOA])
-            rasterLib.translate(context)
-            rasterLib.getAttributes(str(context[Context.FN_WARP]), "Cloudmask Warp Combo Plot")
+        if not (os.path.exists(cogname)):
+            try:
 
-            # Validate that input band name pairs exist in EVHR & CCDC files
-            context[Context.FN_LIST] = [str(context[Context.FN_CCDC]), str(context[Context.FN_TOA])]
-            context[Context.LIST_BAND_PAIR_INDICES] = rasterLib.getBandIndices(context)
+                #  Warp cloudmask to attributes of EVHR - suffix root name with '-toa_pred_warp.tif')
+                rasterLib.getAttributeSnapshot(context)
+                context[Context.FN_SRC] = str(context[Context.FN_CLOUDMASK])
+                context[Context.FN_DEST] = str(context[Context.FN_WARP])
+                context[Context.TARGET_ATTR] = str(context[Context.FN_TOA])
+                rasterLib.translate(context)
+                rasterLib.getAttributes(str(context[Context.FN_WARP]), "Cloudmask Warp Combo Plot")
 
-            # Get the common pixel intersection values of the EVHR & CCDC files
-            context[Context.DS_LIST], context[Context.MA_LIST] = rasterLib.getIntersection(context)
+                # Validate that input band name pairs exist in EVHR & CCDC files
+                context[Context.FN_LIST] = [str(context[Context.FN_CCDC]), str(context[Context.FN_TOA])]
+                context[Context.LIST_BAND_PAIR_INDICES] = rasterLib.getBandIndices(context)
 
-            # Perform regression to capture coefficients from intersected pixels and apply to 2m EVHR
-            context[Context.PRED_LIST] = rasterLib.performRegression(context)
+                # Get the common pixel intersection values of the EVHR & CCDC files
+                context[Context.DS_LIST], context[Context.MA_LIST] = rasterLib.getIntersection(context)
 
-            # Create COG image from stack of processed bands
-            context[Context.FN_COG] = rasterLib.createImage(context)
- 
-        except FileNotFoundError as exc:
-            print(exc);
-        except BaseException as err:
-            print('Run abended.  Error: ', err)
-            sys.exit(1)
+                # Perform regression to capture coefficients from intersected pixels and apply to 2m EVHR
+                context[Context.PRED_LIST] = rasterLib.performRegression(context)
 
-#        break;
+                # Create COG image from stack of processed bands
+                context[Context.FN_COG] = rasterLib.createImage(context)
 
-    print("\nTotal Elapsed Time for " + context[Context.FN_COG] + ': ',
+            except FileNotFoundError as exc:
+                print(exc);
+            except BaseException as err:
+                print('Run abended.  Error: ', err)
+                sys.exit(1)
+
+    #        break;
+
+    print("\nTotal Elapsed Time for " + str(context[Context.DIR_OUTPUT])  + ': ',
            (time.time() - start_time) / 60.0)  # time in min
 
 if __name__ == "__main__":

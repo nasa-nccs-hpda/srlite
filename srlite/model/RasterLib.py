@@ -419,8 +419,9 @@ class RasterLib(object):
 
         command = 'gdalwarp -of cog ' + context[Context.FN_SRC] + ' ' + cogname
         SystemCommand(command)
-        if os.path.exists(context[Context.FN_SRC]):
-            os.remove(context[Context.FN_SRC])
+        if eval(context[Context.CLEAN_FLAG]):
+            if os.path.exists(context[Context.FN_SRC]):
+                os.remove(context[Context.FN_SRC])
         return cogname
 
     def _getProjSrs(self, in_raster):

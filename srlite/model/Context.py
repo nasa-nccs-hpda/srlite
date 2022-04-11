@@ -40,6 +40,7 @@ class Context(object):
     FN_CCDC_SUFFIX = '-ccdc.tif'
     FN_CLOUDMASK_SUFFIX = '-toa.clouds.tif'
     FN_CLOUDMASK_WARP_SUFFIX = '-toa_pred_warp.tif'
+    FN_SRLITE_SUFFIX = '_sr_02m.tif'
 
     # Band pairs
     LIST_BAND_PAIRS = 'band_pairs_list'
