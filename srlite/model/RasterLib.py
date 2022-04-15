@@ -10,7 +10,6 @@ from osgeo import gdal, osr
 from pygeotools.lib import iolib, warplib, malib
 import rasterio
 import numpy as np
-from core.model.SystemCommand import SystemCommand
 from srlite.model.Context import Context
 from sklearn.linear_model import HuberRegressor, LinearRegression
 
@@ -418,8 +417,8 @@ class RasterLib(object):
         self.removeFile(context[Context.FN_DEST], context[Context.CLEAN_FLAG])
         self.removeFile(cogname, context[Context.CLEAN_FLAG])
 
-        command = 'gdalwarp -of cog ' + context[Context.FN_SRC] + ' ' + cogname
-        SystemCommand(command)
+        context[Context.FN_DEST] = cogname
+        self.cog(context)
         self.removeFile(context[Context.FN_SRC], context[Context.CLEAN_FLAG])
 
         return cogname
@@ -516,6 +515,15 @@ class RasterLib(object):
                        xRes=context[Context.TARGET_XRES] , yRes=context[Context.TARGET_YRES])
         ds = None
 
+
+    def cog(self, context):
+        self._validateParms(context, [Context.CLEAN_FLAG, Context.FN_DEST,
+                                      Context.FN_SRC,
+                                      Context.TARGET_XRES, Context.TARGET_YRES])
+
+        self.removeFile(context[Context.FN_DEST], context[Context.CLEAN_FLAG])
+        ds = gdal.Translate(context[Context.FN_DEST], context[Context.FN_SRC], format="COG")
+        ds = None
 
     def _applyThreshold(self, min, max, bandMaArray):
         ########################################
