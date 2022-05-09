@@ -69,6 +69,7 @@ class RasterLib(object):
 
         numBandPairs = len(bandNamePairList)
         bandIndices = [numBandPairs]
+        toaBandNames = []
 
         for bandPairIndex in range(0, numBandPairs):
 
@@ -80,9 +81,14 @@ class RasterLib(object):
                 band = ccdcDs.GetRasterBand(ccdcIndex)
                 bandDescription = band.GetDescription()
                 bandName = currentBandPair[0]
-                if (bandDescription == bandName):
-                    ccdcBandIndex = ccdcIndex
+                if len(bandDescription) == 0:
+                    ccdcBandIndex = bandPairIndex + 1
+                    self._plot_lib.trace(f"Band has no description {bandName} - assume band current index  {ccdcBandIndex}")
                     break
+                else:
+                    if (bandDescription == bandName):
+                        ccdcBandIndex = ccdcIndex
+                        break
 
             for evhrIndex in range(1, evhrBands + 1):
                 # read in bands from image
@@ -96,9 +102,13 @@ class RasterLib(object):
             if ((ccdcBandIndex == -1) or (evhrBandIndex == -1)):
                 ccdcDs = evhrDs = None
                 self._plot_lib.trace(f"Invalid band pairs - verify correct name and case {currentBandPair}")
-                exit(1)
+                exit(f"Invalid band pairs - verify correct name and case {currentBandPair}")
+#                exit(1)
 
             bandIndices.append([ccdcIndex, evhrIndex])
+            toaBandNames.append(currentBandPair[1])
+
+        context[Context.LIST_TOA_BANDS] = toaBandNames
 
         ccdcDs = evhrDs = None
         self._plot_lib.trace('validated bandIndices=' + str(bandIndices))
@@ -145,26 +155,14 @@ class RasterLib(object):
                    str(warp_ma_list[1].shape))
         return warp_ds_list, warp_ma_list
 
-    def performRegression(self, context):
+    def prepareEVHRCloudmask(self, context):
         self._validateParms(context,
                             [Context.DS_LIST, Context.LIST_BAND_PAIRS, Context.LIST_BAND_PAIR_INDICES,
                              Context.FN_WARP, Context.REGRESSION_MODEL, Context.FN_LIST])
 
-        warp_ds_list = context[Context.DS_LIST]
-        bandNamePairList = list(ast.literal_eval(context[Context.LIST_BAND_PAIRS]))
-        bandPairIndicesList = context[Context.LIST_BAND_PAIR_INDICES]
-
-        ########################################
-        # ### PREPARE CLOUDMASK
-        # After retrieving the masked array from the warped cloudmask, further reduce it by suppressing the one ("1") value pixels
-        ########################################
-        self._plot_lib.trace('bandPairIndicesList: ' + str(bandPairIndicesList))
-        numBandPairs = len(bandPairIndicesList)
-        warp_ma_masked_band_series = [numBandPairs]
-        sr_prediction_list = [numBandPairs]
 
         #  Get Masked array from warped Cloudmask - assumes only 1 band in mask to be applied to all
-        cloudmaskWarpExternalBandMaArray = iolib.fn_getma(context[Context.FN_WARP], 1)
+        cloudmaskWarpExternalBandMaArray = iolib.fn_getma(context[Context.FN_CLOUDMASK_DOWNSCALE], 1)
         self._plot_lib.trace(f'\nBefore Mask -> cloudmaskWarpExternalBandMaArray')
         self._plot_lib.trace(f'cloudmaskWarpExternalBandMaArray hist: {np.histogram(cloudmaskWarpExternalBandMaArray)}')
         self._plot_lib.trace(f'cloudmaskWarpExternalBandMaArray shape: {cloudmaskWarpExternalBandMaArray.shape}')
@@ -197,13 +195,109 @@ class RasterLib(object):
             f'cloudmaskWarpExternalBandMaArrayMasked max=' + str(cloudmaskWarpExternalBandMaArrayMasked.max()))
         self._plot_lib.plot_combo_array(cloudmaskWarpExternalBandMaArrayMasked, figsize=(14, 7),
                                  title='cloudmaskWarpExternalBandMaArrayMasked')
+        return cloudmaskWarpExternalBandMaArrayMasked
 
-        #         # Get Cloud mask (assumes 1 band per scene)
-        #     cloudmaskArray = iolib.fn_getma(r_fn_cloudmask, 1)
-        # #    cloudmaskArray = iolib.ds_getma(warp_ds_list[2], 1)
-        #     self._plot_lib.trace(f'cloudmaskArray array shape: {cloudmaskArray.shape}')
-        #     cloudmaskMaArray = np.ma.masked_where(cloudmaskArray == 1, cloudmaskArray)
-        #     self._plot_lib.trace(f'cloudmaskMaArray array shape: {cloudmaskMaArray.shape}')
+    def prepareLANDSATCloudmask(self, context):
+        self._validateParms(context,
+                            [Context.DS_LIST, Context.LIST_BAND_PAIRS, Context.LIST_BAND_PAIR_INDICES,
+                             Context.FN_WARP, Context.REGRESSION_MODEL, Context.FN_LIST])
+
+        #  Get Masked array from warped Cloudmask - get Band 8 (https://glad.umd.edu/Potapov/ARD/ARD_manual_v1.1.pdf)
+        cloudmaskWarpExternalBandMaArray = iolib.fn_getma(context[Context.FN_CCDC_DOWNSCALE], 8)
+        self._plot_lib.trace(f'\nBefore Mask -> cloudmaskWarpExternalBandMaArray')
+        self._plot_lib.trace(f'cloudmaskWarpExternalBandMaArray hist: {np.histogram(cloudmaskWarpExternalBandMaArray)}')
+        self._plot_lib.trace(f'cloudmaskWarpExternalBandMaArray shape: {cloudmaskWarpExternalBandMaArray.shape}')
+        count_non_masked = np.ma.count(cloudmaskWarpExternalBandMaArray)
+        count_masked = np.ma.count_masked(cloudmaskWarpExternalBandMaArray)
+        self._plot_lib.trace(f'cloudmaskWarpExternalBandMaArray ma.count (masked)=' + str(count_non_masked))
+        self._plot_lib.trace(f'cloudmaskWarpExternalBandMaArray ma.count_masked (non-masked)=' + str(count_masked))
+        self._plot_lib.trace(
+            f'cloudmaskWarpExternalBandMaArray total count (masked + non-masked)=' + str(
+                count_masked + count_non_masked))
+        self._plot_lib.trace(f'cloudmaskWarpExternalBandMaArray max=' + str(cloudmaskWarpExternalBandMaArray.max()))
+        self._plot_lib.plot_combo_array(cloudmaskWarpExternalBandMaArray, figsize=(14, 7),
+                                 title='cloudmaskWarpExternalBandMaArray')
+
+        # Create a mask where the pixel values equal to '0, 3, 4' are suppressed because these correspond to NoData, Clouds, and Cloud Shadows
+        self._plot_lib.trace(
+            f'\nSuppress values=[0, 3, 4] because they correspond to NoData, Clouds, and Cloud Shadows')
+#        cloudmaskWarpExternalBandMaArrayMasked = (cloudmaskWarpExternalBandMaArray == 0) & (cloudmaskWarpExternalBandMaArray == 3) & (cloudmaskWarpExternalBandMaArray == 4)
+
+        ndv = int(Context.DEFAULT_NODATA_VALUE)
+        cloudmaskWarpExternalBandMaArrayData = np.ma.getdata(cloudmaskWarpExternalBandMaArray)
+        cloudmaskWarpExternalBandMaArrayData = np.select([cloudmaskWarpExternalBandMaArrayData == 0, cloudmaskWarpExternalBandMaArrayData == 3,
+                           cloudmaskWarpExternalBandMaArrayData == 4], [ndv, ndv, ndv], cloudmaskWarpExternalBandMaArrayData)
+        cloudmaskWarpExternalBandMaArrayData = np.select([cloudmaskWarpExternalBandMaArrayData != ndv], [0.0], cloudmaskWarpExternalBandMaArrayData)
+        cloudmaskWarpExternalBandMaArrayMasked = np.ma.masked_where(cloudmaskWarpExternalBandMaArrayData == ndv, cloudmaskWarpExternalBandMaArrayData)
+
+        # cloudmaskWarpExternalBandMaArrayMasked0 = np.ma.masked_where(cloudmaskWarpExternalBandMaArray == 0,
+        #                                                         cloudmaskWarpExternalBandMaArray)
+        # cloudmaskWarpExternalBandMaArrayMasked03 = np.ma.masked_where(cloudmaskWarpExternalBandMaArrayMasked0 == 3,
+        #                                                         cloudmaskWarpExternalBandMaArrayMasked0)
+        # cloudmaskWarpExternalBandMaArrayMasked034 = np.ma.masked_where(cloudmaskWarpExternalBandMaArrayMasked03 == 4,
+        #                                                         cloudmaskWarpExternalBandMaArrayMasked03)
+        # >> > c
+        # masked_array(data=[--, 1, 2, --, 4],
+        #              mask=[True, False, False, True, False],
+        #              fill_value=999999)
+        # >> > cmask = np.ma.getmask(c)
+        # >> > cmask
+        # array([True, False, False, True, False])
+        # >> > cfilled = c.filled(0)
+        # >> > cfilled
+        # array([0, 1, 2, 0, 4])
+        # >> > cloudmaskWarpExternalBandMaArrayMasked034 = np.ma.masked_where(cfilled != 0, cfilled)
+        # >> > cloudmaskWarpExternalBandMaArrayMasked034
+        # masked_array(data=[0, --, --, 0, --],
+        #              mask=[False, True, True, False, True],
+        #              fill_value=999999)
+
+        # cmask = np.ma.getmask(cloudmaskWarpExternalBandMaArrayMasked034)
+        # cinverse = np.ma.masked_array(cloudmaskWarpExternalBandMaArrayMasked034, np.logical_not(cmask))
+        # cfilled = cloudmaskWarpExternalBandMaArrayMasked034.filled(0)
+        # cloudmaskWarpExternalBandMaArrayMasked = np.ma.masked_where(cfilled != 0, cfilled)
+
+        # fillValue = cloudmaskWarpExternalBandMaArrayMasked034.get_fill_value()
+        # reverseMask = np.ma.masked_where(cloudmaskWarpExternalBandMaArrayMasked034 != fillValue,
+        #                                                         cloudmaskWarpExternalBandMaArrayMasked034)
+        # reverseMask = ~cloudmaskWarpExternalBandMaArrayMasked034
+        # cloudmaskWarpExternalBandMaArrayMasked = np.ma.masked_where(reverseMask > 0, reverseMask)
+
+        self._plot_lib.trace(
+            f'cloudmaskWarpExternalBandMaArrayMasked hist: {np.histogram(cloudmaskWarpExternalBandMaArrayMasked)}')
+        self._plot_lib.trace(f'cloudmaskWarpExternalBandMaArrayMasked shape: {cloudmaskWarpExternalBandMaArrayMasked.shape}')
+        count_non_masked = np.ma.count(cloudmaskWarpExternalBandMaArrayMasked)
+        count_masked = np.ma.count_masked(cloudmaskWarpExternalBandMaArrayMasked)
+        self._plot_lib.trace(f'cloudmaskWarpExternalBandMaArrayMasked ma.count (masked)=' + str(count_non_masked))
+        self._plot_lib.trace(f'cloudmaskWarpExternalBandMaArrayMasked ma.count_masked (non-masked)=' + str(count_masked))
+        self._plot_lib.trace(f'cloudmaskWarpExternalBandMaArrayMasked total count (masked + non-masked)=' + str(
+            count_masked + count_non_masked))
+        self._plot_lib.trace(
+            f'cloudmaskWarpExternalBandMaArrayMasked max=' + str(cloudmaskWarpExternalBandMaArrayMasked.max()))
+        self._plot_lib.plot_combo_array(cloudmaskWarpExternalBandMaArrayMasked, figsize=(14, 7),
+                                 title='cloudmaskWarpExternalBandMaArrayMasked')
+        return cloudmaskWarpExternalBandMaArrayMasked
+
+    def performRegression(self, context):
+        self._validateParms(context,
+                            [Context.DS_LIST, Context.LIST_BAND_PAIRS, Context.LIST_BAND_PAIR_INDICES,
+                             Context.FN_WARP, Context.REGRESSION_MODEL, Context.FN_LIST])
+
+        bandPairIndicesList = context[Context.LIST_BAND_PAIR_INDICES]
+        self._plot_lib.trace('bandPairIndicesList: ' + str(bandPairIndicesList))
+        numBandPairs = len(bandPairIndicesList)
+
+        warp_ma_masked_band_series = [numBandPairs]
+        sr_prediction_list = []
+        warp_ds_list = context[Context.DS_LIST]
+        bandNamePairList = list(ast.literal_eval(context[Context.LIST_BAND_PAIRS]))
+
+        # Get Cloudmasks
+        cloudmaskEVHRWarpExternalBandMaArrayMasked = self.prepareEVHRCloudmask(context)
+#        landsatMask = False
+        landsatMask = True
+        if (landsatMask == True):
+            cloudmaskLANDSATWarpExternalBandMaArrayMasked = self.prepareLANDSATCloudmask(context)
 
         minWarning = 0
         firstBand = True
@@ -244,8 +338,18 @@ class RasterLib(object):
                                                                evhrBandMaArray)
                     firstBand = False
 
-            #  Create a common mask that intersects the CCDC, EVHR, and Cloudmask - this will then be used to correct the input EVHR & CCDC
-            warp_ma_band_list_all = [ccdcBandMaArray, evhrBandMaArray, cloudmaskWarpExternalBandMaArrayMasked]
+            #  Create a common mask that intersects the CCDC/LANDSAT, EVHR, and Cloudmasks - this will then be used to correct the input EVHR & CCDC/LANDSAT
+            if (landsatMask == True):
+
+#                 intersect_list = [cloudmaskEVHRWarpExternalBandMaArrayMasked, cloudmaskLANDSATWarpExternalBandMaArrayMasked]
+#                 common_mask_band_all = malib.common_mask(intersect_list)
+#                 warp_ds_list = warplib.memwarp_multi(
+#                     intersect_list, res='first', extent='intersection', t_srs='first', r='average')
+#                 warp_ma_list = [iolib.ds_getma(ds) for ds in warp_ds_list]
+#                 warp_ma_band_list_all = [ccdcBandMaArray, evhrBandMaArray, warp_ds_list[1]]
+                warp_ma_band_list_all = [ccdcBandMaArray, evhrBandMaArray, cloudmaskEVHRWarpExternalBandMaArrayMasked, cloudmaskLANDSATWarpExternalBandMaArrayMasked]
+            else:
+                warp_ma_band_list_all = [ccdcBandMaArray, evhrBandMaArray, cloudmaskEVHRWarpExternalBandMaArrayMasked]
             common_mask_band_all = malib.common_mask(warp_ma_band_list_all)
 
             # Apply the 3-way common mask to the CCDC and EVHR bands
@@ -301,7 +405,10 @@ class RasterLib(object):
             self._plot_lib.trace(f'R2 score : {score}')
 
             # Get 2m EVHR Masked Arrays
-            evhrBandMaArrayRaw = iolib.fn_getma(context[Context.FN_LIST][1], bandPairIndices[1])
+
+            ######## Double check this after Caps win!!!
+            evhrBandMaArrayRaw = iolib.fn_getma(context[Context.FN_TOA], bandPairIndices[1])
+#            evhrBandMaArrayRaw = iolib.fn_getma(context[Context.FN_LIST][1], bandPairIndices[1])
             sr_prediction_band = model_data_only_band.predict(evhrBandMaArrayRaw.ravel().reshape(-1, 1))
             self._plot_lib.trace(f'Post-prediction shape : {sr_prediction_band.shape}')
 
@@ -353,52 +460,66 @@ class RasterLib(object):
 
     def createImage(self, context):
         self._validateParms(context, [Context.DIR_OUTPUT, Context.FN_PREFIX,
-                                      Context.CLEAN_FLAG, Context.FN_TOA,
-                                      Context.LIST_BAND_PAIR_INDICES, Context.FN_SRC,
+                                      Context.CLEAN_FLAG,
+                                      Context.BAND_NUM, Context.FN_SRC,
                                       Context.FN_DEST, Context.FN_WARP,
                                       Context.LIST_BAND_PAIRS, Context.PRED_LIST])
 
         ########################################
         # Create .tif image from band-based prediction layers
         ########################################
-        self._plot_lib.trace(f"\nAppy coefficients to High Res File...{str(context[Context.FN_TOA])}")
+        self._plot_lib.trace(f"\nAppy coefficients to High Res File...\n   {str(context[Context.FN_SRC])}")
 
         now = datetime.now()  # current date and time
 
         #  Derive file names for intermediate files
         output_name = "{}/{}".format(
             context[Context.DIR_OUTPUT], str(context[Context.FN_PREFIX])
-        ) + "_sr_02m-precog.tif"
-        self._plot_lib.trace(f"\nCreating .tif image from band-based prediction layers...{output_name}")
+        ) + str(context[Context.FN_SUFFIX])
+        self._plot_lib.trace(f"\nCreating .tif image from stack of bands...\n   {output_name}")
 
         # Remove pre-COG image
-        self.removeFile(output_name, context[Context.CLEAN_FLAG])
+        fileExists = (os.path.exists(output_name))
+        if fileExists and (eval(context[Context.CLEAN_FLAG])):
+            self.removeFile(output_name, context[Context.CLEAN_FLAG])
 
         # Read metadata of EVHR file
-        with rasterio.open(str(context[Context.FN_TOA])) as src0:
+        with rasterio.open(str(context[Context.FN_SRC])) as src0:
             meta = src0.meta
 
         # Update meta to reflect the number of layers
-        numBandPairs = len(list(context[Context.LIST_BAND_PAIR_INDICES]))
-        meta.update(count=numBandPairs - 1)
+        numBandPairs = int(context[Context.BAND_NUM])
+        meta.update(count=numBandPairs)
 
-        sr_prediction_list = list(context[Context.PRED_LIST])
-        bandNamePairList = list(ast.literal_eval(context[Context.LIST_BAND_PAIRS]))
+        meta.update({
+            "dtype": context[Context.TARGET_DTYPE],
+            "nodata": context[Context.TARGET_NODATA_VALUE],
+            "descriptions": context[Context.BAND_DESCRIPTION_LIST]
+        })
+
+        band_data_list = context[Context.PRED_LIST]
+#        bandNamePairList = list(ast.literal_eval(context[Context.LIST_BAND_PAIRS]))
+        band_description_list = list(context[Context.BAND_DESCRIPTION_LIST])
 
         ########################################
         # Read each layer and write it to stack
         ########################################
         with rasterio.open(output_name, 'w', **meta) as dst:
-            for id in range(1, numBandPairs):
-                bandPrediction = sr_prediction_list[id]
-                dst.set_band_description(id, bandNamePairList[id - 1][1])
-                bandPrediction1 = np.ma.masked_values(bandPrediction, -9999)
-                dst.write_band(id, bandPrediction1)
+            for id in range(0, numBandPairs):
+                bandPrediction = band_data_list[id]
+                dst.set_band_description(id+1, band_description_list[id])
+                bandPrediction1 = np.ma.masked_values(bandPrediction, context[Context.TARGET_NODATA_VALUE])
+                dst.write_band(id+1, bandPrediction1)
 
-        # Create Cloud-optimized Geotiff (COG)
-        context[Context.FN_SRC] = str(output_name)
-        context[Context.FN_DEST] = str(context[Context.FN_WARP])
-        return self.createCOG(context)
+        if (context[Context.COG_FLAG]):
+            # Create Cloud-optimized Geotiff (COG)
+            context[Context.FN_SRC] = str(output_name)
+            context[Context.FN_DEST] = "{}/{}".format(
+                context[Context.DIR_OUTPUT], str(context[Context.FN_PREFIX])
+            ) + str(Context.FN_SRLITE_SUFFIX)
+            output_name = self.createCOG(context)
+
+        return output_name
 
     def removeFile(self, fileName, cleanFlag):
 
@@ -411,17 +532,17 @@ class RasterLib(object):
                             Context.FN_DEST])
 
         # Use gdalwarp to create Cloud-optimized Geotiff (COG)
-        cogname = context[Context.FN_SRC].replace("-precog.tif", ".tif")
+#        cogname = context[Context.FN_SRC].replace(Context.FN_SRLITE_NONCOG_SUFFIX, ".tif")
 
         # Clean pre-COG image
         self.removeFile(context[Context.FN_DEST], context[Context.CLEAN_FLAG])
-        self.removeFile(cogname, context[Context.CLEAN_FLAG])
+#        self.removeFile(cogname, context[Context.CLEAN_FLAG])
 
-        context[Context.FN_DEST] = cogname
+#        context[Context.FN_DEST] = cogname
         self.cog(context)
         self.removeFile(context[Context.FN_SRC], context[Context.CLEAN_FLAG])
 
-        return cogname
+        return  context[Context.FN_DEST]
 
     def _getProjSrs(self, in_raster):
         # Get projection from raster

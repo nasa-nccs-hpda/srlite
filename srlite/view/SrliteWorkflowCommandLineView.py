@@ -15,20 +15,20 @@ Portions Inspired by: Jordan A Caraballo-Vega, Science Data Processing Branch, C
 # --------------------------------------------------------------------------------
 import sys
 import os
-import ast
 import time  # tracking time
-import numpy as np
-from pygeotools.lib import iolib, malib
+import argparse  # system libraries
 from pathlib import Path
 
 from srlite.model.Context import Context
 from srlite.model.RasterLib import RasterLib
-from sklearn.linear_model import HuberRegressor, LinearRegression
+
+from pygeotools.lib import warplib, iolib
+import rasterio
 
 ########################################
 # Point to local pygeotools (not in ilab-kernel by default)
 ########################################
-sys.path.append('/home/gtamkin/.local/lib/python3.9/site-packages')
+#sys.path.append('/home/gtamkin/.local/lib/python3.9/site-packages')
 sys.path.append('/adapt/nobackup/people/gtamkin/dev/srlite/src')
 
 # --------------------------------------------------------------------------------
@@ -50,42 +50,113 @@ def main():
     plotLib = contextClazz.getPlotLib()
     rasterLib = RasterLib(int(context[Context.DEBUG_LEVEL]), plotLib)
 
-    for context[Context.FN_TOA] in sorted(Path(context[Context.DIR_TOA]).glob("*.tif")):
-#    for context[Context.FN_TOA] in (Path(context[Context.DIR_TOA]).glob("*.tif")):
+#    for context[Context.FN_TOA] in sorted(Path(context[Context.DIR_TOA]).glob("*.tif")):
+    for context[Context.FN_TOA] in (Path(context[Context.DIR_TOA]).glob("*.tif")):
         try:
             # Generate file names based on incoming EVHR file and declared suffixes - get snapshot
             context = contextClazz.getFileNames(str(context[Context.FN_TOA]).rsplit("/", 1), context)
-            cogname = str(context[Context.DIR_OUTPUT]) + str('/') + \
-                      str(context[Context.FN_PREFIX]) + str(Context.FN_SRLITE_SUFFIX)
 
             # Remove existing SR-Lite output if clean_flag is activated
-            fileExists = (os.path.exists(cogname))
+            fileExists = (os.path.exists(context[Context.FN_COG]))
             if fileExists and (eval(context[Context.CLEAN_FLAG])):
-                rasterLib.removeFile(cogname, context[Context.CLEAN_FLAG])
+                rasterLib.removeFile(context[Context.FN_COG], context[Context.CLEAN_FLAG])
 
             # Proceed if SR-Lite output does not exist
             if not fileExists:
 
-                #  Warp cloudmask to attributes of EVHR - suffix root name with '-toa_pred_warp.tif')
+                # Capture input attributes - align all artifacts to EVHR projection
                 rasterLib.getAttributeSnapshot(context)
-                context[Context.FN_SRC] = str(context[Context.FN_CLOUDMASK])
-                context[Context.FN_DEST] = str(context[Context.FN_WARP])
                 context[Context.TARGET_ATTR] = str(context[Context.FN_TOA])
-                rasterLib.translate(context)
-                rasterLib.getAttributes(str(context[Context.FN_WARP]), "Cloudmask Warp Combo Plot")
+
+                #  Downscale EVHR TOA from 2m to 30m - suffix root name with '-toa-30m.tif')
+                context[Context.FN_SRC] = str(context[Context.FN_TOA])
+                context[Context.FN_DEST] = str(context[Context.FN_TOA_DOWNSCALE])
+                fileExists = (os.path.exists(context[Context.FN_TOA_DOWNSCALE]))
+                if fileExists and (eval(context[Context.CLEAN_FLAG])):
+                        rasterLib.removeFile(context[Context.FN_TOA_DOWNSCALE], context[Context.CLEAN_FLAG])
+                fileExists = (os.path.exists(context[Context.FN_TOA_DOWNSCALE]))
+                if not fileExists:
+                    rasterLib.translate(context)
+                rasterLib.getAttributes(str(context[Context.FN_TOA_DOWNSCALE]),
+                                        "TOA Downscale Combo Plot")
 
                 # Validate that input band name pairs exist in EVHR & CCDC files
-                context[Context.FN_LIST] = [str(context[Context.FN_CCDC]), str(context[Context.FN_TOA])]
+                context[Context.FN_LIST] = [str(context[Context.FN_CCDC]), str(context[Context.FN_TOA_DOWNSCALE])]
                 context[Context.LIST_BAND_PAIR_INDICES] = rasterLib.getBandIndices(context)
+                context[Context.FN_LIST] = [str(context[Context.FN_TOA_DOWNSCALE]), str(context[Context.FN_CCDC])]
+
+                # Warp CCDC/Landsat to downscaled TOA 30m
+                with rasterio.open(context[Context.FN_TOA_DOWNSCALE], "r") as ccdc_dataset:
+                    out_meta = ccdc_dataset.meta.copy()
+                    n_bands = ccdc_dataset.count
+                    ccdc_dataset_profile = ccdc_dataset.profile
+                print(f"# of CCDC bands: {n_bands}")
+                print(ccdc_dataset_profile)
+
+                with rasterio.open(context[Context.FN_CCDC], "r") as lard_dataset:
+                    n_bands_lard = lard_dataset.count
+                    lard_dataset_profile = lard_dataset.profile
+                    lard_dataset_desc = lard_dataset.descriptions
+                print(f"# of LARD bands: {n_bands_lard}")
+                print(f"Descriptions of LARD bands: {lard_dataset_desc}")
+                print(lard_dataset_profile)
+
+                fn_list = [context[Context.FN_TOA_DOWNSCALE], context[Context.FN_CCDC]]
+                warp_ds_list = warplib.memwarp_multi_fn(fn_list, res='first', extent='first', t_srs='first', r='cubic')
+                landsat_ds = warp_ds_list[1]
+                band_list = []
+
+                for bandnum in range(1, n_bands_lard + 1):
+                    # Warp LARD to CCDC
+                    landsat_ard_ma = iolib.ds_getma(landsat_ds, bnum=bandnum)
+                    band_list.append(landsat_ard_ma)
+
+                # print(f"\nWriting all bands to: {OUT_LANDSAT_ARD_FN}")
+                # with rasterio.open(OUT_LANDSAT_ARD_FN, 'w', **out_meta) as dest:
+                #     for band, src in enumerate(band_list, start=1):
+                #         dest.write(src, band)
+
+                context[Context.PRED_LIST] = band_list
+                context[Context.FN_SRC] = str(context[Context.FN_TOA_DOWNSCALE])
+                context[Context.FN_SUFFIX] = str(Context.FN_CCDC_DOWNSCALE_SUFFIX)
+                context[Context.BAND_NUM] = n_bands_lard
+                context[Context.BAND_DESCRIPTION_LIST] = lard_dataset_desc
+                context[Context.COG_FLAG] = False
+                context[Context.TARGET_DTYPE] = lard_dataset_profile['dtype']
+                context[Context.TARGET_NODATA_VALUE] = None
+                context[Context.FN_CCDC_DOWNSCALE] = rasterLib.createImage(context)
+
+                #  Warp cloudmask to attributes of EVHR - suffix root name with '-toa_pred_warp.tif')
+                context[Context.FN_SRC] = str(context[Context.FN_CLOUDMASK])
+                context[Context.FN_DEST] = str(context[Context.FN_CLOUDMASK_DOWNSCALE])
+                fileExists = (os.path.exists(context[Context.FN_CLOUDMASK_DOWNSCALE]))
+                if fileExists and (eval(context[Context.CLEAN_FLAG])):
+                        rasterLib.removeFile(context[Context.FN_CLOUDMASK_DOWNSCALE], context[Context.CLEAN_FLAG])
+                fileExists = (os.path.exists(context[Context.FN_CLOUDMASK_DOWNSCALE]))
+                if not fileExists:
+                    rasterLib.translate(context)
+                rasterLib.getAttributes(str(context[Context.FN_CLOUDMASK_DOWNSCALE]),
+                                        "Cloudmask Downscale Combo Plot")
+
 
                 # Get the common pixel intersection values of the EVHR & CCDC files
+                context[Context.FN_LIST] = [context[Context.FN_TOA_DOWNSCALE], context[Context.FN_CCDC_DOWNSCALE]]
                 context[Context.DS_LIST], context[Context.MA_LIST] = rasterLib.getIntersection(context)
 
                 # Perform regression to capture coefficients from intersected pixels and apply to 2m EVHR
                 context[Context.PRED_LIST] = rasterLib.performRegression(context)
 
                 # Create COG image from stack of processed bands
+                context[Context.FN_SRC] = str(context[Context.FN_TOA])
+                context[Context.FN_SUFFIX] = str(Context.FN_SRLITE_NONCOG_SUFFIX)
+                context[Context.BAND_NUM] = len(list(context[Context.LIST_TOA_BANDS]))
+                context[Context.BAND_DESCRIPTION_LIST] = list(context[Context.LIST_TOA_BANDS])
+                context[Context.COG_FLAG] = True
+                context[Context.TARGET_DTYPE] = ccdc_dataset_profile['dtype']
+                context[Context.TARGET_NODATA_VALUE] = int(Context.DEFAULT_NODATA_VALUE)
                 context[Context.FN_COG] = rasterLib.createImage(context)
+
+                break;
 
         except FileNotFoundError as exc:
             print('File Not Found - Error details: ', exc)
@@ -97,4 +168,29 @@ def main():
            (time.time() - start_time) / 60.0)  # time in min
 
 if __name__ == "__main__":
-    main()
+    from unittest.mock import patch
+
+#    REGION = 'Yukon_Delta'
+    REGION = 'Fairbanks'
+
+    #with patch("sys.argv", ["file.py", "-h"]):
+    with patch("sys.argv",
+        ["SrliteWorkflowCommandLineView.py", \
+        "-toa_dir", f'/adapt/nobackup/people/iluser/projects/srlite/input/TOA_v2/{REGION}/5-toas',
+        "-ccdc_dir", "/adapt/nobackup/people/iluser/projects/srlite/input/LANDSAT_v1",
+#        "-ccdc_dir", "/adapt/nobackup/people/gtamkin/dev/srlite/input/CCDC_v2",
+        "-cloudmask_dir", f'/adapt/nobackup/projects/ilab/projects/CloudMask/SRLite/clouds-binary-pytorch-{REGION}-2022-03-24',
+#        "-bandpairs","[['blue_ccdc', 'BAND-B'], ['green_ccdc', 'BAND-G'], ['red_ccdc', 'BAND-R'], ['nir_ccdc', 'BAND-N']]",
+        "-bandpairs", "[['Layer_1', 'BAND-B'], ['Layer_2', 'BAND-G'], ['Layer_3', 'BAND-R'], ['Layer_4', 'BAND-N']]",
+        "-output_dir", f'/adapt/nobackup/people/iluser/projects/srlite/output/LANDSAT_v1/05092022/{REGION}/',
+        "--debug", "1",
+        "--regressor", "robust",
+        "--clean"
+        ]):
+        ##############################################
+        # Default configuration values
+        ##############################################
+        start_time = time.time()  # record start time
+        print(f'Command line executed:    {sys.argv}')
+
+        main()

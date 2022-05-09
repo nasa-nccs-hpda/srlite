@@ -29,22 +29,34 @@ class Context(object):
     PRED_LIST = 'pred_list'
 
     FN_TOA = 'fn_toa'
+    FN_TOA_DOWNSCALE = 'fn_toa_downscale'
     FN_CCDC = 'fn_ccdc'
+    FN_CCDC_DOWNSCALE = 'fn_ccdc_downscale'
     FN_CLOUDMASK = 'fn_cloudmask'
+    FN_CLOUDMASK_DOWNSCALE = 'fn_cloudmask_downscale'
     FN_WARP = 'fn_warp'
     FN_PREFIX = 'fn_prefix'
     FN_COG = 'fn_cog'
+    FN_SUFFIX = 'fn_suffix'
 
     # File name suffixes
     FN_TOA_SUFFIX = '-toa.tif'
+    FN_TOA_DOWNSCALE_SUFFIX = '-toa-30m.tif'
+#    FN_CCDC_SUFFIX = '.tif'
     FN_CCDC_SUFFIX = '-ccdc.tif'
+    FN_CCDC_DOWNSCALE_SUFFIX = '-ccdc-30m.tif'
     FN_CLOUDMASK_SUFFIX = '-toa.clouds.tif'
-    FN_CLOUDMASK_WARP_SUFFIX = '-toa_pred_warp.tif'
-    FN_SRLITE_SUFFIX = '_sr_02m.tif'
+    FN_CLOUDMASK_DOWNSCALE_SUFFIX = '-toa-clouds-30m.tif'
+    FN_CLOUDMASK_WARP_SUFFIX = '-toa_pred-warp.tif'
+    FN_SRLITE_NONCOG_SUFFIX = '-noncog.tif'
+    FN_SRLITE_SUFFIX = '-sr-02m.tif'
 
     # Band pairs
-    LIST_BAND_PAIRS = 'band_pairs_list'
-    LIST_BAND_PAIR_INDICES = 'band_pairs_list_indices'
+    LIST_BAND_PAIRS = 'list_band_pairs'
+    LIST_BAND_PAIR_INDICES = 'list_band_pairs_indices'
+    LIST_TOA_BANDS = 'list_toa_bands'
+    BAND_NUM= 'band_num'
+    BAND_DESCRIPTION_LIST= 'band_description_list'
 
     # Target vars and defaults
     TARGET_ATTR = 'target_attr'
@@ -54,15 +66,18 @@ class Context(object):
     TARGET_PRJ = 'target_prj'
     TARGET_SRS = 'target_srs'
     TARGET_OUTPUT_TYPE = 'target_output_type'
+    TARGET_DTYPE = 'target_dtype'
+    TARGET_NODATA_VALUE = 'target_nodata_value'
 
     # Warp flags
     WARP_EVHR_FLAG = 'warp_evhr_flag'
-    WARP_CCDC_FLAG  = 'warp_ccdc_flag'
-    WARP_CLOUDMASK_FLAG  = 'warp_cloudmask_flag'
+    WARP_CCDC_FLAG = 'warp_ccdc_flag'
+    WARP_CLOUDMASK_FLAG = 'warp_cloudmask_flag'
 
     # Default values
     DEFAULT_XRES = 30.0
     DEFAULT_YRES = 30.0
+    DEFAULT_NODATA_VALUE = -9999
 
     # Regression algorithms
     REGRESSOR_SIMPLE = 'simple'
@@ -76,6 +91,7 @@ class Context(object):
     DEBUG_LEVEL = 'debug_level'
     LOG_FLAG = 'log_flag'
     CLEAN_FLAG = 'clean_flag'
+    COG_FLAG = 'cog_flag'
 
     # Global instance variables
     context_dict = {}
@@ -243,12 +259,20 @@ class Context(object):
         context[Context.FN_PREFIX] = str((prefix[1]).split("-toa.tif", 1)[0])
         context[Context.FN_TOA] = os.path.join(context[Context.DIR_TOA] + '/' +
                                                context[Context.FN_PREFIX] + self.FN_TOA_SUFFIX)
+        context[Context.FN_TOA_DOWNSCALE] = os.path.join(context[Context.DIR_OUTPUT] + '/' +
+                                               context[Context.FN_PREFIX] + self.FN_TOA_DOWNSCALE_SUFFIX)
         context[Context.FN_CCDC] = os.path.join(context[Context.DIR_CCDC] + '/' +
                                                 context[Context.FN_PREFIX] + self.FN_CCDC_SUFFIX)
+        context[Context.FN_CCDC_DOWNSCALE] = os.path.join(context[Context.DIR_OUTPUT] + '/' +
+                                                context[Context.FN_PREFIX] + self.FN_CCDC_DOWNSCALE_SUFFIX)
         context[Context.FN_CLOUDMASK] = os.path.join(context[Context.DIR_CLOUDMASK] + '/' +
                                                      context[Context.FN_PREFIX] + self.FN_CLOUDMASK_SUFFIX)
+        context[Context.FN_CLOUDMASK_DOWNSCALE] = os.path.join(context[Context.DIR_OUTPUT] + '/' +
+                                                     context[Context.FN_PREFIX] + self.FN_CLOUDMASK_DOWNSCALE_SUFFIX)
         context[Context.FN_WARP] = os.path.join(context[Context.DIR_WARP] + '/' +
                                                 context[Context.FN_PREFIX] + self.FN_CLOUDMASK_WARP_SUFFIX)
+        context[Context.FN_COG] = os.path.join(context[Context.DIR_OUTPUT] + '/' +
+                                               context[Context.FN_PREFIX] + self.FN_SRLITE_SUFFIX)
 
         if not (os.path.exists(context[Context.FN_TOA])):
             raise FileNotFoundError("TOA File not found: {}".format(context[Context.FN_TOA]))
