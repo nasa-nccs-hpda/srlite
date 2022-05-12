@@ -15,7 +15,7 @@ class Context(object):
 
     # Directories
     DIR_TOA = 'dir_toa'
-    DIR_CCDC = 'dir_ccdc'
+    DIR_TARGET = 'dir_target'
     DIR_CLOUDMASK = 'dir_cloudmask'
     DIR_OUTPUT = 'dir_out'
     DIR_WARP = 'dir_warp'
@@ -31,8 +31,8 @@ class Context(object):
 
     FN_TOA = 'fn_toa'
     FN_TOA_DOWNSCALE = 'fn_toa_downscale'
-    FN_CCDC = 'fn_ccdc'
-    FN_CCDC_DOWNSCALE = 'fn_ccdc_downscale'
+    FN_TARGET = 'fn_target'
+    FN_TARGET_DOWNSCALE = 'fn_target_downscale'
     FN_CLOUDMASK = 'fn_cloudmask'
     FN_CLOUDMASK_DOWNSCALE = 'fn_cloudmask_downscale'
     FN_PREFIX = 'fn_prefix'
@@ -42,9 +42,9 @@ class Context(object):
     # File name suffixes
     FN_TOA_SUFFIX = '-toa.tif'
     FN_TOA_DOWNSCALE_SUFFIX = '-toa-30m.tif'
-#    FN_CCDC_SUFFIX = '.tif'
-    FN_CCDC_SUFFIX = '-ccdc.tif'
-    FN_CCDC_DOWNSCALE_SUFFIX = '-ccdc-30m.tif'
+#    FN_TARGET_SUFFIX = '.tif'
+    FN_TARGET_SUFFIX = '-target.tif'
+    FN_TARGET_DOWNSCALE_SUFFIX = '-target-30m.tif'
     FN_CLOUDMASK_SUFFIX = '-toa.clouds.tif'
     FN_CLOUDMASK_DOWNSCALE_SUFFIX = '-toa-clouds-30m.tif'
     FN_CLOUDMASK_WARP_SUFFIX = '-toa_pred-warp.tif'
@@ -80,10 +80,10 @@ class Context(object):
     REGRESSOR_MODEL_ROBUST = 'robust'
 
     # Algorithm classes
-    ALGORITHM_CLASS = 'algorithm'
-    ALGORITHM_CLASS_CCDC = 'ccdc'
-    ALGORITHM_CLASS_LANDSAT = 'landsat'
-    ALGORITHM_CLASS_THRESHOLD = 'threshold'
+    # ALGORITHM_CLASS = 'algorithm'
+    # ALGORITHM_CLASS_TARGET = 'target'
+    # ALGORITHM_CLASS_QF = 'landsat'
+    # ALGORITHM_CLASS_THRESHOLD = 'threshold'
 
     # Storage type
     STORAGE_TYPE = 'storage'
@@ -107,6 +107,7 @@ class Context(object):
     CLOUD_MASK_FLAG = 'cloud_mask_flag'
 
     # Threshold flag
+    THRESHOLD_MASK_FLAG = 'threshold_mask_flag'
     THRESHOLD_MIN = 'threshold_min'
     THRESHOLD_MAX = 'threshold_max'
 
@@ -124,7 +125,7 @@ class Context(object):
         # Initialize serializable context for orchestration
         try:
             self.context_dict[Context.DIR_TOA] = str(args.toa_dir)
-            self.context_dict[Context.DIR_CCDC] = str(args.ccdc_dir)
+            self.context_dict[Context.DIR_TARGET] = str(args.target_dir)
             self.context_dict[Context.DIR_CLOUDMASK] = str(args.cloudmask_dir)
             self.context_dict[Context.DIR_OUTPUT] = str(args.out_dir)
             self.context_dict[Context.DIR_WARP] = self.context_dict[Context.DIR_OUTPUT]
@@ -147,12 +148,13 @@ class Context(object):
                                      self.context_dict[Context.DIR_OUTPUT])
             if (int(self.context_dict[Context.DEBUG_LEVEL]) >= int(self.DEBUG_TRACE_VALUE)):
                     print(sys.path)
-            self.context_dict[Context.ALGORITHM_CLASS] = str(args.algorithm)
+            # self.context_dict[Context.ALGORITHM_CLASS] = str(args.algorithm)
             self.context_dict[Context.STORAGE_TYPE] = str(args.storage)
             self.context_dict[Context.CLOUD_MASK_FLAG] = str(args.cmaskbool)
             self.context_dict[Context.QUALITY_MASK_FLAG] = str(args.qfmaskbool)
             self.context_dict[Context.LIST_QUALITY_MASK] = str(args.qfmask_list)
 
+            self.context_dict[Context.THRESHOLD_MASK_FLAG] = str(args.thmaskbool)
             threshold_range = (str(args.threshold_range)).partition(",")
             self.context_dict[Context.THRESHOLD_MIN] = int(threshold_range[0])
             self.context_dict[Context.THRESHOLD_MAX] = int(threshold_range[2])
@@ -170,7 +172,7 @@ class Context(object):
         # Echo input parameter values
         plotLib.trace(f'Initializing SRLite Regression script with the following parameters')
         plotLib.trace(f'TOA Directory:    {self.context_dict[Context.DIR_TOA]}')
-        plotLib.trace(f'CCDC Directory:    {self.context_dict[Context.DIR_CCDC]}')
+        plotLib.trace(f'TARGET Directory:    {self.context_dict[Context.DIR_TARGET]}')
         plotLib.trace(f'Cloudmask Directory:    {self.context_dict[Context.DIR_CLOUDMASK]}')
         plotLib.trace(f'Warp Directory:    {self.context_dict[Context.DIR_WARP]}')
         plotLib.trace(f'Output Directory: {self.context_dict[Context.DIR_OUTPUT]}')
@@ -180,12 +182,13 @@ class Context(object):
         plotLib.trace(f'Clean Flag: {self.context_dict[Context.CLEAN_FLAG]}')
         plotLib.trace(f'Log: {self.context_dict[Context.LOG_FLAG]}')
         plotLib.trace(f'Storage:    {self.context_dict[Context.STORAGE_TYPE]}')
-        plotLib.trace(f'Cloud Mask:    {self.context_dict[Context.CLOUD_MASK_FLAG]}')
-        plotLib.trace(f'Algorithm:    {self.context_dict[Context.ALGORITHM_CLASS]}')
-        if (self.context_dict[Context.ALGORITHM_CLASS] == Context.ALGORITHM_CLASS_LANDSAT):
+        if (eval(self.context_dict[Context.CLOUD_MASK_FLAG] )):
+            plotLib.trace(f'Cloud Mask:    {self.context_dict[Context.CLOUD_MASK_FLAG]}')
+        if (eval(self.context_dict[Context.QUALITY_MASK_FLAG])):
             plotLib.trace(f'Quality Mask:    {self.context_dict[Context.QUALITY_MASK_FLAG]}')
             plotLib.trace(f'Quality Mask Values:    {self.context_dict[Context.LIST_QUALITY_MASK]}')
-        if (self.context_dict[Context.ALGORITHM_CLASS] == Context.ALGORITHM_CLASS_THRESHOLD):
+        if (eval(self.context_dict[Context.THRESHOLD_MASK_FLAG])):
+            plotLib.trace(f'Threshold Mask:    {self.context_dict[Context.THRESHOLD_MASK_FLAG]}')
             plotLib.trace(f'Threshold Min:    {self.context_dict[Context.THRESHOLD_MIN]}')
             plotLib.trace(f'Threshold Max:    {self.context_dict[Context.THRESHOLD_MAX]}')
 
@@ -207,8 +210,8 @@ class Context(object):
             default=None, help="Specify directory path containing TOA files."
         )
         parser.add_argument(
-            "-ccdc_dir", "--input-ccdc-dir", type=str, required=False, dest='ccdc_dir',
-            default=None, help="Specify directory path containing CCDC files."
+            "-target_dir", "--input-target-dir", type=str, required=False, dest='target_dir',
+            default=None, help="Specify directory path containing TARGET files."
         )
         parser.add_argument(
             "-cloudmask_dir", "--input-cloudmask-dir", type=str, required=True, dest='cloudmask_dir',
@@ -216,7 +219,7 @@ class Context(object):
         )
         parser.add_argument(
             "-bandpairs", "--input-list-of-band-pairs", type=str, required=False, dest='band_pairs_list',
-            default="[['blue_ccdc', 'BAND-B'], ['green_ccdc', 'BAND-G'], ['red_ccdc', 'BAND-R'], ['nir_ccdc', 'BAND-N']]",
+            default="[['blue_target', 'BAND-B'], ['green_target', 'BAND-G'], ['red_target', 'BAND-R'], ['nir_target', 'BAND-N']]",
             help="Specify list of band pairs to be processed per scene."
         )
         parser.add_argument(
@@ -254,12 +257,12 @@ class Context(object):
                             choices=['simple', 'robust'],
                             help='Choose which regression algorithm to use')
 
-        parser.add_argument('--algorithm',
-                            required=False,
-                            dest='algorithm',
-                            default='ccdc',
-                            choices=['ccdc', 'landsat', 'threshold'],
-                            help='Choose which algorithm to apply to regression')
+        # parser.add_argument('--algorithm',
+        #                     required=False,
+        #                     dest='algorithm',
+        #                     default='target',
+        #                     choices=['target', 'landsat', 'threshold'],
+        #                     help='Choose which algorithm to apply to regression')
 
         parser.add_argument('--storage',
                             required=False,
@@ -288,6 +291,13 @@ class Context(object):
                             default='0,3,4',
                             type=str,
                             help='Choose quality flag values to mask')
+
+        parser.add_argument('--thmask',
+                            required=False,
+                            dest='thmaskbool',
+                            default=False,
+                            action='store_true',
+                            help='Apply threshold mask values to common mask')
 
         parser.add_argument('--thrange',
                             required=False,
@@ -329,7 +339,7 @@ class Context(object):
     # -------------------------------------------------------------------------
     def getFileNames(self, prefix, context):
         """
-        :param prefix: core TOA file name (must match core ccdc and cloudmask file name)
+        :param prefix: core TOA file name (must match core target and cloudmask file name)
         :param context: input context object dictionary
         :return: updated context
         """
@@ -338,10 +348,10 @@ class Context(object):
                                                context[Context.FN_PREFIX] + self.FN_TOA_SUFFIX)
         context[Context.FN_TOA_DOWNSCALE] = os.path.join(context[Context.DIR_OUTPUT] + '/' +
                                                context[Context.FN_PREFIX] + self.FN_TOA_DOWNSCALE_SUFFIX)
-        context[Context.FN_CCDC] = os.path.join(context[Context.DIR_CCDC] + '/' +
-                                                context[Context.FN_PREFIX] + self.FN_CCDC_SUFFIX)
-        context[Context.FN_CCDC_DOWNSCALE] = os.path.join(context[Context.DIR_OUTPUT] + '/' +
-                                                context[Context.FN_PREFIX] + self.FN_CCDC_DOWNSCALE_SUFFIX)
+        context[Context.FN_TARGET] = os.path.join(context[Context.DIR_TARGET] + '/' +
+                                                context[Context.FN_PREFIX] + self.FN_TARGET_SUFFIX)
+        context[Context.FN_TARGET_DOWNSCALE] = os.path.join(context[Context.DIR_OUTPUT] + '/' +
+                                                context[Context.FN_PREFIX] + self.FN_TARGET_DOWNSCALE_SUFFIX)
         context[Context.FN_CLOUDMASK] = os.path.join(context[Context.DIR_CLOUDMASK] + '/' +
                                                      context[Context.FN_PREFIX] + self.FN_CLOUDMASK_SUFFIX)
         context[Context.FN_CLOUDMASK_DOWNSCALE] = os.path.join(context[Context.DIR_OUTPUT] + '/' +
@@ -353,8 +363,8 @@ class Context(object):
 
         if not (os.path.exists(context[Context.FN_TOA])):
             raise FileNotFoundError("TOA File not found: {}".format(context[Context.FN_TOA]))
-        if not (os.path.exists(context[Context.FN_CCDC])):
-            raise FileNotFoundError("CCDC File not found: {}".format(context[Context.FN_CCDC]))
+        if not (os.path.exists(context[Context.FN_TARGET])):
+            raise FileNotFoundError("TARGET File not found: {}".format(context[Context.FN_TARGET]))
         if not (os.path.exists(context[Context.FN_CLOUDMASK])):
             raise FileNotFoundError("Cloudmask File not found: {}".format(context[Context.FN_CLOUDMASK]))
 

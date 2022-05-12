@@ -119,11 +119,11 @@ class RasterLib(object):
         return bandIndices
 
     def getAttributeSnapshot(self, context):
-        self._validateParms(context, [Context.FN_TOA, Context.FN_CCDC, Context.FN_CLOUDMASK])
+        self._validateParms(context, [Context.FN_TOA, Context.FN_TARGET, Context.FN_CLOUDMASK])
 
         # Get snapshot of attributes of EVHR, CCDC, and Cloudmask tifs and create plot")
         self.getAttributes(str(context[Context.FN_TOA]), "EVHR Combo Plot")
-        self.getAttributes(str(context[Context.FN_CCDC]), "CCDC Combo Plot")
+        self.getAttributes(str(context[Context.FN_TARGET]), "CCDC Combo Plot")
         self.getAttributes(str(context[Context.FN_CLOUDMASK]), "Cloudmask Combo Plot")
 
     def getAttributes(self, r_fn, title):
@@ -155,7 +155,7 @@ class RasterLib(object):
             context[Context.FN_LIST], res='first', extent='intersection', t_srs='first', r='average')
         warp_ma_list = [iolib.ds_getma(ds) for ds in warp_ds_list]
 
-        self._plot_lib.trace('\n CCDC shape=' + str(warp_ma_list[0].shape) + ' EVHR shape=' +
+        self._plot_lib.trace('\n TARGET shape=' + str(warp_ma_list[0].shape) + ' EVHR shape=' +
                    str(warp_ma_list[1].shape))
         return warp_ds_list, warp_ma_list
 
@@ -201,13 +201,13 @@ class RasterLib(object):
                                  title='cloudmaskWarpExternalBandMaArrayMasked')
         return cloudmaskWarpExternalBandMaArrayMasked
 
-    def prepareLANDSATCloudmask(self, context):
+    def prepareQualityFlagMask(self, context):
         self._validateParms(context,
                             [Context.DS_LIST, Context.LIST_BAND_PAIRS, Context.LIST_BAND_PAIR_INDICES,
                              Context.FN_WARP, Context.REGRESSION_MODEL, Context.FN_LIST])
 
         #  Get Masked array from warped Cloudmask - get Band 8 (https://glad.umd.edu/Potapov/ARD/ARD_manual_v1.1.pdf)
-        cloudmaskWarpExternalBandMaArray = iolib.fn_getma(context[Context.FN_CCDC_DOWNSCALE], 8)
+        cloudmaskWarpExternalBandMaArray = iolib.fn_getma(context[Context.FN_TARGET_DOWNSCALE], 8)
         self._plot_lib.trace(f'\nBefore Mask -> cloudmaskWarpExternalBandMaArray')
         self._plot_lib.trace(f'cloudmaskWarpExternalBandMaArray hist: {np.histogram(cloudmaskWarpExternalBandMaArray)}')
         self._plot_lib.trace(f'cloudmaskWarpExternalBandMaArray shape: {cloudmaskWarpExternalBandMaArray.shape}')
@@ -265,24 +265,24 @@ class RasterLib(object):
         minWarning = 0
         firstBand = True
 
-        cloudmaskEVHRWarpExternalBandMaArrayMasked = cloudmaskLANDSATWarpExternalBandMaArrayMasked = None
+        cloudmaskEVHRWarpExternalBandMaArrayMasked = cloudmaskQFWarpExternalBandMaArrayMasked = None
         # Get optional Cloudmask
+        cloudMask = False
         if (eval(context[Context.CLOUD_MASK_FLAG])):
+            cloudMask = True
             cloudmaskEVHRWarpExternalBandMaArrayMasked = self.prepareEVHRCloudmask(context)
 
         # Get optional Quality flag mask
-        landsatMask = False
-        if (context[Context.ALGORITHM_CLASS] == Context.ALGORITHM_CLASS_LANDSAT):
-            landsatMask = True
-        if (landsatMask == True):
-            cloudmaskLANDSATWarpExternalBandMaArrayMasked = self.prepareLANDSATCloudmask(context)
+        qfMask = False
+        if (eval(context[Context.QUALITY_MASK_FLAG] )):
+            qfMask = True
+            cloudmaskQFWarpExternalBandMaArrayMasked = self.prepareQualityFlagMask(context)
 
         # Get optional Threshold mask
-        threshold = False
-        if (context[Context.ALGORITHM_CLASS] == Context.ALGORITHM_CLASS_THRESHOLD):
-            threshold = True
-        if (threshold == True):
-             # Apply user-specified threshold range for Blue Band pixel mask and apply to each band
+        thMask = False
+        if (eval(context[Context.THRESHOLD_MASK_FLAG])):
+            thMask = True
+              # Apply user-specified threshold range for Blue Band pixel mask and apply to each band
             evhrBandMaArrayThresholdMin = context[Context.THRESHOLD_MIN]
             evhrBandMaArrayThresholdMax = context[Context.THRESHOLD_MAX]
             self._plot_lib.trace(' evhrBandMaArrayThresholdMin = ' + str(evhrBandMaArrayThresholdMin))
@@ -309,17 +309,21 @@ class RasterLib(object):
 
             #  Create single mask for all bands based on Blue-band threshold values
             #  Assumes Blue-band is first indice pair, so collect mask on 1st iteration only.
-            if (threshold == True):
+            if (thMask == True):
                 if (firstBand == True):
-                    evhrBandMaArray = self._applyThreshold(evhrBandMaArrayThresholdMin, evhrBandMaArrayThresholdMax,
+                    evhrBandMaThresholdArray = self._applyThreshold(evhrBandMaArrayThresholdMin, evhrBandMaArrayThresholdMax,
                                                                evhrBandMaArray)
                     firstBand = False
 
-            #  Create a common mask that intersects the CCDC/LANDSAT, EVHR, and Cloudmasks - this will then be used to correct the input EVHR & CCDC/LANDSAT
-            if (landsatMask == True):
-                warp_ma_band_list_all = [ccdcBandMaArray, evhrBandMaArray, cloudmaskEVHRWarpExternalBandMaArrayMasked, cloudmaskLANDSATWarpExternalBandMaArrayMasked]
-            else:
-                warp_ma_band_list_all = [ccdcBandMaArray, evhrBandMaArray, cloudmaskEVHRWarpExternalBandMaArrayMasked]
+            #  Create a common mask that intersects the CCDC/QF, EVHR, and Cloudmasks - this will then be used to correct the input EVHR & CCDC/QF
+            warp_ma_band_list_all = [ccdcBandMaArray, evhrBandMaArray]
+            if (cloudMask == True):
+                warp_ma_band_list_all.append(cloudmaskEVHRWarpExternalBandMaArrayMasked)
+            if (qfMask == True):
+                warp_ma_band_list_all.append(cloudmaskQFWarpExternalBandMaArrayMasked)
+            if (thMask == True):
+                evhrBandMaArray = evhrBandMaThresholdArray
+                warp_ma_band_list_all.append(evhrBandMaThresholdArray)
             common_mask_band_all = malib.common_mask(warp_ma_band_list_all)
 
             # Apply the 3-way common mask to the CCDC and EVHR bands
@@ -501,18 +505,12 @@ class RasterLib(object):
         self._validateParms(context, [Context.FN_SRC, Context.CLEAN_FLAG,
                             Context.FN_DEST])
 
-        # Use gdalwarp to create Cloud-optimized Geotiff (COG)
-#        cogname = context[Context.FN_SRC].replace(Context.FN_SRLITE_NONCOG_SUFFIX, ".tif")
-
         # Clean pre-COG image
         self.removeFile(context[Context.FN_DEST], context[Context.CLEAN_FLAG])
-#        self.removeFile(cogname, context[Context.CLEAN_FLAG])
-
-#        context[Context.FN_DEST] = cogname
         self.cog(context)
         self.removeFile(context[Context.FN_SRC], context[Context.CLEAN_FLAG])
-
-        return  context[Context.FN_DEST]
+        
+        return context[Context.FN_DEST]
 
     def _getProjSrs(self, in_raster):
         # Get projection from raster

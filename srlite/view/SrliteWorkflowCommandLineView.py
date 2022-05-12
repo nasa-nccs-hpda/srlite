@@ -1,6 +1,6 @@
 """
 Purpose: Build and apply regression model for coefficient identification of raster data using
-         low resolution data (~30m) and CCDC inputs. Apply the coefficients to high resolution data (~2m)
+         low resolution data (~30m) and TARGET inputs. Apply the coefficients to high resolution data (~2m)
          to generate a surface reflectance product (aka, SR-Lite). Usage requirements are referenced in README.
 
 Data Source: This script has been tested with very high-resolution WV data.
@@ -80,20 +80,20 @@ def main():
                 rasterLib.getAttributes(str(context[Context.FN_TOA_DOWNSCALE]),
                                         "TOA Downscale Combo Plot")
 
-                # Validate that input band name pairs exist in EVHR & CCDC files
-                context[Context.FN_LIST] = [str(context[Context.FN_CCDC]), str(context[Context.FN_TOA_DOWNSCALE])]
+                # Validate that input band name pairs exist in EVHR & TARGET files
+                context[Context.FN_LIST] = [str(context[Context.FN_TARGET]), str(context[Context.FN_TOA_DOWNSCALE])]
                 context[Context.LIST_BAND_PAIR_INDICES] = rasterLib.getBandIndices(context)
-                context[Context.FN_LIST] = [str(context[Context.FN_TOA_DOWNSCALE]), str(context[Context.FN_CCDC])]
+                context[Context.FN_LIST] = [str(context[Context.FN_TOA_DOWNSCALE]), str(context[Context.FN_TARGET])]
 
-                # Warp CCDC/Landsat to downscaled TOA 30m
+                # Warp TARGET/Landsat to downscaled TOA 30m
                 with rasterio.open(context[Context.FN_TOA_DOWNSCALE], "r") as ccdc_dataset:
                     out_meta = ccdc_dataset.meta.copy()
                     n_bands = ccdc_dataset.count
                     ccdc_dataset_profile = ccdc_dataset.profile
-                print(f"# of CCDC bands: {n_bands}")
+                print(f"# of TARGET bands: {n_bands}")
                 print(ccdc_dataset_profile)
 
-                with rasterio.open(context[Context.FN_CCDC], "r") as lard_dataset:
+                with rasterio.open(context[Context.FN_TARGET], "r") as lard_dataset:
                     n_bands_lard = lard_dataset.count
                     lard_dataset_profile = lard_dataset.profile
                     lard_dataset_desc = lard_dataset.descriptions
@@ -101,25 +101,25 @@ def main():
                 print(f"Descriptions of LARD bands: {lard_dataset_desc}")
                 print(lard_dataset_profile)
 
-                fn_list = [context[Context.FN_TOA_DOWNSCALE], context[Context.FN_CCDC]]
+                fn_list = [context[Context.FN_TOA_DOWNSCALE], context[Context.FN_TARGET]]
                 warp_ds_list = warplib.memwarp_multi_fn(fn_list, res='first', extent='first', t_srs='first', r='cubic')
                 landsat_ds = warp_ds_list[1]
                 band_list = []
 
                 for bandnum in range(1, n_bands_lard + 1):
-                    # Warp LARD to CCDC
+                    # Warp LARD to TARGET
                     landsat_ard_ma = iolib.ds_getma(landsat_ds, bnum=bandnum)
                     band_list.append(landsat_ard_ma)
 
                 context[Context.PRED_LIST] = band_list
                 context[Context.FN_SRC] = str(context[Context.FN_TOA_DOWNSCALE])
-                context[Context.FN_SUFFIX] = str(Context.FN_CCDC_DOWNSCALE_SUFFIX)
+                context[Context.FN_SUFFIX] = str(Context.FN_TARGET_DOWNSCALE_SUFFIX)
                 context[Context.BAND_NUM] = n_bands_lard
                 context[Context.BAND_DESCRIPTION_LIST] = lard_dataset_desc
                 context[Context.COG_FLAG] = False
                 context[Context.TARGET_DTYPE] = lard_dataset_profile['dtype']
                 context[Context.TARGET_NODATA_VALUE] = None
-                context[Context.FN_CCDC_DOWNSCALE] = rasterLib.createImage(context)
+                context[Context.FN_TARGET_DOWNSCALE] = rasterLib.createImage(context)
 
                 #  Warp cloudmask to attributes of EVHR - suffix root name with '-toa_pred_warp.tif')
                 context[Context.FN_SRC] = str(context[Context.FN_CLOUDMASK])
@@ -133,8 +133,8 @@ def main():
                 rasterLib.getAttributes(str(context[Context.FN_CLOUDMASK_DOWNSCALE]),
                                         "Cloudmask Downscale Combo Plot")
 
-                # Get the common pixel intersection values of the EVHR & CCDC files
-                context[Context.FN_LIST] = [context[Context.FN_TOA_DOWNSCALE], context[Context.FN_CCDC_DOWNSCALE]]
+                # Get the common pixel intersection values of the EVHR & TARGET files
+                context[Context.FN_LIST] = [context[Context.FN_TOA_DOWNSCALE], context[Context.FN_TARGET_DOWNSCALE]]
                 context[Context.DS_LIST], context[Context.MA_LIST] = rasterLib.getIntersection(context)
 
                 # Perform regression to capture coefficients from intersected pixels and apply to 2m EVHR
@@ -166,14 +166,14 @@ if __name__ == "__main__":
 
     REGION = 'Yukon_Delta'
 #    REGION = 'Fairbanks'
-    OUTPUTDIR = f'/adapt/nobackup/people/iluser/projects/srlite/output/LANDSAT_v1/05122022/{REGION}/'
+    OUTPUTDIR = f'/adapt/nobackup/people/iluser/projects/srlite/output/LANDSAT_v1/05122022/{REGION}/QFMaskOnly/'
 
     #with patch("sys.argv", ["file.py", "-h"]):
     with patch("sys.argv",
         ["SrliteWorkflowCommandLineView.py", \
         "-toa_dir", f'/adapt/nobackup/people/iluser/projects/srlite/input/TOA_v2/{REGION}/5-toas',
-        "-ccdc_dir", "/adapt/nobackup/people/iluser/projects/srlite/input/LANDSAT_v1",
-#        "-ccdc_dir", "/adapt/nobackup/people/gtamkin/dev/srlite/input/CCDC_v2",
+        "-target_dir", "/adapt/nobackup/people/iluser/projects/srlite/input/LANDSAT_v1",
+#        "-ccdc_dir", "/adapt/nobackup/people/gtamkin/dev/srlite/input/TARGET_v2",
         "-cloudmask_dir", f'/adapt/nobackup/projects/ilab/projects/CloudMask/SRLite/clouds-binary-pytorch-{REGION}-2022-03-24',
 #        "-bandpairs","[['blue_ccdc', 'BAND-B'], ['green_ccdc', 'BAND-G'], ['red_ccdc', 'BAND-R'], ['nir_ccdc', 'BAND-N']]",
         "-bandpairs", "[['Layer_1', 'BAND-B'], ['Layer_2', 'BAND-G'], ['Layer_3', 'BAND-R'], ['Layer_4', 'BAND-N']]",
@@ -181,13 +181,14 @@ if __name__ == "__main__":
         "--warp_dir", f"{OUTPUTDIR}warp",
         "--debug", "1",
         "--regressor", "robust",
-#        "--clean",
-        "--algorithm", "landsat",
+        "--clean",
+#        "--algorithm", "landsat",
         "--storage", "memory",
-        "--cloudmask",
+#        "--cloudmask",
         "--qfmask",
         "--qfmasklist","0,3,4",
-#        "--threshold_range", "-100,2000"
+#         "--thmask",
+         #        "--threshold_range", "-100,2000"
          ]):
         ##############################################
         # Default configuration values
