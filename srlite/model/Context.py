@@ -17,12 +17,13 @@ class Context(object):
     DIR_TOA = 'dir_toa'
     DIR_CCDC = 'dir_ccdc'
     DIR_CLOUDMASK = 'dir_cloudmask'
-    DIR_WARP = 'dir_warp'
     DIR_OUTPUT = 'dir_out'
+    DIR_WARP = 'dir_warp'
 
     # File names
     FN_DEST = 'fn_dest'
     FN_SRC = 'fn_src'
+    FN_WARP = 'fn_warp'
     FN_LIST = 'fn_list'
     DS_LIST = 'ds_list'
     MA_LIST = 'ma_list'
@@ -34,7 +35,6 @@ class Context(object):
     FN_CCDC_DOWNSCALE = 'fn_ccdc_downscale'
     FN_CLOUDMASK = 'fn_cloudmask'
     FN_CLOUDMASK_DOWNSCALE = 'fn_cloudmask_downscale'
-    FN_WARP = 'fn_warp'
     FN_PREFIX = 'fn_prefix'
     FN_COG = 'fn_cog'
     FN_SUFFIX = 'fn_suffix'
@@ -55,7 +55,7 @@ class Context(object):
     LIST_BAND_PAIRS = 'list_band_pairs'
     LIST_BAND_PAIR_INDICES = 'list_band_pairs_indices'
     LIST_TOA_BANDS = 'list_toa_bands'
-    BAND_NUM= 'band_num'
+    BAND_NUM = 'band_num'
     BAND_DESCRIPTION_LIST= 'band_description_list'
 
     # Target vars and defaults
@@ -69,20 +69,26 @@ class Context(object):
     TARGET_DTYPE = 'target_dtype'
     TARGET_NODATA_VALUE = 'target_nodata_value'
 
-    # Warp flags
-    WARP_EVHR_FLAG = 'warp_evhr_flag'
-    WARP_CCDC_FLAG = 'warp_ccdc_flag'
-    WARP_CLOUDMASK_FLAG = 'warp_cloudmask_flag'
-
     # Default values
     DEFAULT_XRES = 30.0
     DEFAULT_YRES = 30.0
     DEFAULT_NODATA_VALUE = -9999
 
     # Regression algorithms
-    REGRESSOR_SIMPLE = 'simple'
-    REGRESSOR_ROBUST = 'robust'
     REGRESSION_MODEL = 'regressor'
+    REGRESSOR_MODEL_SIMPLE = 'simple'
+    REGRESSOR_MODEL_ROBUST = 'robust'
+
+    # Algorithm classes
+    ALGORITHM_CLASS = 'algorithm'
+    ALGORITHM_CLASS_CCDC = 'ccdc'
+    ALGORITHM_CLASS_LANDSAT = 'landsat'
+    ALGORITHM_CLASS_THRESHOLD = 'threshold'
+
+    # Storage type
+    STORAGE_TYPE = 'storage'
+    STORAGE_TYPE_MEMORY = 'memory'
+    STORAGE_TYPE_FILE = 'file'
 
     # Debug & log values
     DEBUG_NONE_VALUE = 0
@@ -92,6 +98,17 @@ class Context(object):
     LOG_FLAG = 'log_flag'
     CLEAN_FLAG = 'clean_flag'
     COG_FLAG = 'cog_flag'
+
+    # Quality flag and list of values
+    QUALITY_MASK_FLAG = 'qf_mask_flag'
+    LIST_QUALITY_MASK = 'list_quality_mask'
+
+    # Cloud mask flag
+    CLOUD_MASK_FLAG = 'cloud_mask_flag'
+
+    # Threshold flag
+    THRESHOLD_MIN = 'threshold_min'
+    THRESHOLD_MAX = 'threshold_max'
 
     # Global instance variables
     context_dict = {}
@@ -130,6 +147,15 @@ class Context(object):
                                      self.context_dict[Context.DIR_OUTPUT])
             if (int(self.context_dict[Context.DEBUG_LEVEL]) >= int(self.DEBUG_TRACE_VALUE)):
                     print(sys.path)
+            self.context_dict[Context.ALGORITHM_CLASS] = str(args.algorithm)
+            self.context_dict[Context.STORAGE_TYPE] = str(args.storage)
+            self.context_dict[Context.CLOUD_MASK_FLAG] = str(args.cmaskbool)
+            self.context_dict[Context.QUALITY_MASK_FLAG] = str(args.qfmaskbool)
+            self.context_dict[Context.LIST_QUALITY_MASK] = str(args.qfmask_list)
+
+            threshold_range = (str(args.threshold_range)).partition(",")
+            self.context_dict[Context.THRESHOLD_MIN] = int(threshold_range[0])
+            self.context_dict[Context.THRESHOLD_MAX] = int(threshold_range[2])
 
         except BaseException as err:
             print('Check arguments: ', err)
@@ -153,6 +179,15 @@ class Context(object):
         plotLib.trace(f'Debug Level: {self.context_dict[Context.DEBUG_LEVEL]}')
         plotLib.trace(f'Clean Flag: {self.context_dict[Context.CLEAN_FLAG]}')
         plotLib.trace(f'Log: {self.context_dict[Context.LOG_FLAG]}')
+        plotLib.trace(f'Storage:    {self.context_dict[Context.STORAGE_TYPE]}')
+        plotLib.trace(f'Cloud Mask:    {self.context_dict[Context.CLOUD_MASK_FLAG]}')
+        plotLib.trace(f'Algorithm:    {self.context_dict[Context.ALGORITHM_CLASS]}')
+        if (self.context_dict[Context.ALGORITHM_CLASS] == Context.ALGORITHM_CLASS_LANDSAT):
+            plotLib.trace(f'Quality Mask:    {self.context_dict[Context.QUALITY_MASK_FLAG]}')
+            plotLib.trace(f'Quality Mask Values:    {self.context_dict[Context.LIST_QUALITY_MASK]}')
+        if (self.context_dict[Context.ALGORITHM_CLASS] == Context.ALGORITHM_CLASS_THRESHOLD):
+            plotLib.trace(f'Threshold Min:    {self.context_dict[Context.THRESHOLD_MIN]}')
+            plotLib.trace(f'Threshold Max:    {self.context_dict[Context.THRESHOLD_MAX]}')
 
         return
 
@@ -190,7 +225,7 @@ class Context(object):
         )
         parser.add_argument(
             "--warp_dir", "--input-warp-dir", type=str, required=False, dest='warp_dir',
-            default=None, help="Specify directory path containing wapred files."
+            default="./", help="Specify directory path containing warped files."
         )
         parser.add_argument(
             "--xres", "--input-x-resolution", type=str, required=False, dest='target_xres',
@@ -218,6 +253,48 @@ class Context(object):
                             default='robust',
                             choices=['simple', 'robust'],
                             help='Choose which regression algorithm to use')
+
+        parser.add_argument('--algorithm',
+                            required=False,
+                            dest='algorithm',
+                            default='ccdc',
+                            choices=['ccdc', 'landsat', 'threshold'],
+                            help='Choose which algorithm to apply to regression')
+
+        parser.add_argument('--storage',
+                            required=False,
+                            dest='storage',
+                            default='memory',
+                            choices=['memory', 'file'],
+                            help='Choose which storage model to use')
+
+        parser.add_argument('--cloudmask',
+                            required=False,
+                            dest='cmaskbool',
+                            default=False,
+                            action='store_true',
+                            help='Apply cloud mask values to common mask')
+
+        parser.add_argument('--qfmask',
+                            required=False,
+                            dest='qfmaskbool',
+                            default=False,
+                            action='store_true',
+                            help='Apply quality flag values to common mask')
+
+        parser.add_argument('--qfmasklist',
+                            required=False,
+                            dest='qfmask_list',
+                            default='0,3,4',
+                            type=str,
+                            help='Choose quality flag values to mask')
+
+        parser.add_argument('--thrange',
+                            required=False,
+                            dest='threshold_range',
+                            default='-100, 2000',
+                            type=str,
+                            help='Choose quality flag values to mask')
 
         return parser.parse_args()
 

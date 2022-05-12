@@ -111,11 +111,6 @@ def main():
                     landsat_ard_ma = iolib.ds_getma(landsat_ds, bnum=bandnum)
                     band_list.append(landsat_ard_ma)
 
-                # print(f"\nWriting all bands to: {OUT_LANDSAT_ARD_FN}")
-                # with rasterio.open(OUT_LANDSAT_ARD_FN, 'w', **out_meta) as dest:
-                #     for band, src in enumerate(band_list, start=1):
-                #         dest.write(src, band)
-
                 context[Context.PRED_LIST] = band_list
                 context[Context.FN_SRC] = str(context[Context.FN_TOA_DOWNSCALE])
                 context[Context.FN_SUFFIX] = str(Context.FN_CCDC_DOWNSCALE_SUFFIX)
@@ -137,7 +132,6 @@ def main():
                     rasterLib.translate(context)
                 rasterLib.getAttributes(str(context[Context.FN_CLOUDMASK_DOWNSCALE]),
                                         "Cloudmask Downscale Combo Plot")
-
 
                 # Get the common pixel intersection values of the EVHR & CCDC files
                 context[Context.FN_LIST] = [context[Context.FN_TOA_DOWNSCALE], context[Context.FN_CCDC_DOWNSCALE]]
@@ -170,8 +164,9 @@ def main():
 if __name__ == "__main__":
     from unittest.mock import patch
 
-#    REGION = 'Yukon_Delta'
-    REGION = 'Fairbanks'
+    REGION = 'Yukon_Delta'
+#    REGION = 'Fairbanks'
+    OUTPUTDIR = f'/adapt/nobackup/people/iluser/projects/srlite/output/LANDSAT_v1/05122022/{REGION}/'
 
     #with patch("sys.argv", ["file.py", "-h"]):
     with patch("sys.argv",
@@ -182,11 +177,18 @@ if __name__ == "__main__":
         "-cloudmask_dir", f'/adapt/nobackup/projects/ilab/projects/CloudMask/SRLite/clouds-binary-pytorch-{REGION}-2022-03-24',
 #        "-bandpairs","[['blue_ccdc', 'BAND-B'], ['green_ccdc', 'BAND-G'], ['red_ccdc', 'BAND-R'], ['nir_ccdc', 'BAND-N']]",
         "-bandpairs", "[['Layer_1', 'BAND-B'], ['Layer_2', 'BAND-G'], ['Layer_3', 'BAND-R'], ['Layer_4', 'BAND-N']]",
-        "-output_dir", f'/adapt/nobackup/people/iluser/projects/srlite/output/LANDSAT_v1/05092022/{REGION}/',
+        "-output_dir", f"{OUTPUTDIR}",
+        "--warp_dir", f"{OUTPUTDIR}warp",
         "--debug", "1",
         "--regressor", "robust",
-        "--clean"
-        ]):
+#        "--clean",
+        "--algorithm", "landsat",
+        "--storage", "memory",
+        "--cloudmask",
+        "--qfmask",
+        "--qfmasklist","0,3,4",
+#        "--threshold_range", "-100,2000"
+         ]):
         ##############################################
         # Default configuration values
         ##############################################

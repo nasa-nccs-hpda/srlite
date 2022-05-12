@@ -83,7 +83,7 @@ class RasterLib(object):
                 bandName = currentBandPair[0]
                 if len(bandDescription) == 0:
                     ccdcBandIndex = bandPairIndex + 1
-                    self._plot_lib.trace(f"Band has no description {bandName} - assume band current index  {ccdcBandIndex}")
+                    self._plot_lib.trace(f"Band has no description {bandName} - assume index of current band  {ccdcBandIndex}")
                     break
                 else:
                     if (bandDescription == bandName):
@@ -95,15 +95,19 @@ class RasterLib(object):
                 band = evhrDs.GetRasterBand(evhrIndex)
                 bandDescription = band.GetDescription()
                 bandName = currentBandPair[1]
-                if (bandDescription == bandName):
-                    evhrBandIndex = evhrIndex
+                if len(bandDescription) == 0:
+                    evhrBandIndex = bandPairIndex + 1
+                    self._plot_lib.trace(f"Band has no description {bandName} - assume index of current band  {evhrBandIndex}")
                     break
+                else:
+                    if (bandDescription == bandName):
+                        evhrBandIndex = evhrIndex
+                        break
 
             if ((ccdcBandIndex == -1) or (evhrBandIndex == -1)):
                 ccdcDs = evhrDs = None
                 self._plot_lib.trace(f"Invalid band pairs - verify correct name and case {currentBandPair}")
                 exit(f"Invalid band pairs - verify correct name and case {currentBandPair}")
-#                exit(1)
 
             bandIndices.append([ccdcIndex, evhrIndex])
             toaBandNames.append(currentBandPair[1])
@@ -230,39 +234,6 @@ class RasterLib(object):
         cloudmaskWarpExternalBandMaArrayData = np.select([cloudmaskWarpExternalBandMaArrayData != ndv], [0.0], cloudmaskWarpExternalBandMaArrayData)
         cloudmaskWarpExternalBandMaArrayMasked = np.ma.masked_where(cloudmaskWarpExternalBandMaArrayData == ndv, cloudmaskWarpExternalBandMaArrayData)
 
-        # cloudmaskWarpExternalBandMaArrayMasked0 = np.ma.masked_where(cloudmaskWarpExternalBandMaArray == 0,
-        #                                                         cloudmaskWarpExternalBandMaArray)
-        # cloudmaskWarpExternalBandMaArrayMasked03 = np.ma.masked_where(cloudmaskWarpExternalBandMaArrayMasked0 == 3,
-        #                                                         cloudmaskWarpExternalBandMaArrayMasked0)
-        # cloudmaskWarpExternalBandMaArrayMasked034 = np.ma.masked_where(cloudmaskWarpExternalBandMaArrayMasked03 == 4,
-        #                                                         cloudmaskWarpExternalBandMaArrayMasked03)
-        # >> > c
-        # masked_array(data=[--, 1, 2, --, 4],
-        #              mask=[True, False, False, True, False],
-        #              fill_value=999999)
-        # >> > cmask = np.ma.getmask(c)
-        # >> > cmask
-        # array([True, False, False, True, False])
-        # >> > cfilled = c.filled(0)
-        # >> > cfilled
-        # array([0, 1, 2, 0, 4])
-        # >> > cloudmaskWarpExternalBandMaArrayMasked034 = np.ma.masked_where(cfilled != 0, cfilled)
-        # >> > cloudmaskWarpExternalBandMaArrayMasked034
-        # masked_array(data=[0, --, --, 0, --],
-        #              mask=[False, True, True, False, True],
-        #              fill_value=999999)
-
-        # cmask = np.ma.getmask(cloudmaskWarpExternalBandMaArrayMasked034)
-        # cinverse = np.ma.masked_array(cloudmaskWarpExternalBandMaArrayMasked034, np.logical_not(cmask))
-        # cfilled = cloudmaskWarpExternalBandMaArrayMasked034.filled(0)
-        # cloudmaskWarpExternalBandMaArrayMasked = np.ma.masked_where(cfilled != 0, cfilled)
-
-        # fillValue = cloudmaskWarpExternalBandMaArrayMasked034.get_fill_value()
-        # reverseMask = np.ma.masked_where(cloudmaskWarpExternalBandMaArrayMasked034 != fillValue,
-        #                                                         cloudmaskWarpExternalBandMaArrayMasked034)
-        # reverseMask = ~cloudmaskWarpExternalBandMaArrayMasked034
-        # cloudmaskWarpExternalBandMaArrayMasked = np.ma.masked_where(reverseMask > 0, reverseMask)
-
         self._plot_lib.trace(
             f'cloudmaskWarpExternalBandMaArrayMasked hist: {np.histogram(cloudmaskWarpExternalBandMaArrayMasked)}')
         self._plot_lib.trace(f'cloudmaskWarpExternalBandMaArrayMasked shape: {cloudmaskWarpExternalBandMaArrayMasked.shape}')
@@ -291,23 +262,29 @@ class RasterLib(object):
         sr_prediction_list = []
         warp_ds_list = context[Context.DS_LIST]
         bandNamePairList = list(ast.literal_eval(context[Context.LIST_BAND_PAIRS]))
+        minWarning = 0
+        firstBand = True
 
-        # Get Cloudmasks
-        cloudmaskEVHRWarpExternalBandMaArrayMasked = self.prepareEVHRCloudmask(context)
-#        landsatMask = False
-        landsatMask = True
+        cloudmaskEVHRWarpExternalBandMaArrayMasked = cloudmaskLANDSATWarpExternalBandMaArrayMasked = None
+        # Get optional Cloudmask
+        if (eval(context[Context.CLOUD_MASK_FLAG])):
+            cloudmaskEVHRWarpExternalBandMaArrayMasked = self.prepareEVHRCloudmask(context)
+
+        # Get optional Quality flag mask
+        landsatMask = False
+        if (context[Context.ALGORITHM_CLASS] == Context.ALGORITHM_CLASS_LANDSAT):
+            landsatMask = True
         if (landsatMask == True):
             cloudmaskLANDSATWarpExternalBandMaArrayMasked = self.prepareLANDSATCloudmask(context)
 
-        minWarning = 0
-        firstBand = True
+        # Get optional Threshold mask
         threshold = False
+        if (context[Context.ALGORITHM_CLASS] == Context.ALGORITHM_CLASS_THRESHOLD):
+            threshold = True
         if (threshold == True):
-            # TODO replace hard-coded threshold values with user-specified
-            # Apply range of -100 to 200 for Blue Band pixel mask and apply to each band
-            evhrBandMaArrayThresholdMin = -100
-            #    evhrBandMaArrayThresholdMax = 10000
-            evhrBandMaArrayThresholdMax = 2000
+             # Apply user-specified threshold range for Blue Band pixel mask and apply to each band
+            evhrBandMaArrayThresholdMin = context[Context.THRESHOLD_MIN]
+            evhrBandMaArrayThresholdMax = context[Context.THRESHOLD_MAX]
             self._plot_lib.trace(' evhrBandMaArrayThresholdMin = ' + str(evhrBandMaArrayThresholdMin))
             self._plot_lib.trace(' evhrBandMaArrayThresholdMax = ' + str(evhrBandMaArrayThresholdMax))
             minWarning = evhrBandMaArrayThresholdMin
@@ -340,13 +317,6 @@ class RasterLib(object):
 
             #  Create a common mask that intersects the CCDC/LANDSAT, EVHR, and Cloudmasks - this will then be used to correct the input EVHR & CCDC/LANDSAT
             if (landsatMask == True):
-
-#                 intersect_list = [cloudmaskEVHRWarpExternalBandMaArrayMasked, cloudmaskLANDSATWarpExternalBandMaArrayMasked]
-#                 common_mask_band_all = malib.common_mask(intersect_list)
-#                 warp_ds_list = warplib.memwarp_multi(
-#                     intersect_list, res='first', extent='intersection', t_srs='first', r='average')
-#                 warp_ma_list = [iolib.ds_getma(ds) for ds in warp_ds_list]
-#                 warp_ma_band_list_all = [ccdcBandMaArray, evhrBandMaArray, warp_ds_list[1]]
                 warp_ma_band_list_all = [ccdcBandMaArray, evhrBandMaArray, cloudmaskEVHRWarpExternalBandMaArrayMasked, cloudmaskLANDSATWarpExternalBandMaArrayMasked]
             else:
                 warp_ma_band_list_all = [ccdcBandMaArray, evhrBandMaArray, cloudmaskEVHRWarpExternalBandMaArrayMasked]
@@ -380,7 +350,7 @@ class RasterLib(object):
             evhr_toa_data_only_band = evhr_toa_band[evhr_toa_band.mask == False]
 
             # Perform regression fit based on model type!
-            if (context[Context.REGRESSION_MODEL] == Context.REGRESSOR_ROBUST):
+            if (context[Context.REGRESSION_MODEL] == Context.REGRESSOR_MODEL_ROBUST):
                 model_data_only_band = HuberRegressor().fit(evhr_toa_data_only_band.reshape(-1, 1),
                                                             ccdc_sr_data_only_band)
             else:
