@@ -34,7 +34,160 @@ sys.path.append('/adapt/nobackup/people/gtamkin/dev/srlite/src')
 # --------------------------------------------------------------------------------
 # Main
 # --------------------------------------------------------------------------------
+def _main():
+    ##############################################
+    # Default configuration values
+    ##############################################
+    start_time = time.time()  # record start time
+    print(f' tits Command line executed:    {sys.argv}')
+
+    # Initialize context
+    contextClazz = Context()
+    context = contextClazz.getDict()
+
+    # Get handles to plot and raster classes
+    plotLib = contextClazz.getPlotLib()
+    rasterLib = RasterLib(int(context[Context.DEBUG_LEVEL]), plotLib)
+
+    for context[Context.FN_TOA] in sorted(Path(context[Context.DIR_TOA]).glob("*.tif")):
+
+        try:
+            # Generate file names based on incoming EVHR file and declared suffixes - get snapshot
+            context = contextClazz.getFileNames(str(context[Context.FN_TOA]).rsplit("/", 1), context)
+            rasterLib.getAttributeSnapshot(context)
+
+            #  Downscale EVHR TOA from 2m to 30m - suffix root name with '-toa-30m.tif')
+            context[Context.FN_SRC] = str(context[Context.FN_TOA])
+            context[Context.FN_DEST] = str(context[Context.FN_TOA_DOWNSCALE])
+            fileExists = (os.path.exists(context[Context.FN_TOA_DOWNSCALE]))
+            if fileExists and (eval(context[Context.CLEAN_FLAG])):
+                rasterLib.removeFile(context[Context.FN_TOA_DOWNSCALE], context[Context.CLEAN_FLAG])
+            fileExists = (os.path.exists(context[Context.FN_TOA_DOWNSCALE]))
+            if not fileExists:
+                rasterLib.translate(context)
+            rasterLib.getAttributes(str(context[Context.FN_TOA_DOWNSCALE]),
+                                    "TOA Downscale Combo Plot")
+
+            #  Warp cloudmask to attributes of EVHR - suffix root name with '-toa_pred_warp.tif')
+            context[Context.FN_SRC] = str(context[Context.FN_CLOUDMASK])
+            context[Context.FN_DEST] = str(context[Context.FN_WARP])
+            context[Context.TARGET_ATTR] = str(context[Context.FN_TOA])
+            rasterLib.translate(context)
+            rasterLib.getAttributes(str(context[Context.FN_WARP]), "Cloudmask Warp Combo Plot")
+
+            # Validate that input band name pairs exist in EVHR & CCDC files
+            context[Context.FN_LIST] = [str(context[Context.FN_TARGET]), str(context[Context.FN_TOA])]
+            context[Context.LIST_BAND_PAIR_INDICES] = rasterLib.getBandIndices(context)
+
+            # Get the common pixel intersection values of the EVHR & CCDC files
+            context[Context.DS_LIST], context[Context.MA_LIST] = rasterLib.getIntersection(context)
+#            context[Context.DS_LIST], context[Context.MA_LIST] = rasterLib.getIntersection(context[Context.FN_LIST])
+
+            # Perform regression to capture coefficients from intersected pixels and apply to 2m EVHR
+            context[Context.PRED_LIST] = rasterLib.performRegression(context)
+
+            # Create COG image from stack of processed bands
+            context[Context.FN_SRC] = str(context[Context.FN_TOA])
+            context[Context.FN_SUFFIX] = str(Context.FN_SRLITE_NONCOG_SUFFIX)
+            context[Context.BAND_NUM] = len(list(context[Context.LIST_TOA_BANDS]))
+            context[Context.BAND_DESCRIPTION_LIST] = list(context[Context.LIST_TOA_BANDS])
+            context[Context.COG_FLAG] = True
+#            context[Context.TARGET_DTYPE] = ccdc_dataset_profile['dtype']
+            context[Context.TARGET_NODATA_VALUE] = int(Context.DEFAULT_NODATA_VALUE)
+            context[Context.FN_COG] = rasterLib.createImage(context)
+
+        except FileNotFoundError as exc:
+            print(exc);
+        except BaseException as err:
+            print('Run abended.  Error: ', err)
+            sys.exit(1)
+
+
 def main():
+
+    ##############################################
+    # Default configuration values
+    ##############################################
+    start_time = time.time()  # record start time
+    print(f'Command line executed:    {sys.argv}')
+
+    # Initialize context
+    contextClazz = Context()
+    context = contextClazz.getDict()
+
+    # Get handles to plot and raster classes
+    plotLib = contextClazz.getPlotLib()
+    rasterLib = RasterLib(int(context[Context.DEBUG_LEVEL]), plotLib)
+
+#    for context[Context.FN_TOA] in sorted(Path(context[Context.DIR_TOA]).glob("*.tif")):
+    for context[Context.FN_TOA] in (Path(context[Context.DIR_TOA]).glob("*.tif")):
+        try:
+            # Generate file names based on incoming EVHR file and declared suffixes - get snapshot
+            context = contextClazz.getFileNames(str(context[Context.FN_TOA]).rsplit("/", 1), context)
+
+            # Remove existing SR-Lite output if clean_flag is activated
+            fileExists = (os.path.exists(context[Context.FN_COG]))
+            if fileExists and (eval(context[Context.CLEAN_FLAG])):
+                rasterLib.removeFile(context[Context.FN_COG], context[Context.CLEAN_FLAG])
+
+            # Proceed if SR-Lite output does not exist
+            if not fileExists:
+
+                # Capture input attributes - align all artifacts to EVHR projection
+                rasterLib.getAttributeSnapshot(context)
+                context[Context.TARGET_ATTR] = str(context[Context.FN_TOA])
+
+                #  Downscale EVHR TOA from 2m to 30m - suffix root name with '-toa-30m.tif')
+                context[Context.FN_SRC] = str(context[Context.FN_TOA])
+                context[Context.FN_DEST] = str(context[Context.FN_TOA_DOWNSCALE])
+                fileExists = (os.path.exists(context[Context.FN_TOA_DOWNSCALE]))
+                if fileExists and (eval(context[Context.CLEAN_FLAG])):
+                        rasterLib.removeFile(context[Context.FN_TOA_DOWNSCALE], context[Context.CLEAN_FLAG])
+                fileExists = (os.path.exists(context[Context.FN_TOA_DOWNSCALE]))
+                if not fileExists:
+                    rasterLib.translate(context)
+                rasterLib.getAttributes(str(context[Context.FN_TOA_DOWNSCALE]),
+                                        "TOA Downscale Combo Plot")
+
+                #  Warp cloudmask to attributes of EVHR - suffix root name with '-toa_pred_warp.tif')
+                context[Context.FN_SRC] = str(context[Context.FN_CLOUDMASK])
+                context[Context.FN_DEST] = str(context[Context.FN_CLOUDMASK_DOWNSCALE])
+                context[Context.TARGET_ATTR] = str(context[Context.FN_TOA])
+                rasterLib.translate(context)
+                rasterLib.getAttributes(str(context[Context.FN_CLOUDMASK_DOWNSCALE]), "Cloudmask Warp Combo Plot")
+
+                # Validate that input band name pairs exist in EVHR & CCDC files
+                context[Context.FN_LIST] = [str(context[Context.FN_TARGET]), str(context[Context.FN_TOA])]
+                context[Context.LIST_BAND_PAIR_INDICES] = rasterLib.getBandIndices(context)
+
+                # Get the common pixel intersection values of the EVHR & CCDC files
+                context[Context.DS_LIST], context[Context.MA_LIST] = rasterLib.getIntersection(context)
+
+                # Perform regression to capture coefficients from intersected pixels and apply to 2m EVHR
+                context[Context.PRED_LIST] = rasterLib.performRegression(context)
+
+                # Create COG image from stack of processed bands
+                context[Context.FN_SRC] = str(context[Context.FN_TOA])
+                context[Context.FN_SUFFIX] = str(Context.FN_SRLITE_NONCOG_SUFFIX)
+                context[Context.BAND_NUM] = len(list(context[Context.LIST_TOA_BANDS]))
+                context[Context.BAND_DESCRIPTION_LIST] = list(context[Context.LIST_TOA_BANDS])
+                context[Context.COG_FLAG] = True
+                #            context[Context.TARGET_DTYPE] = ccdc_dataset_profile['dtype']
+                context[Context.TARGET_NODATA_VALUE] = int(Context.DEFAULT_NODATA_VALUE)
+                context[Context.FN_COG] = rasterLib.createImage(context)
+
+            break;
+
+        except FileNotFoundError as exc:
+            print('File Not Found - Error details: ', exc)
+        except BaseException as err:
+            print('Run abended - Error details: ', err)
+            sys.exit(1)
+
+    print("\nTotal Elapsed Time for " + str(context[Context.DIR_OUTPUT])  + ': ',
+           (time.time() - start_time) / 60.0)  # time in min
+
+def __main():
 
     ##############################################
     # Default configuration values
@@ -102,6 +255,8 @@ def main():
                 print(lard_dataset_profile)
 
                 fn_list = [context[Context.FN_TOA_DOWNSCALE], context[Context.FN_TARGET]]
+                # warp_ds_list = warplib.memwarp_multi_fn(fn_list, res='first', extent='intersection', t_srs='first',
+                #                                         r='average')
                 warp_ds_list = warplib.memwarp_multi_fn(fn_list, res='first', extent='first', t_srs='first', r='cubic')
                 landsat_ds = warp_ds_list[1]
                 band_list = []
@@ -164,36 +319,45 @@ def main():
 if __name__ == "__main__":
     from unittest.mock import patch
 
-    REGION = 'Yukon_Delta'
-#    REGION = 'Fairbanks'
-    OUTPUTDIR = f'/adapt/nobackup/people/iluser/projects/srlite/output/LANDSAT_v1/05122022/{REGION}/QFMaskOnly/'
+    REGION = 'RailroadValley'
+    #    REGION = 'Fairbanks'
+    #    OUTPUTDIR = f'/adapt/nobackup/people/iluser/projects/srlite/output/LANDSAT_v1/05312022/{REGION}/CloudAndQFMask/'
+    #    OUTPUTDIR = f'/adapt/nobackup/people/iluser/projects/srlite/output/LANDSAT_v1/05292022/{REGION}/QFMaskOnly/'
+    OUTPUTDIR = f'/adapt/nobackup/people/iluser/projects/srlite/output/CCDC_v2/06032022/{REGION}/CloudMaskOnly/'
+    #   OUTPUTDIR = f'/adapt/nobackup/people/iluser/projects/srlite/output/LANDSAT_v1/06012022/{REGION}/CCDCAndCloudMaskOnly/'
 
-    #with patch("sys.argv", ["file.py", "-h"]):
-    with patch("sys.argv",
-        ["SrliteWorkflowCommandLineView.py", \
-        "-toa_dir", f'/adapt/nobackup/people/iluser/projects/srlite/input/TOA_v2/{REGION}/5-toas',
-        "-target_dir", "/adapt/nobackup/people/iluser/projects/srlite/input/LANDSAT_v1",
-#        "-ccdc_dir", "/adapt/nobackup/people/gtamkin/dev/srlite/input/TARGET_v2",
-        "-cloudmask_dir", f'/adapt/nobackup/projects/ilab/projects/CloudMask/SRLite/clouds-binary-pytorch-{REGION}-2022-03-24',
-#        "-bandpairs","[['blue_ccdc', 'BAND-B'], ['green_ccdc', 'BAND-G'], ['red_ccdc', 'BAND-R'], ['nir_ccdc', 'BAND-N']]",
-        "-bandpairs", "[['Layer_1', 'BAND-B'], ['Layer_2', 'BAND-G'], ['Layer_3', 'BAND-R'], ['Layer_4', 'BAND-N']]",
-        "-output_dir", f"{OUTPUTDIR}",
-        "--warp_dir", f"{OUTPUTDIR}warp",
-        "--debug", "1",
-        "--regressor", "robust",
-        "--clean",
-#        "--algorithm", "landsat",
-        "--storage", "memory",
-#        "--cloudmask",
-        "--qfmask",
-        "--qfmasklist","0,3,4",
-#         "--thmask",
-         #        "--threshold_range", "-100,2000"
-         ]):
-        ##############################################
-        # Default configuration values
-        ##############################################
-        start_time = time.time()  # record start time
-        print(f'Command line executed:    {sys.argv}')
+    # with patch("sys.argv",
+    #         ["SrliteWorkflowCommandLineView.py", \
+    #         "-toa_dir", f'/adapt/nobackup/people/iluser/projects/srlite/input/TOA_v2/{REGION}/5-toas',
+    #     #        "-target_dir", "/adapt/nobackup/people/iluser/projects/srlite/input/LANDSAT_v1/CCDC_v2",
+    #     #       "-target_dir", "/adapt/nobackup/people/iluser/projects/srlite/input/LANDSAT_v1",
+    #     #          "-target_dir", "/adapt/nobackup/people/iluser/projects/srlite/input/ARD/scaled",
+    #         "-target_dir", "/adapt/nobackup/people/iluser/projects/srlite/input/CCDC_v2",
+    #          #        "-ccdc_dir", "/adapt/nobackup/people/iluser/projects/srlite/input/CCDC_v2",
+    #         "-cloudmask_dir", f'/adapt/nobackup/projects/ilab/projects/CloudMask/SRLite/clouds-binary-pytorch-{REGION}-2022-03-24',
+    #         "-bandpairs","[['blue_ccdc', 'BAND-B'], ['green_ccdc', 'BAND-G'], ['red_ccdc', 'BAND-R'], ['nir_ccdc', 'BAND-N']]",
+    #     #       "-bandpairs", "[['Layer_1', 'BAND-B'], ['Layer_2', 'BAND-G'], ['Layer_3', 'BAND-R'], ['Layer_4', 'BAND-N']]",
+    #         "-output_dir", f"{OUTPUTDIR}",
+    #         "--warp_dir", f"{OUTPUTDIR}/warp",
+    #         "--debug", "1",
+    #         "--regressor", "robust",
+    #         "--clean",
+    #     #        "--algorithm", "landsat",
+    #         "--storage", "memory",
+    #         "--cloudmask",
+    #      #   "--qfmask",
+    #      #   "--qfmasklist","0,3,4",
+    #     #         "--thmask",
+    #          #        "--threshold_range", "-100,2000"
+    #     ]):
+    #
+    ##############################################
+    # Default configuration values
+    ##############################################
+    start_time = time.time()  # record start time
+    print(f'Command line executed:    {sys.argv}')
 
-        main()
+    main()
+
+
+
