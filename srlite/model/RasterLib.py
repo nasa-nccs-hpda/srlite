@@ -224,7 +224,7 @@ class RasterLib(object):
 
         # Create a mask where the pixel values equal to '0, 3, 4' are suppressed because these correspond to NoData, Clouds, and Cloud Shadows
         self._plot_lib.trace(
-            f'\nSuppress values=[0, 3, 4] because they correspond to NoData, Clouds, and Cloud Shadows')
+            f'\nSuppress values=[0, 3, 4] according to Band #8 because they correspond to NoData, Clouds, and Cloud Shadows')
 #        cloudmaskWarpExternalBandMaArrayMasked = (cloudmaskWarpExternalBandMaArray == 0) & (cloudmaskWarpExternalBandMaArray == 3) & (cloudmaskWarpExternalBandMaArray == 4)
 
         ndv = int(Context.DEFAULT_NODATA_VALUE)
@@ -335,7 +335,7 @@ class RasterLib(object):
                 j = j + 1
                 if (ma.min() < minWarning):
                     self._plot_lib.trace("Warning: Masked array values should be larger than " + str(minWarning))
-            #            exit(1)
+                    exit(1)
             self._plot_lib.plot_maps(warp_ma_masked_band_list, context[Context.FN_LIST], figsize=(10, 5),
                               title=str(bandNamePairList[bandPairIndex]) + ' Reflectance (%)')
             self._plot_lib.plot_histograms(warp_ma_masked_band_list, context[Context.FN_LIST], figsize=(10, 3),
@@ -375,8 +375,8 @@ class RasterLib(object):
                 f'Applying model to {str(bandNamePairList[bandPairIndex])} in file {os.path.basename(context[Context.FN_LIST][1])}')
             self._plot_lib.trace(f'Input masked array shape: {evhrBandMaArray.shape}')
 
-            score = model_data_only_band.score(evhr_toa_data_only_band.reshape(-1, 1), ccdc_sr_data_only_band)
-            self._plot_lib.trace(f'R2 score : {score}')
+            # score = model_data_only_band.score(evhr_toa_data_only_band.reshape(-1, 1), ccdc_sr_data_only_band)
+            # self._plot_lib.trace(f'R2 score : {score}')
 
             # Get 2m EVHR Masked Arrays
 
@@ -432,6 +432,7 @@ class RasterLib(object):
 
         return sr_prediction_list
 
+
     def createImage(self, context):
         self._validateParms(context, [Context.DIR_OUTPUT, Context.FN_PREFIX,
                                       Context.CLEAN_FLAG,
@@ -450,7 +451,6 @@ class RasterLib(object):
         output_name = "{}/{}".format(
             context[Context.DIR_OUTPUT], str(context[Context.FN_PREFIX])
         ) + str(context[Context.FN_SUFFIX])
-        self._plot_lib.trace(f"\nCreating .tif image from stack of bands...\n   {output_name}")
 
         # Remove pre-COG image
         fileExists = (os.path.exists(output_name))
@@ -466,7 +466,7 @@ class RasterLib(object):
         meta.update(count=numBandPairs)
 
         meta.update({
-            "dtype": context[Context.TARGET_DTYPE],
+#            "dtype": context[Context.TARGET_DTYPE],
             "nodata": context[Context.TARGET_NODATA_VALUE],
             "descriptions": context[Context.BAND_DESCRIPTION_LIST]
         })
@@ -493,6 +493,7 @@ class RasterLib(object):
             ) + str(Context.FN_SRLITE_SUFFIX)
             output_name = self.createCOG(context)
 
+        self._plot_lib.trace(f"\nCreated COG from stack of regressed bands...\n   {output_name}")
         return output_name
 
     def removeFile(self, fileName, cleanFlag):
