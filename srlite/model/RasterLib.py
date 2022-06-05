@@ -162,7 +162,7 @@ class RasterLib(object):
     def prepareEVHRCloudmask(self, context):
         self._validateParms(context,
                             [Context.DS_LIST, Context.LIST_BAND_PAIRS, Context.LIST_BAND_PAIR_INDICES,
-                             Context.FN_WARP, Context.REGRESSION_MODEL, Context.FN_LIST])
+                             Context.REGRESSION_MODEL, Context.FN_LIST])
 
 
         #  Get Masked array from warped Cloudmask - assumes only 1 band in mask to be applied to all
@@ -204,7 +204,7 @@ class RasterLib(object):
     def prepareQualityFlagMask(self, context):
         self._validateParms(context,
                             [Context.DS_LIST, Context.LIST_BAND_PAIRS, Context.LIST_BAND_PAIR_INDICES,
-                             Context.FN_WARP, Context.REGRESSION_MODEL, Context.FN_LIST])
+                             Context.REGRESSION_MODEL, Context.FN_LIST])
 
         #  Get Masked array from warped Cloudmask - get Band 8 (https://glad.umd.edu/Potapov/ARD/ARD_manual_v1.1.pdf)
         cloudmaskWarpExternalBandMaArray = iolib.fn_getma(context[Context.FN_TARGET_DOWNSCALE], 8)
@@ -252,7 +252,7 @@ class RasterLib(object):
     def performRegression(self, context):
         self._validateParms(context,
                             [Context.DS_LIST, Context.LIST_BAND_PAIRS, Context.LIST_BAND_PAIR_INDICES,
-                             Context.FN_WARP, Context.REGRESSION_MODEL, Context.FN_LIST])
+                             Context.REGRESSION_MODEL, Context.FN_LIST])
 
         bandPairIndicesList = context[Context.LIST_BAND_PAIR_INDICES]
         self._plot_lib.trace('bandPairIndicesList: ' + str(bandPairIndicesList))
@@ -437,7 +437,7 @@ class RasterLib(object):
         self._validateParms(context, [Context.DIR_OUTPUT, Context.FN_PREFIX,
                                       Context.CLEAN_FLAG,
                                       Context.BAND_NUM, Context.FN_SRC,
-                                      Context.FN_DEST, Context.FN_WARP,
+                                      Context.FN_DEST,
                                       Context.LIST_BAND_PAIRS, Context.PRED_LIST])
 
         ########################################

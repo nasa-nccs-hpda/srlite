@@ -70,10 +70,10 @@ def _main():
 
             #  Warp cloudmask to attributes of EVHR - suffix root name with '-toa_pred_warp.tif')
             context[Context.FN_SRC] = str(context[Context.FN_CLOUDMASK])
-            context[Context.FN_DEST] = str(context[Context.FN_WARP])
+            context[Context.FN_DEST] = str(context[Context.FN_CLOUDMASK_DOWNSCALE])
             context[Context.TARGET_ATTR] = str(context[Context.FN_TOA])
             rasterLib.translate(context)
-            rasterLib.getAttributes(str(context[Context.FN_WARP]), "Cloudmask Warp Combo Plot")
+            rasterLib.getAttributes(str(context[Context.FN_CLOUDMASK_DOWNSCALE]), "Cloudmask Warp Combo Plot")
 
             # Validate that input band name pairs exist in EVHR & CCDC files
             context[Context.FN_LIST] = [str(context[Context.FN_TARGET]), str(context[Context.FN_TOA])]
@@ -119,8 +119,8 @@ def main():
     plotLib = contextClazz.getPlotLib()
     rasterLib = RasterLib(int(context[Context.DEBUG_LEVEL]), plotLib)
 
-#    for context[Context.FN_TOA] in sorted(Path(context[Context.DIR_TOA]).glob("*.tif")):
-    for context[Context.FN_TOA] in (Path(context[Context.DIR_TOA]).glob("*.tif")):
+    toa_filter = '*' + context[Context.FN_TOA_SUFFIX]
+    for context[Context.FN_TOA] in sorted(Path(context[Context.DIR_TOA]).glob(toa_filter)):
         try:
             # Generate file names based on incoming EVHR file and declared suffixes - get snapshot
             context = contextClazz.getFileNames(str(context[Context.FN_TOA]).rsplit("/", 1), context)
@@ -176,7 +176,7 @@ def main():
                 context[Context.TARGET_NODATA_VALUE] = int(Context.DEFAULT_NODATA_VALUE)
                 context[Context.FN_COG] = rasterLib.createImage(context)
 
-            break;
+ #           break;
 
         except FileNotFoundError as exc:
             print('File Not Found - Error details: ', exc)
@@ -187,7 +187,7 @@ def main():
     print("\nTotal Elapsed Time for " + str(context[Context.DIR_OUTPUT])  + ': ',
            (time.time() - start_time) / 60.0)  # time in min
 
-def __main():
+def mainARD():
 
     ##############################################
     # Default configuration values
@@ -203,8 +203,9 @@ def __main():
     plotLib = contextClazz.getPlotLib()
     rasterLib = RasterLib(int(context[Context.DEBUG_LEVEL]), plotLib)
 
+    toa_filter = '*' + [Context.FN_TOA_SUFFIX]
 #    for context[Context.FN_TOA] in sorted(Path(context[Context.DIR_TOA]).glob("*.tif")):
-    for context[Context.FN_TOA] in (Path(context[Context.DIR_TOA]).glob("*.tif")):
+    for context[Context.FN_TOA] in (Path(context[Context.DIR_TOA]).glob(toa_filter)):
         try:
             # Generate file names based on incoming EVHR file and declared suffixes - get snapshot
             context = contextClazz.getFileNames(str(context[Context.FN_TOA]).rsplit("/", 1), context)
@@ -326,38 +327,46 @@ if __name__ == "__main__":
     OUTPUTDIR = f'/adapt/nobackup/people/iluser/projects/srlite/output/CCDC_v2/06032022/{REGION}/CloudMaskOnly/'
     #   OUTPUTDIR = f'/adapt/nobackup/people/iluser/projects/srlite/output/LANDSAT_v1/06012022/{REGION}/CCDCAndCloudMaskOnly/'
 
-    # with patch("sys.argv",
-    #         ["SrliteWorkflowCommandLineView.py", \
-    #         "-toa_dir", f'/adapt/nobackup/people/iluser/projects/srlite/input/TOA_v2/{REGION}/5-toas',
-    #     #        "-target_dir", "/adapt/nobackup/people/iluser/projects/srlite/input/LANDSAT_v1/CCDC_v2",
-    #     #       "-target_dir", "/adapt/nobackup/people/iluser/projects/srlite/input/LANDSAT_v1",
-    #     #          "-target_dir", "/adapt/nobackup/people/iluser/projects/srlite/input/ARD/scaled",
-    #         "-target_dir", "/adapt/nobackup/people/iluser/projects/srlite/input/CCDC_v2",
-    #          #        "-ccdc_dir", "/adapt/nobackup/people/iluser/projects/srlite/input/CCDC_v2",
-    #         "-cloudmask_dir", f'/adapt/nobackup/projects/ilab/projects/CloudMask/SRLite/clouds-binary-pytorch-{REGION}-2022-03-24',
-    #         "-bandpairs","[['blue_ccdc', 'BAND-B'], ['green_ccdc', 'BAND-G'], ['red_ccdc', 'BAND-R'], ['nir_ccdc', 'BAND-N']]",
-    #     #       "-bandpairs", "[['Layer_1', 'BAND-B'], ['Layer_2', 'BAND-G'], ['Layer_3', 'BAND-R'], ['Layer_4', 'BAND-N']]",
-    #         "-output_dir", f"{OUTPUTDIR}",
-    #         "--warp_dir", f"{OUTPUTDIR}/warp",
-    #         "--debug", "1",
-    #         "--regressor", "robust",
-    #         "--clean",
-    #     #        "--algorithm", "landsat",
-    #         "--storage", "memory",
-    #         "--cloudmask",
-    #      #   "--qfmask",
-    #      #   "--qfmasklist","0,3,4",
-    #     #         "--thmask",
-    #          #        "--threshold_range", "-100,2000"
-    #     ]):
-    #
-    ##############################################
-    # Default configuration values
-    ##############################################
     start_time = time.time()  # record start time
-    print(f'Command line executed:    {sys.argv}')
 
-    main()
+    # If not arguments specified, use the defaults
+    numParms = len(sys.argv) - 1
+    if (numParms  == 0):
+
+        with patch("sys.argv",
+
+            ["SrliteWorkflowCommandLineView.py", \
+                "-toa_dir", f'/adapt/nobackup/people/gtamkin/dev/srlite/input/Yukon_Delta/toa',
+                "-target_dir", "/adapt/nobackup/people/iluser/projects/srlite/input/CCDC_v2",
+                "-cloudmask_dir", f'/gpfsm/ccds01/nobackup/people/gtamkin/dev/srlite/input/Yukon_Delta/cloud',
+                "-bandpairs","[['blue_ccdc', 'BAND-B'], ['green_ccdc', 'BAND-G'], ['red_ccdc', 'BAND-R'], ['nir_ccdc', 'BAND-N']]",
+            #       "-bandpairs", "[['Layer_1', 'BAND-B'], ['Layer_2', 'BAND-G'], ['Layer_3', 'BAND-R'], ['Layer_4', 'BAND-N']]",
+                "-output_dir", f"/adapt/nobackup/people/gtamkin/dev/srlite/output/srlite-0.9.6-06040022-cloudmask/060322/Yukon_Delta",
+            #    "--warp_dir", f"{OUTPUTDIR}/warp",
+                "--debug", "1",
+                "--regressor", "robust",
+                "--clean",
+            #        "--algorithm", "landsat",
+                "--storage", "memory",
+                "--cloudmask",
+             #   "--qfmask",
+             #   "--qfmasklist","0,3,4",
+            #         "--thmask",
+                 #        "--threshold_range", "-100,2000"
+            ]):
+
+            ##############################################
+            # main() using default application parameters
+            ##############################################
+            print(f'Default application parameters: {sys.argv}')
+            main()
+    else:
+
+        ##############################################
+        # main() using command line parameters
+        ##############################################
+        print(f'Command line executed:    {sys.argv}')
+        main()
 
 
 

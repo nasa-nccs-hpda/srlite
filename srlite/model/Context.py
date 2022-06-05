@@ -18,12 +18,10 @@ class Context(object):
     DIR_TARGET = 'dir_target'
     DIR_CLOUDMASK = 'dir_cloudmask'
     DIR_OUTPUT = 'dir_out'
-    DIR_WARP = 'dir_warp'
 
     # File names
     FN_DEST = 'fn_dest'
     FN_SRC = 'fn_src'
-    FN_WARP = 'fn_warp'
     FN_LIST = 'fn_list'
     DS_LIST = 'ds_list'
     MA_LIST = 'ma_list'
@@ -40,16 +38,12 @@ class Context(object):
     FN_SUFFIX = 'fn_suffix'
 
     # File name suffixes
-    FN_TOA_SUFFIX = '-toa.tif'
+    FN_TOA_SUFFIX = 'fn_toa_suffix'
     FN_TOA_DOWNSCALE_SUFFIX = '-toa-30m.tif'
-#    FN_TARGET_SUFFIX = '.tif'
-    FN_TARGET_SUFFIX = '-ccdc.tif'
-#    FN_TARGET_SUFFIX = '-target.tif'
+    FN_TARGET_SUFFIX = 'fn_target_suffix'
     FN_TARGET_DOWNSCALE_SUFFIX = '-target-30m.tif'
-    FN_CLOUDMASK_SUFFIX = '-toa.cloudmask.v1.2.tif'
-#    FN_CLOUDMASK_SUFFIX = '-toa.clouds.tif'
+    FN_CLOUDMASK_SUFFIX = 'fn_cloudmask_suffix'
     FN_CLOUDMASK_DOWNSCALE_SUFFIX = '-toa-clouds-30m.tif'
-    FN_CLOUDMASK_WARP_SUFFIX = '-toa_pred-warp.tif'
     FN_SRLITE_NONCOG_SUFFIX = '-noncog.tif'
     FN_SRLITE_SUFFIX = '-sr-02m.tif'
 
@@ -72,6 +66,9 @@ class Context(object):
     TARGET_NODATA_VALUE = 'target_nodata_value'
 
     # Default values
+    DEFAULT_TOA_SUFFIX = '-toa.tif'
+    DEFAULT_TARGET_SUFFIX =  '-ccdc.tif'
+    DEFAULT_CLOUDMASK_SUFFIX ='-toa.cloudmask.v1.2.tif'
     DEFAULT_XRES = 30.0
     DEFAULT_YRES = 30.0
     DEFAULT_NODATA_VALUE = -9999
@@ -130,9 +127,6 @@ class Context(object):
             self.context_dict[Context.DIR_TARGET] = str(args.target_dir)
             self.context_dict[Context.DIR_CLOUDMASK] = str(args.cloudmask_dir)
             self.context_dict[Context.DIR_OUTPUT] = str(args.out_dir)
-            self.context_dict[Context.DIR_WARP] = self.context_dict[Context.DIR_OUTPUT]
-            if not (args.warp_dir == None):
-                self.context_dict[Context.DIR_WARP] = str(args.warp_dir)
 
             self.context_dict[Context.LIST_BAND_PAIRS] = str(args.band_pairs_list)
             self.context_dict[Context.TARGET_XRES] = self.DEFAULT_XRES
@@ -141,6 +135,17 @@ class Context(object):
             self.context_dict[Context.TARGET_YRES] = self.DEFAULT_YRES
             if not (args.target_yres == None):
                 self.context_dict[Context.TARGET_YRES] = float(args.target_yres)
+
+            self.context_dict[Context.FN_TOA_SUFFIX] = self.DEFAULT_TOA_SUFFIX
+            if not (args.toa_suffix== None):
+                self.context_dict[Context.FN_TOA_SUFFIX] = "-" + str(args.toa_suffix)
+            self.context_dict[Context.FN_TARGET_SUFFIX] = self.DEFAULT_TARGET_SUFFIX
+            if not (args.target_suffix== None):
+                self.context_dict[Context.FN_TARGET_SUFFIX] = "-" + str(args.target_suffix)
+            self.context_dict[Context.FN_CLOUDMASK_SUFFIX] = self.DEFAULT_CLOUDMASK_SUFFIX
+            if not (args.cloudmask_suffix == None):
+                self.context_dict[Context.FN_CLOUDMASK_SUFFIX] = "-" + str(args.cloudmask_suffix)
+
             self.context_dict[Context.REGRESSION_MODEL] = str(args.regressor)
             self.context_dict[Context.DEBUG_LEVEL] = int(args.debug_level)
             self.context_dict[Context.CLEAN_FLAG] = str(args.cleanbool)
@@ -169,14 +174,12 @@ class Context(object):
         self.debug_level = int(self.context_dict[Context.DEBUG_LEVEL])
         plotLib = self.plot_lib = PlotLib(self.context_dict[Context.DEBUG_LEVEL])
         os.system(f'mkdir -p {self.context_dict[Context.DIR_OUTPUT]}')
-        os.system(f'mkdir -p {self.context_dict[Context.DIR_WARP]}')
 
         # Echo input parameter values
         plotLib.trace(f'Initializing SRLite Regression script with the following parameters')
         plotLib.trace(f'TOA Directory:    {self.context_dict[Context.DIR_TOA]}')
         plotLib.trace(f'TARGET Directory:    {self.context_dict[Context.DIR_TARGET]}')
         plotLib.trace(f'Cloudmask Directory:    {self.context_dict[Context.DIR_CLOUDMASK]}')
-        plotLib.trace(f'Warp Directory:    {self.context_dict[Context.DIR_WARP]}')
         plotLib.trace(f'Output Directory: {self.context_dict[Context.DIR_OUTPUT]}')
         plotLib.trace(f'Band Pairs:    {self.context_dict[Context.LIST_BAND_PAIRS]}')
         plotLib.trace(f'Regression Model:    {self.context_dict[Context.REGRESSION_MODEL]}')
@@ -239,6 +242,18 @@ class Context(object):
         parser.add_argument(
             "--yres", "--input-y-resolution", type=str, required=False, dest='target_yres',
             default=None, help="Specify target Y resolution (default = 30.0)."
+        )
+        parser.add_argument(
+            "--toa_suffix", "--input-toa-suffix", type=str, required=False, dest='toa_suffix',
+            default=None, help="Specify TOA file suffix (default = -toa.tif')."
+        )
+        parser.add_argument(
+            "--target_suffix", "--input-target-suffix", type=str, required=False, dest='target_suffix',
+            default=None, help="Specify TARGET file suffix (default = -ccdc.tif')."
+        )
+        parser.add_argument(
+            "--cloudmask_suffix", "--input-cloudmask-suffix", type=str, required=False, dest='cloudmask_suffix',
+            default=None, help="Specify CLOUDMASK file suffix (default = -toa.cloudmask.v1.2.tif')."
         )
         parser.add_argument(
             "--debug", "--debug_level", type=int, required=False, dest='debug_level',
@@ -347,19 +362,17 @@ class Context(object):
         """
         context[Context.FN_PREFIX] = str((prefix[1]).split("-toa.tif", 1)[0])
         context[Context.FN_TOA] = os.path.join(context[Context.DIR_TOA] + '/' +
-                                               context[Context.FN_PREFIX] + self.FN_TOA_SUFFIX)
+                                               context[Context.FN_PREFIX] + context[Context.FN_TOA_SUFFIX])
         context[Context.FN_TOA_DOWNSCALE] = os.path.join(context[Context.DIR_OUTPUT] + '/' +
                                                context[Context.FN_PREFIX] + self.FN_TOA_DOWNSCALE_SUFFIX)
         context[Context.FN_TARGET] = os.path.join(context[Context.DIR_TARGET] + '/' +
-                                                context[Context.FN_PREFIX] + self.FN_TARGET_SUFFIX)
+                                                context[Context.FN_PREFIX] + context[Context.FN_TARGET_SUFFIX])
         context[Context.FN_TARGET_DOWNSCALE] = os.path.join(context[Context.DIR_OUTPUT] + '/' +
                                                 context[Context.FN_PREFIX] + self.FN_TARGET_DOWNSCALE_SUFFIX)
         context[Context.FN_CLOUDMASK] = os.path.join(context[Context.DIR_CLOUDMASK] + '/' +
-                                                     context[Context.FN_PREFIX] + self.FN_CLOUDMASK_SUFFIX)
+                                                     context[Context.FN_PREFIX] + context[Context.FN_CLOUDMASK_SUFFIX])
         context[Context.FN_CLOUDMASK_DOWNSCALE] = os.path.join(context[Context.DIR_OUTPUT] + '/' +
                                                      context[Context.FN_PREFIX] + self.FN_CLOUDMASK_DOWNSCALE_SUFFIX)
-        context[Context.FN_WARP] = os.path.join(context[Context.DIR_WARP] + '/' +
-                                                context[Context.FN_PREFIX] + self.FN_CLOUDMASK_WARP_SUFFIX)
         context[Context.FN_COG] = os.path.join(context[Context.DIR_OUTPUT] + '/' +
                                                context[Context.FN_PREFIX] + self.FN_SRLITE_SUFFIX)
 
