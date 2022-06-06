@@ -335,7 +335,7 @@ class RasterLib(object):
                 j = j + 1
                 if (ma.min() < minWarning):
                     self._plot_lib.trace("Warning: Masked array values should be larger than " + str(minWarning))
-                    exit(1)
+#                    exit(1)
             self._plot_lib.plot_maps(warp_ma_masked_band_list, context[Context.FN_LIST], figsize=(10, 5),
                               title=str(bandNamePairList[bandPairIndex]) + ' Reflectance (%)')
             self._plot_lib.plot_histograms(warp_ma_masked_band_list, context[Context.FN_LIST], figsize=(10, 3),
