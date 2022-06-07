@@ -379,8 +379,10 @@ class Context(object):
         if not (os.path.exists(context[Context.FN_TOA])):
             raise FileNotFoundError("TOA File not found: {}".format(context[Context.FN_TOA]))
         if not (os.path.exists(context[Context.FN_TARGET])):
+            self.plot_lib.trace("Processing: " + context[Context.FN_TOA])
             raise FileNotFoundError("TARGET File not found: {}".format(context[Context.FN_TARGET]))
         if not (os.path.exists(context[Context.FN_CLOUDMASK])):
+            self.plot_lib.trace("Processing: " + context[Context.FN_TOA])
             raise FileNotFoundError("Cloudmask File not found: {}".format(context[Context.FN_CLOUDMASK]))
 
         return context

@@ -182,7 +182,6 @@ def main():
             print('File Not Found - Error details: ', exc)
         except BaseException as err:
             print('Run abended - Error details: ', err)
-            sys.exit(1)
 
     print("\nTotal Elapsed Time for " + str(context[Context.DIR_OUTPUT])  + ': ',
            (time.time() - start_time) / 60.0)  # time in min
