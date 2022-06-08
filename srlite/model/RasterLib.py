@@ -163,6 +163,13 @@ class RasterLib(object):
         self._validateParms(context,
                             [Context.DS_LIST, Context.LIST_BAND_PAIRS, Context.LIST_BAND_PAIR_INDICES,
                              Context.REGRESSION_MODEL, Context.FN_LIST])
+        ma_list = context[Context.MA_LIST]
+        return ma_list[2]
+
+    def _prepareEVHRCloudmask(self, context):
+        self._validateParms(context,
+                            [Context.DS_LIST, Context.LIST_BAND_PAIRS, Context.LIST_BAND_PAIR_INDICES,
+                             Context.REGRESSION_MODEL, Context.FN_LIST])
 
 
         #  Get Masked array from warped Cloudmask - assumes only 1 band in mask to be applied to all
@@ -359,7 +366,7 @@ class RasterLib(object):
                                                             ccdc_sr_data_only_band)
             else:
                 model_data_only_band = LinearRegression().fit(evhr_toa_data_only_band.reshape(-1, 1),
-                                                              ccdc_sr_data_only_band)
+                                                                  ccdc_sr_data_only_band)
 
             self._plot_lib.trace(str(bandNamePairList[bandPairIndex]) + '= > intercept: ' + str(
                 model_data_only_band.intercept_) + ' slope: ' + str(model_data_only_band.coef_) + ' score: ' +

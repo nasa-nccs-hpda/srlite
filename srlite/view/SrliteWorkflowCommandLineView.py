@@ -150,17 +150,20 @@ def main():
                                         "TOA Downscale Combo Plot")
 
                 #  Warp cloudmask to attributes of EVHR - suffix root name with '-toa_pred_warp.tif')
-                context[Context.FN_SRC] = str(context[Context.FN_CLOUDMASK])
-                context[Context.FN_DEST] = str(context[Context.FN_CLOUDMASK_DOWNSCALE])
-                context[Context.TARGET_ATTR] = str(context[Context.FN_TOA])
-                rasterLib.translate(context)
-                rasterLib.getAttributes(str(context[Context.FN_CLOUDMASK_DOWNSCALE]), "Cloudmask Warp Combo Plot")
+                # context[Context.FN_SRC] = str(context[Context.FN_CLOUDMASK])
+                # context[Context.FN_DEST] = str(context[Context.FN_CLOUDMASK_DOWNSCALE])
+                # context[Context.TARGET_ATTR] = str(context[Context.FN_TOA])
+                # rasterLib.translate(context)
+                # rasterLib.getAttributes(str(context[Context.FN_CLOUDMASK_DOWNSCALE]), "Cloudmask Warp Combo Plot")
 
                 # Validate that input band name pairs exist in EVHR & CCDC files
                 context[Context.FN_LIST] = [str(context[Context.FN_TARGET]), str(context[Context.FN_TOA])]
                 context[Context.LIST_BAND_PAIR_INDICES] = rasterLib.getBandIndices(context)
 
                 # Get the common pixel intersection values of the EVHR & CCDC files
+                context[Context.FN_LIST] = [str(context[Context.FN_TARGET]),
+                                            str(context[Context.FN_TOA]),
+                                            str(context[Context.FN_CLOUDMASK])]
                 context[Context.DS_LIST], context[Context.MA_LIST] = rasterLib.getIntersection(context)
 
                 # Perform regression to capture coefficients from intersected pixels and apply to 2m EVHR
@@ -176,12 +179,13 @@ def main():
                 context[Context.TARGET_NODATA_VALUE] = int(Context.DEFAULT_NODATA_VALUE)
                 context[Context.FN_COG] = rasterLib.createImage(context)
 
- #           break;
+#            break;
 
         except FileNotFoundError as exc:
             print('File Not Found - Error details: ', exc)
         except BaseException as err:
             print('Run abended - Error details: ', err)
+        break;
 
     print("\nTotal Elapsed Time for " + str(context[Context.DIR_OUTPUT])  + ': ',
            (time.time() - start_time) / 60.0)  # time in min
