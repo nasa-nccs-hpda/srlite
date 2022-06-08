@@ -120,7 +120,8 @@ def main():
     rasterLib = RasterLib(int(context[Context.DEBUG_LEVEL]), plotLib)
 
     toa_filter = '*' + context[Context.FN_TOA_SUFFIX]
-    for context[Context.FN_TOA] in sorted(Path(context[Context.DIR_TOA]).glob(toa_filter)):
+    for context[Context.FN_TOA] in (Path(context[Context.DIR_TOA]).glob(toa_filter)):
+ #    for context[Context.FN_TOA] in sorted(Path(context[Context.DIR_TOA]).glob(toa_filter)):
         try:
             # Generate file names based on incoming EVHR file and declared suffixes - get snapshot
             context = contextClazz.getFileNames(str(context[Context.FN_TOA]).rsplit("/", 1), context)
@@ -157,12 +158,12 @@ def main():
                 # rasterLib.getAttributes(str(context[Context.FN_CLOUDMASK_DOWNSCALE]), "Cloudmask Warp Combo Plot")
 
                 # Validate that input band name pairs exist in EVHR & CCDC files
-                context[Context.FN_LIST] = [str(context[Context.FN_TARGET]), str(context[Context.FN_TOA])]
+                context[Context.FN_LIST] = [str(context[Context.FN_TOA]), str(context[Context.FN_TARGET])]
                 context[Context.LIST_BAND_PAIR_INDICES] = rasterLib.getBandIndices(context)
 
                 # Get the common pixel intersection values of the EVHR & CCDC files
-                context[Context.FN_LIST] = [str(context[Context.FN_TARGET]),
-                                            str(context[Context.FN_TOA]),
+                context[Context.FN_LIST] = [str(context[Context.FN_TOA_DOWNSCALE]),
+                                            str(context[Context.FN_TARGET]),
                                             str(context[Context.FN_CLOUDMASK])]
                 context[Context.DS_LIST], context[Context.MA_LIST] = rasterLib.getIntersection(context)
 
@@ -179,13 +180,11 @@ def main():
                 context[Context.TARGET_NODATA_VALUE] = int(Context.DEFAULT_NODATA_VALUE)
                 context[Context.FN_COG] = rasterLib.createImage(context)
 
-#            break;
-
         except FileNotFoundError as exc:
             print('File Not Found - Error details: ', exc)
         except BaseException as err:
             print('Run abended - Error details: ', err)
-        break;
+#        break;
 
     print("\nTotal Elapsed Time for " + str(context[Context.DIR_OUTPUT])  + ': ',
            (time.time() - start_time) / 60.0)  # time in min

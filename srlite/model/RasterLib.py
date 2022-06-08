@@ -62,9 +62,9 @@ class RasterLib(object):
         self._plot_lib.trace('bandNamePairList=' + str(bandNamePairList))
 
         fn_list = context[Context.FN_LIST]
-        ccdcDs = gdal.Open(fn_list[0], gdal.GA_ReadOnly)
+        ccdcDs = gdal.Open(fn_list[Context.BAND_INDEX_TARGET], gdal.GA_ReadOnly)
         ccdcBands = ccdcDs.RasterCount
-        evhrDs = gdal.Open(fn_list[1], gdal.GA_ReadOnly)
+        evhrDs = gdal.Open(fn_list[Context.BAND_INDEX_TOA], gdal.GA_ReadOnly)
         evhrBands = evhrDs.RasterCount
 
         numBandPairs = len(bandNamePairList)
@@ -80,7 +80,7 @@ class RasterLib(object):
                 # read in bands from image
                 band = ccdcDs.GetRasterBand(ccdcIndex)
                 bandDescription = band.GetDescription()
-                bandName = currentBandPair[0]
+                bandName = currentBandPair[Context.BAND_INDEX_TARGET]
                 if len(bandDescription) == 0:
                     ccdcBandIndex = bandPairIndex + 1
                     self._plot_lib.trace(f"Band has no description {bandName} - assume index of current band  {ccdcBandIndex}")
@@ -94,7 +94,7 @@ class RasterLib(object):
                 # read in bands from image
                 band = evhrDs.GetRasterBand(evhrIndex)
                 bandDescription = band.GetDescription()
-                bandName = currentBandPair[1]
+                bandName = currentBandPair[Context.BAND_INDEX_TOA]
                 if len(bandDescription) == 0:
                     evhrBandIndex = bandPairIndex + 1
                     self._plot_lib.trace(f"Band has no description {bandName} - assume index of current band  {evhrBandIndex}")
@@ -311,8 +311,8 @@ class RasterLib(object):
             bandPairIndices = bandPairIndicesList[bandPairIndex + 1]
 
             # Get 30m CCDC Masked Arrays
-            ccdcBandMaArray = iolib.ds_getma(warp_ds_list[0], bandPairIndices[0])
-            evhrBandMaArray = iolib.ds_getma(warp_ds_list[1], bandPairIndices[1])
+            ccdcBandMaArray = iolib.ds_getma(warp_ds_list[Context.BAND_INDEX_TARGET], bandPairIndices[Context.BAND_INDEX_TARGET])
+            evhrBandMaArray = iolib.ds_getma(warp_ds_list[Context.BAND_INDEX_TOA], bandPairIndices[Context.BAND_INDEX_TOA])
 
             #  Create single mask for all bands based on Blue-band threshold values
             #  Assumes Blue-band is first indice pair, so collect mask on 1st iteration only.
@@ -354,19 +354,19 @@ class RasterLib(object):
             # ### WARPED MASKED ARRAY WITH COMMON MASK, DATA VALUES ONLY
             # CCDC SR is first element in list, which needs to be the y-var: b/c we are predicting SR from TOA ++++++++++[as per PM - 01/05/2022]
             ########################################
-            ccdc_sr_band = warp_ma_masked_band_list[0].ravel()
-            evhr_toa_band = warp_ma_masked_band_list[1].ravel()
+            ccdc_sr_band = warp_ma_masked_band_list[Context.BAND_INDEX_TARGET].ravel()
+            evhr_toa_band = warp_ma_masked_band_list[Context.BAND_INDEX_TOA].ravel()
 
             ccdc_sr_data_only_band = ccdc_sr_band[ccdc_sr_band.mask == False]
             evhr_toa_data_only_band = evhr_toa_band[evhr_toa_band.mask == False]
 
-            # Perform regression fit based on model type!
+            # Perform regression fit based on model type (TARGET against TOA)
             if (context[Context.REGRESSION_MODEL] == Context.REGRESSOR_MODEL_ROBUST):
-                model_data_only_band = HuberRegressor().fit(evhr_toa_data_only_band.reshape(-1, 1),
-                                                            ccdc_sr_data_only_band)
+                model_data_only_band = HuberRegressor().fit(
+                    evhr_toa_data_only_band.reshape(-1, 1), ccdc_sr_data_only_band )
             else:
-                model_data_only_band = LinearRegression().fit(evhr_toa_data_only_band.reshape(-1, 1),
-                                                                  ccdc_sr_data_only_band)
+                model_data_only_band = LinearRegression().fit(
+                    evhr_toa_data_only_band.reshape(-1, 1), ccdc_sr_data_only_band )
 
             self._plot_lib.trace(str(bandNamePairList[bandPairIndex]) + '= > intercept: ' + str(
                 model_data_only_band.intercept_) + ' slope: ' + str(model_data_only_band.coef_) + ' score: ' +
@@ -388,7 +388,7 @@ class RasterLib(object):
             # Get 2m EVHR Masked Arrays
 
             ######## Double check this after Caps win!!!
-            evhrBandMaArrayRaw = iolib.fn_getma(context[Context.FN_TOA], bandPairIndices[1])
+            evhrBandMaArrayRaw = iolib.fn_getma(context[Context.FN_TOA], bandPairIndices[Context.BAND_INDEX_TOA])
 #            evhrBandMaArrayRaw = iolib.fn_getma(context[Context.FN_LIST][1], bandPairIndices[1])
             sr_prediction_band = model_data_only_band.predict(evhrBandMaArrayRaw.ravel().reshape(-1, 1))
             self._plot_lib.trace(f'Post-prediction shape : {sr_prediction_band.shape}')

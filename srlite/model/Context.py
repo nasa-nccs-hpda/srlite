@@ -53,6 +53,8 @@ class Context(object):
     LIST_TOA_BANDS = 'list_toa_bands'
     BAND_NUM = 'band_num'
     BAND_DESCRIPTION_LIST= 'band_description_list'
+    BAND_INDEX_TOA = 0
+    BAND_INDEX_TARGET = 1
 
     # Target vars and defaults
     TARGET_ATTR = 'target_attr'
