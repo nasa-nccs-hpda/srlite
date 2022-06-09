@@ -139,16 +139,16 @@ def main():
                 context[Context.TARGET_ATTR] = str(context[Context.FN_TOA])
 
                 #  Downscale EVHR TOA from 2m to 30m - suffix root name with '-toa-30m.tif')
-                context[Context.FN_SRC] = str(context[Context.FN_TOA])
-                context[Context.FN_DEST] = str(context[Context.FN_TOA_DOWNSCALE])
-                fileExists = (os.path.exists(context[Context.FN_TOA_DOWNSCALE]))
-                if fileExists and (eval(context[Context.CLEAN_FLAG])):
-                        rasterLib.removeFile(context[Context.FN_TOA_DOWNSCALE], context[Context.CLEAN_FLAG])
-                fileExists = (os.path.exists(context[Context.FN_TOA_DOWNSCALE]))
-                if not fileExists:
-                    rasterLib.translate(context)
-                rasterLib.getAttributes(str(context[Context.FN_TOA_DOWNSCALE]),
-                                        "TOA Downscale Combo Plot")
+                # context[Context.FN_SRC] = str(context[Context.FN_TOA])
+                # context[Context.FN_DEST] = str(context[Context.FN_TOA_DOWNSCALE])
+                # fileExists = (os.path.exists(context[Context.FN_TOA_DOWNSCALE]))
+                # if fileExists and (eval(context[Context.CLEAN_FLAG])):
+                #         rasterLib.removeFile(context[Context.FN_TOA_DOWNSCALE], context[Context.CLEAN_FLAG])
+                # fileExists = (os.path.exists(context[Context.FN_TOA_DOWNSCALE]))
+                # if not fileExists:
+                #     rasterLib.translate(context)
+                # rasterLib.getAttributes(str(context[Context.FN_TOA_DOWNSCALE]),
+                #                         "TOA Downscale Combo Plot")
 
                 #  Warp cloudmask to attributes of EVHR - suffix root name with '-toa_pred_warp.tif')
                 # context[Context.FN_SRC] = str(context[Context.FN_CLOUDMASK])
@@ -162,7 +162,7 @@ def main():
                 context[Context.LIST_BAND_PAIR_INDICES] = rasterLib.getBandIndices(context)
 
                 # Get the common pixel intersection values of the EVHR & CCDC files
-                context[Context.FN_LIST] = [str(context[Context.FN_TOA_DOWNSCALE]),
+                context[Context.FN_LIST] = [str(context[Context.FN_TOA]),
                                             str(context[Context.FN_TARGET]),
                                             str(context[Context.FN_CLOUDMASK])]
                 context[Context.DS_LIST], context[Context.MA_LIST] = rasterLib.getIntersection(context)
@@ -178,6 +178,8 @@ def main():
                 context[Context.COG_FLAG] = True
                 #            context[Context.TARGET_DTYPE] = ccdc_dataset_profile['dtype']
                 context[Context.TARGET_NODATA_VALUE] = int(Context.DEFAULT_NODATA_VALUE)
+
+                context[Context.FN_DEST] = str(context[Context.FN_COG])
                 context[Context.FN_COG] = rasterLib.createImage(context)
 
         except FileNotFoundError as exc:

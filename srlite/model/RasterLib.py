@@ -152,12 +152,27 @@ class RasterLib(object):
         # # Align the CCDC and EVHR images, then take the intersection of the grid points
         # ########################################
         warp_ds_list = warplib.memwarp_multi_fn(
+            context[Context.FN_LIST], res=30, extent='intersection', t_srs='first', r='average')
+        warp_ma_list = [iolib.ds_getma(ds) for ds in warp_ds_list]
+
+        self._plot_lib.trace('\n TARGET shape=' + str(warp_ma_list[0].shape) + ' EVHR shape=' +
+                   str(warp_ma_list[1].shape))
+        return warp_ds_list, warp_ma_list
+
+    def _getIntersection(self, context):
+        self._validateParms(context, [Context.FN_LIST])
+
+        # ########################################
+        # # Align the CCDC and EVHR images, then take the intersection of the grid points
+        # ########################################
+        warp_ds_list = warplib.memwarp_multi_fn(
             context[Context.FN_LIST], res='first', extent='intersection', t_srs='first', r='average')
         warp_ma_list = [iolib.ds_getma(ds) for ds in warp_ds_list]
 
         self._plot_lib.trace('\n TARGET shape=' + str(warp_ma_list[0].shape) + ' EVHR shape=' +
                    str(warp_ma_list[1].shape))
         return warp_ds_list, warp_ma_list
+
 
     def prepareEVHRCloudmask(self, context):
         self._validateParms(context,
