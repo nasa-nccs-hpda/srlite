@@ -128,7 +128,7 @@ class RasterLib(object):
 
     def getAttributes(self, r_fn, title):
         r_ds = iolib.fn_getds(r_fn)
-        if (self._debug_level >= 1):
+        if (self._debug_level >= 2):
             self._plot_lib.trace("File Name is {}".format(r_fn))
             self._plot_lib.trace(r_ds.GetProjection())
             self._plot_lib.trace("Driver: {}/{}".format(r_ds.GetDriver().ShortName,
@@ -174,14 +174,14 @@ class RasterLib(object):
         return warp_ds_list, warp_ma_list
 
 
-    def prepareEVHRCloudmask(self, context):
+    def _prepareEVHRCloudmask(self, context):
         self._validateParms(context,
                             [Context.DS_LIST, Context.LIST_BAND_PAIRS, Context.LIST_BAND_PAIR_INDICES,
                              Context.REGRESSION_MODEL, Context.FN_LIST])
         ma_list = context[Context.MA_LIST]
         return ma_list[2]
 
-    def _prepareEVHRCloudmask(self, context):
+    def prepareEVHRCloudmask(self, context):
         self._validateParms(context,
                             [Context.DS_LIST, Context.LIST_BAND_PAIRS, Context.LIST_BAND_PAIR_INDICES,
                              Context.REGRESSION_MODEL, Context.FN_LIST])
@@ -221,6 +221,9 @@ class RasterLib(object):
             f'cloudmaskWarpExternalBandMaArrayMasked max=' + str(cloudmaskWarpExternalBandMaArrayMasked.max()))
         self._plot_lib.plot_combo_array(cloudmaskWarpExternalBandMaArrayMasked, figsize=(14, 7),
                                  title='cloudmaskWarpExternalBandMaArrayMasked')
+
+        self.removeFile(context[Context.FN_CLOUDMASK_DOWNSCALE], str('True'))
+
         return cloudmaskWarpExternalBandMaArrayMasked
 
     def prepareQualityFlagMask(self, context):
@@ -513,10 +516,10 @@ class RasterLib(object):
             context[Context.FN_DEST] = "{}/{}".format(
                 context[Context.DIR_OUTPUT], str(context[Context.FN_PREFIX])
             ) + str(Context.FN_SRLITE_SUFFIX)
-            output_name = self.createCOG(context)
+            cog_name = self.createCOG(context)
 
-        self._plot_lib.trace(f"\nCreated COG from stack of regressed bands...\n   {output_name}")
-        return output_name
+        self._plot_lib.trace(f"\nCreated COG from stack of regressed bands...\n   {cog_name}")
+        return cog_name
 
     def removeFile(self, fileName, cleanFlag):
 

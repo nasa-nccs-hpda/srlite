@@ -120,8 +120,7 @@ def main():
     rasterLib = RasterLib(int(context[Context.DEBUG_LEVEL]), plotLib)
 
     toa_filter = '*' + context[Context.FN_TOA_SUFFIX]
-    for context[Context.FN_TOA] in (Path(context[Context.DIR_TOA]).glob(toa_filter)):
- #    for context[Context.FN_TOA] in sorted(Path(context[Context.DIR_TOA]).glob(toa_filter)):
+    for context[Context.FN_TOA] in sorted(Path(context[Context.DIR_TOA]).glob(toa_filter)):
         try:
             # Generate file names based on incoming EVHR file and declared suffixes - get snapshot
             context = contextClazz.getFileNames(str(context[Context.FN_TOA]).rsplit("/", 1), context)
@@ -151,11 +150,12 @@ def main():
                 #                         "TOA Downscale Combo Plot")
 
                 #  Warp cloudmask to attributes of EVHR - suffix root name with '-toa_pred_warp.tif')
-                # context[Context.FN_SRC] = str(context[Context.FN_CLOUDMASK])
-                # context[Context.FN_DEST] = str(context[Context.FN_CLOUDMASK_DOWNSCALE])
-                # context[Context.TARGET_ATTR] = str(context[Context.FN_TOA])
-                # rasterLib.translate(context)
-                # rasterLib.getAttributes(str(context[Context.FN_CLOUDMASK_DOWNSCALE]), "Cloudmask Warp Combo Plot")
+                if (eval(context[Context.CLOUD_MASK_FLAG])):
+                    context[Context.FN_SRC] = str(context[Context.FN_CLOUDMASK])
+                    context[Context.FN_DEST] = str(context[Context.FN_CLOUDMASK_DOWNSCALE])
+                    context[Context.TARGET_ATTR] = str(context[Context.FN_TOA])
+                    rasterLib.translate(context)
+                    rasterLib.getAttributes(str(context[Context.FN_CLOUDMASK_DOWNSCALE]), "Cloudmask Warp Combo Plot")
 
                 # Validate that input band name pairs exist in EVHR & CCDC files
                 context[Context.FN_LIST] = [str(context[Context.FN_TOA]), str(context[Context.FN_TARGET])]
@@ -163,8 +163,8 @@ def main():
 
                 # Get the common pixel intersection values of the EVHR & CCDC files
                 context[Context.FN_LIST] = [str(context[Context.FN_TOA]),
-                                            str(context[Context.FN_TARGET]),
-                                            str(context[Context.FN_CLOUDMASK])]
+                                            str(context[Context.FN_TARGET])]
+#                                            str(context[Context.FN_CLOUDMASK])]
                 context[Context.DS_LIST], context[Context.MA_LIST] = rasterLib.getIntersection(context)
 
                 # Perform regression to capture coefficients from intersected pixels and apply to 2m EVHR
