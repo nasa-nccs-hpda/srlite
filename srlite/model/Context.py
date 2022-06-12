@@ -24,15 +24,22 @@ class Context(object):
     FN_SRC = 'fn_src'
     FN_LIST = 'fn_list'
     DS_LIST = 'ds_list'
+    DS_INTERSECTION_LIST = 'ds_intersection_lilst'
     MA_LIST = 'ma_list'
     PRED_LIST = 'pred_list'
 
     FN_TOA = 'fn_toa'
     FN_TOA_DOWNSCALE = 'fn_toa_downscale'
+    DS_TOA_DOWNSCALE = 'ds_toa_downscale'
+    MA_TOA_DOWNSCALE = 'ds_toa_downscale'
     FN_TARGET = 'fn_target'
     FN_TARGET_DOWNSCALE = 'fn_target_downscale'
+    DS_TARGET_DOWNSCALE = 'ds_target_downscale'
+    MA_TARGET_DOWNSCALE = 'ma_target_downscale'
     FN_CLOUDMASK = 'fn_cloudmask'
     FN_CLOUDMASK_DOWNSCALE = 'fn_cloudmask_downscale'
+    DS_CLOUDMASK_DOWNSCALE = 'ds_cloudmask_downscale'
+    MA_CLOUDMASK_DOWNSCALE = 'ma_cloudmask_downscale'
     FN_PREFIX = 'fn_prefix'
     FN_COG = 'fn_cog'
     FN_SUFFIX = 'fn_suffix'
@@ -53,8 +60,12 @@ class Context(object):
     LIST_TOA_BANDS = 'list_toa_bands'
     BAND_NUM = 'band_num'
     BAND_DESCRIPTION_LIST= 'band_description_list'
-    BAND_INDEX_TOA = 0
-    BAND_INDEX_TARGET = 1
+
+    # Index of data arrays FN_LIST, MA_LIST
+    LIST_INDEX_TOA = 'list_index_toa'
+    LIST_INDEX_TARGET = 'list_index_target'
+    LIST_INDEX_CLOUDMASK = 'list_index_cloudmask'
+    LIST_INDEX_THRESHOLD = 'list_index_threshold'
 
     # Target vars and defaults
     TARGET_ATTR = 'target_attr'
@@ -74,6 +85,7 @@ class Context(object):
     DEFAULT_XRES = 30.0
     DEFAULT_YRES = 30.0
     DEFAULT_NODATA_VALUE = -9999
+    DEFAULT_SAMPLING_METHOD = 'average'
 
     # Regression algorithms
     REGRESSION_MODEL = 'regressor'
@@ -362,6 +374,8 @@ class Context(object):
         :param context: input context object dictionary
         :return: updated context
         """
+ #       context[Context.FN_PREFIX] = "WV02_20200812_M1BS_10300100AB21A400"
+
         context[Context.FN_PREFIX] = str((prefix[1]).split("-toa.tif", 1)[0])
         context[Context.FN_TOA] = os.path.join(context[Context.DIR_TOA] + '/' +
                                                context[Context.FN_PREFIX] + context[Context.FN_TOA_SUFFIX])
