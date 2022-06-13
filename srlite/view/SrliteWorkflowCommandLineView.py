@@ -119,8 +119,14 @@ def main():
     plotLib = contextClazz.getPlotLib()
     rasterLib = RasterLib(int(context[Context.DEBUG_LEVEL]), plotLib)
 
+    # Define order indices for list processing
+    context[Context.LIST_INDEX_TOA] = 0
+    context[Context.LIST_INDEX_TARGET] = 1
+    context[Context.LIST_INDEX_CLOUDMASK] = -1
+
     toa_filter = '*' + context[Context.FN_TOA_SUFFIX]
-    for context[Context.FN_TOA] in sorted(Path(context[Context.DIR_TOA]).glob(toa_filter)):
+    for context[Context.FN_TOA] in (Path(context[Context.DIR_TOA]).glob(toa_filter)):
+#        for context[Context.FN_TOA] in sorted(Path(context[Context.DIR_TOA]).glob(toa_filter)):
         try:
             # Generate file names based on incoming EVHR file and declared suffixes - get snapshot
             context = contextClazz.getFileNames(str(context[Context.FN_TOA]).rsplit("/", 1), context)
@@ -133,9 +139,8 @@ def main():
             # Proceed if SR-Lite output does not exist
             if not fileExists:
 
-                # Capture input attributes - align all artifacts to EVHR projection
+                # Capture input attributes - then align all artifacts to EVHR TOA projection
                 rasterLib.getAttributeSnapshot(context)
-                context[Context.TARGET_ATTR] = str(context[Context.FN_TOA])
 
                 #  Downscale EVHR TOA from 2m to 30m - suffix root name with '-toa-30m.tif')
                 context[Context.FN_SRC] = str(context[Context.FN_TOA])
@@ -149,55 +154,32 @@ def main():
                 rasterLib.getAttributes(str(context[Context.FN_TOA_DOWNSCALE]),
                                         "TOA Downscale Combo Plot")
 
-                #  Warp cloudmask to attributes of EVHR - suffix root name with '-toa_pred_warp.tif')
+                # Retrieve target attributes from downscaled TOA
+                rasterLib.setTargetAttributes(context, context[Context.FN_TOA_DOWNSCALE])
+
+                #  Warp TARGET to attributes of EVHR - suffix root name with '-toa_pred_warp.tif')
+                context[Context.FN_SRC] = str(context[Context.FN_TARGET])
+                context[Context.FN_DEST] = str(context[Context.FN_TARGET_DOWNSCALE])
+                rasterLib.translate(context)
+                rasterLib.getAttributes(str(context[Context.FN_TARGET_DOWNSCALE]), "Target Warp Combo Plot")
+
+                #  Warp cloudmask to attributes of EVHR TOA Downscale, translate not warp() to skip averaging)
                 if (eval(context[Context.CLOUD_MASK_FLAG])):
                     context[Context.FN_SRC] = str(context[Context.FN_CLOUDMASK])
                     context[Context.FN_DEST] = str(context[Context.FN_CLOUDMASK_DOWNSCALE])
-                    context[Context.TARGET_ATTR] = str(context[Context.FN_TOA])
                     rasterLib.translate(context)
                     rasterLib.getAttributes(str(context[Context.FN_CLOUDMASK_DOWNSCALE]), "Cloudmask Warp Combo Plot")
-
-                # from osgeo import gdal
-                #
-                # print("Testing: ", str(context[Context.FN_CLOUDMASK_DOWNSCALE]))
-                #
-                # data = gdal.Open(context[Context.FN_TOA_DOWNSCALE])
-                # geoTransform = data.GetGeoTransform()
-                # minxT = geoTransform[0]
-                # maxyT = geoTransform[3]
-                # maxxT = minxT + geoTransform[1] * data.RasterXSize
-                # minyT = maxyT + geoTransform[5] * data.RasterYSize
-                # print(minxT, minyT, maxxT, maxyT)
-                # data = None
-                #
-                # dataC = gdal.Open(context[Context.FN_CLOUDMASK_DOWNSCALE])
-                # geoTransform = dataC.GetGeoTransform()
-                # minxC = geoTransform[0]
-                # maxyC = geoTransform[3]
-                # maxxC = minxC + geoTransform[1] * dataC.RasterXSize
-                # minyC = maxyC + geoTransform[5] * dataC.RasterYSize
-                # print(minxC, minyC, maxxC, maxyC)
-                # dataC = None
-
-#                 if (not (minxT == minxC) and (maxyT == maxyC)  and (maxxT == maxxC)  and (minyT == minyC)):
-#
-#                     print ("INfodidn't match for: ", str(context[Context.FN_CLOUDMASK_DOWNSCALE]))
-#                     print(minxT, minyT, maxxT, maxyT)
-#                     print(minxC, minyC, maxxC, maxyC)
-# #                    break;
-
-                # Define order indices for list processing
-                context[Context.LIST_INDEX_TOA] = 0
-                context[Context.LIST_INDEX_TARGET] = 1
-                context[Context.LIST_INDEX_CLOUDMASK] = 2
+                    context[Context.LIST_INDEX_CLOUDMASK] = 2
 
                 # Validate that input band name pairs exist in EVHR & CCDC files
                 context[Context.FN_LIST] = [str(context[Context.FN_TOA]), str(context[Context.FN_TARGET])]
                 context[Context.LIST_BAND_PAIR_INDICES] = rasterLib.getBandIndices(context)
 
                 # Reproject all other inputs to TOA to ensure equal number of samples
-                context[Context.FN_LIST] = [str(context[Context.FN_TOA_DOWNSCALE]), str(context[Context.FN_TARGET]),
-                                            str(context[Context.FN_CLOUDMASK])]
+                context[Context.FN_LIST] = [str(context[Context.FN_TOA_DOWNSCALE]), str(context[Context.FN_TARGET_DOWNSCALE])]
+ #                                           str(context[Context.FN_CLOUDMASK_DOWNSCALE])]
+                if (eval(context[Context.CLOUD_MASK_FLAG])):
+                    context[Context.FN_LIST].append(str(context[Context.FN_CLOUDMASK_DOWNSCALE]))
                 context[Context.DS_LIST], context[Context.MA_LIST] = rasterLib.getReprojection(context)
 
                 # Save reprojected masked array for target and cloudmask
@@ -211,9 +193,9 @@ def main():
                     context[Context.MA_LIST][context[Context.LIST_INDEX_CLOUDMASK]]
 
                 # Get the common pixel intersection values of the EVHR & CCDC files (not cloudmask)
-                context[Context.DS_INTERSECTION_LIST] = [context[Context.DS_TOA_DOWNSCALE],
-                                            context[Context.DS_TARGET_DOWNSCALE]]
-                intersectedListDs, intersectedListMa = rasterLib.getIntersectionDs(context)
+                context[Context.FN_INTERSECTION_LIST] = [str(context[Context.FN_TOA_DOWNSCALE]),
+                                            str(context[Context.FN_TARGET_DOWNSCALE])]
+                intersectedListDs, intersectedListMa = rasterLib.getIntersection(context)
 
                 # Amend reprojected arrays with intersected arrays for TOA and TARGET
                 context[Context.DS_LIST][context[Context.LIST_INDEX_TOA]]  = \
@@ -291,7 +273,6 @@ def mainARD():
 
                 # Capture input attributes - align all artifacts to EVHR projection
                 rasterLib.getAttributeSnapshot(context)
-                context[Context.TARGET_ATTR] = str(context[Context.FN_TOA])
 
                 #  Downscale EVHR TOA from 2m to 30m - suffix root name with '-toa-30m.tif')
                 context[Context.FN_SRC] = str(context[Context.FN_TOA])
@@ -304,6 +285,9 @@ def mainARD():
                     rasterLib.translate(context)
                 rasterLib.getAttributes(str(context[Context.FN_TOA_DOWNSCALE]),
                                         "TOA Downscale Combo Plot")
+
+                # Retrieve target attributes from downscaled TOA
+                rasterLib.setTargetAttributes(context, context[Context.FN_TOA_DOWNSCALE])
 
                 # Validate that input band name pairs exist in EVHR & TARGET files
                 context[Context.FN_LIST] = [str(context[Context.FN_TARGET]), str(context[Context.FN_TOA_DOWNSCALE])]

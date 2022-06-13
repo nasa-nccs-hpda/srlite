@@ -124,12 +124,13 @@ class RasterLib(object):
         # Get snapshot of attributes of EVHR, CCDC, and Cloudmask tifs and create plot")
         self.getAttributes(str(context[Context.FN_TOA]), "EVHR Combo Plot")
         self.getAttributes(str(context[Context.FN_TARGET]), "CCDC Combo Plot")
-        self.getAttributes(str(context[Context.FN_CLOUDMASK]), "Cloudmask Combo Plot")
+        if (eval(context[Context.CLOUD_MASK_FLAG])):
+            self.getAttributes(str(context[Context.FN_CLOUDMASK]), "Cloudmask Combo Plot")
 
-    def getAttributes(self, r_fn, title):
+    def getAttributes(self, r_fn, title=None):
         geotransform = None
         r_ds = iolib.fn_getds(r_fn)
-        if (self._debug_level >= 2):
+        if (self._debug_level >= 1):
             self._plot_lib.trace("\n File Name is {}".format(r_fn))
             self._plot_lib.trace(r_ds.GetProjection())
             self._plot_lib.trace("Driver: {}/{}".format(r_ds.GetDriver().ShortName,
@@ -149,64 +150,55 @@ class RasterLib(object):
         r_ds = None
         return geotransform
 
+    def setTargetAttributes(self, context, r_fn):
+
+        r_ds = iolib.fn_getds(r_fn)
+        context[Context.TARGET_GEO_TRANSFORM] = r_ds.GetGeoTransform()
+        context[Context.TARGET_DRIVER] = r_ds.GetDriver()
+        context[Context.TARGET_PRJ] = r_ds.GetProjection()
+        context[Context.TARGET_SRS] = r_ds.GetSpatialRef()
+        context[Context.TARGET_RASTERX_SIZE] = r_ds.RasterXSize
+        context[Context.TARGET_RASTERY_SIZE] = r_ds.RasterYSize
+        context[Context.TARGET_RASTER_COUNT] = r_ds.RasterCount
+        r_ds = None
+
     def getIntersectionDs(self, context):
         self._validateParms(context, [Context.FN_LIST])
 
         # ########################################
         # # Align the CCDC and EVHR images, then take the intersection of the grid points
         # ########################################
-
-        #TODO parameterize hard-coded 30 & average
         warp_ds_list = warplib.memwarp_multi(
-            context[Context.DS_INTERSECTION_LIST], res=30, extent='intersection', t_srs='first', r='average')
+            context[Context.DS_INTERSECTION_LIST], res=context[Context.TARGET_RASTERX_SIZE] , extent='intersection', t_srs='first', r=context[Context.TARGET_SAMPLING_METHOD])
         warp_ma_list = [iolib.ds_getma(ds) for ds in warp_ds_list]
-        self._plot_lib.trace('\n TARGET shape=' + str(warp_ma_list[0].shape) + ' EVHR shape=' +
-                   str(warp_ma_list[1].shape))
+        self._plot_lib.trace('\n TOA shape=' + str(warp_ma_list[0].shape) + ' TARGET shape=' + str(warp_ma_list[1].shape))
         return warp_ds_list, warp_ma_list
 
     def getIntersection(self, context):
-        self._validateParms(context, [Context.FN_LIST])
+        self._validateParms(context, [Context.FN_INTERSECTION_LIST])
 
         # ########################################
-        # # Align the CCDC and EVHR images, then take the intersection of the grid points
+        # # Take the intersection of the scenes and return masked arrays of common pixels
         # ########################################
-
-        #TODO parameterize hard-coded 30 & average
+        # warp_ds_list = warplib.memwarp_multi_fn(
+        #     context[Context.FN_INTERSECTION_LIST], res=context[Context.TARGET_XRES] , extent='intersection', t_srs='first', r=context[Context.TARGET_SAMPLING_METHOD])
         warp_ds_list = warplib.memwarp_multi_fn(
-            context[Context.FN_LIST], res=30, extent='intersection', t_srs='first', r='average')
+            context[Context.FN_INTERSECTION_LIST], res='first', extent='intersection', t_srs='first', r=context[Context.TARGET_SAMPLING_METHOD])
         warp_ma_list = [iolib.ds_getma(ds) for ds in warp_ds_list]
-        self._plot_lib.trace('\n TARGET shape=' + str(warp_ma_list[0].shape) + ' EVHR shape=' +
-                   str(warp_ma_list[1].shape))
         return warp_ds_list, warp_ma_list
 
     def getReprojection(self, context):
         self._validateParms(context, [Context.FN_LIST])
 
         # ########################################
-        # # Align context[Context.FN_LIST[0]] to context[Context.FN_LIST[1]]
+        # # Align context[Context.FN_LIST[>0]] to context[Context.FN_LIST[0]] return masked arrays of reprojected pixels
         # ########################################
-        # TODO parameterize hard-coded 30 & average
         warp_ds_list = warplib.memwarp_multi_fn(
-            context[Context.FN_LIST], res=30, extent='first', t_srs='first')
+            context[Context.FN_LIST], res=context[Context.TARGET_XRES] , extent='first', t_srs='first')
         warp_ma_list = [iolib.ds_getma(ds) for ds in warp_ds_list]
         return warp_ds_list, warp_ma_list
 
-    def _getIntersection(self, context):
-        self._validateParms(context, [Context.FN_LIST])
-
-        # ########################################
-        # # Align the CCDC and EVHR images, then take the intersection of the grid points
-        # ########################################
-        warp_ds_list = warplib.memwarp_multi_fn(
-            context[Context.FN_LIST], res='first', extent='intersection', t_srs='first', r='average')
-        warp_ma_list = [iolib.ds_getma(ds) for ds in warp_ds_list]
-
-        self._plot_lib.trace('\n TARGET shape=' + str(warp_ma_list[0].shape) + ' EVHR shape=' +
-                   str(warp_ma_list[1].shape))
-        return warp_ds_list, warp_ma_list
-
-
-    def prepareEVHRCloudmask(self, context):
+    def _prepareEVHRCloudmask(self, context):
         self._validateParms(context,
                             [Context.MA_CLOUDMASK_DOWNSCALE])
 
@@ -215,7 +207,7 @@ class RasterLib(object):
                                                                     cloudmaskWarpExternalBandMaArray)
         return cloudmaskWarpExternalBandMaArraycloudmaskWarpExternalBandMaArrayMasked
 
-    def _prepareEVHRCloudmask(self, context):
+    def prepareEVHRCloudmask(self, context):
         self._validateParms(context,
                             [Context.DS_LIST, Context.LIST_BAND_PAIRS, Context.LIST_BAND_PAIR_INDICES,
                              Context.REGRESSION_MODEL, Context.FN_LIST])
@@ -228,8 +220,8 @@ class RasterLib(object):
         self._plot_lib.trace(f'cloudmaskWarpExternalBandMaArray shape: {cloudmaskWarpExternalBandMaArray.shape}')
         count_non_masked = np.ma.count(cloudmaskWarpExternalBandMaArray)
         count_masked = np.ma.count_masked(cloudmaskWarpExternalBandMaArray)
-        self._plot_lib.trace(f'cloudmaskWarpExternalBandMaArray ma.count (masked)=' + str(count_non_masked))
-        self._plot_lib.trace(f'cloudmaskWarpExternalBandMaArray ma.count_masked (non-masked)=' + str(count_masked))
+        self._plot_lib.trace(f'cloudmaskWarpExternalBandMaArray ma.count (non-masked)=' + str(count_non_masked))
+        self._plot_lib.trace(f'cloudmaskWarpExternalBandMaArray ma.count_masked (masked)=' + str(count_masked))
         self._plot_lib.trace(
             f'cloudmaskWarpExternalBandMaArray total count (masked + non-masked)=' + str(
                 count_masked + count_non_masked))

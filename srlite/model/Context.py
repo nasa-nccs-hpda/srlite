@@ -23,6 +23,7 @@ class Context(object):
     FN_DEST = 'fn_dest'
     FN_SRC = 'fn_src'
     FN_LIST = 'fn_list'
+    FN_INTERSECTION_LIST = 'fn_intersection_lilst'
     DS_LIST = 'ds_list'
     DS_INTERSECTION_LIST = 'ds_intersection_lilst'
     MA_LIST = 'ma_list'
@@ -43,6 +44,7 @@ class Context(object):
     FN_PREFIX = 'fn_prefix'
     FN_COG = 'fn_cog'
     FN_SUFFIX = 'fn_suffix'
+    GEOM_TOA = 'geom_toa'
 
     # File name suffixes
     FN_TOA_SUFFIX = 'fn_toa_suffix'
@@ -68,22 +70,27 @@ class Context(object):
     LIST_INDEX_THRESHOLD = 'list_index_threshold'
 
     # Target vars and defaults
-    TARGET_ATTR = 'target_attr'
+    TARGET_GEO_TRANSFORM = 'target_geo_transform'
     TARGET_EXTENT = 'target_extent'
     TARGET_XRES = 'target_xres'
     TARGET_YRES = 'target_yres'
     TARGET_PRJ = 'target_prj'
     TARGET_SRS = 'target_srs'
+    TARGET_RASTERX_SIZE = 'target_rasterX_size'
+    TARGET_RASTERY_SIZE = 'target_rasterY_size'
+    TARGET_RASTER_COUNT = 'target_raster_count'
+    TARGET_DRIVER= 'target_driver'
     TARGET_OUTPUT_TYPE = 'target_output_type'
     TARGET_DTYPE = 'target_dtype'
     TARGET_NODATA_VALUE = 'target_nodata_value'
+    TARGET_SAMPLING_METHOD = 'target_sampling_method'
 
     # Default values
     DEFAULT_TOA_SUFFIX = '-toa.tif'
     DEFAULT_TARGET_SUFFIX =  '-ccdc.tif'
     DEFAULT_CLOUDMASK_SUFFIX ='-toa.cloudmask.v1.2.tif'
-    DEFAULT_XRES = 30.0
-    DEFAULT_YRES = 30.0
+    DEFAULT_XRES = 30
+    DEFAULT_YRES = 30
     DEFAULT_NODATA_VALUE = -9999
     DEFAULT_SAMPLING_METHOD = 'average'
 
@@ -143,22 +150,13 @@ class Context(object):
             self.context_dict[Context.DIR_OUTPUT] = str(args.out_dir)
 
             self.context_dict[Context.LIST_BAND_PAIRS] = str(args.band_pairs_list)
-            self.context_dict[Context.TARGET_XRES] = self.DEFAULT_XRES
-            if not (args.target_xres == None):
-                self.context_dict[Context.TARGET_YRES] = float(args.target_xres)
-            self.context_dict[Context.TARGET_YRES] = self.DEFAULT_YRES
-            if not (args.target_yres == None):
-                self.context_dict[Context.TARGET_YRES] = float(args.target_yres)
+            self.context_dict[Context.TARGET_XRES] = int(args.target_xres)
+            self.context_dict[Context.TARGET_YRES] = int(args.target_yres)
+            self.context_dict[Context.TARGET_SAMPLING_METHOD] = str(args.target_sampling_method)
 
-            self.context_dict[Context.FN_TOA_SUFFIX] = self.DEFAULT_TOA_SUFFIX
-            if not (args.toa_suffix== None):
-                self.context_dict[Context.FN_TOA_SUFFIX] = "-" + str(args.toa_suffix)
-            self.context_dict[Context.FN_TARGET_SUFFIX] = self.DEFAULT_TARGET_SUFFIX
-            if not (args.target_suffix== None):
-                self.context_dict[Context.FN_TARGET_SUFFIX] = "-" + str(args.target_suffix)
-            self.context_dict[Context.FN_CLOUDMASK_SUFFIX] = self.DEFAULT_CLOUDMASK_SUFFIX
-            if not (args.cloudmask_suffix == None):
-                self.context_dict[Context.FN_CLOUDMASK_SUFFIX] = "-" + str(args.cloudmask_suffix)
+            self.context_dict[Context.FN_TOA_SUFFIX] = str(args.toa_suffix)
+            self.context_dict[Context.FN_TARGET_SUFFIX] = str(args.target_suffix)
+            self.context_dict[Context.FN_CLOUDMASK_SUFFIX] = str(args.cloudmask_suffix)
 
             self.context_dict[Context.REGRESSION_MODEL] = str(args.regressor)
             self.context_dict[Context.DEBUG_LEVEL] = int(args.debug_level)
@@ -251,27 +249,31 @@ class Context(object):
         )
         parser.add_argument(
             "--xres", "--input-x-resolution", type=str, required=False, dest='target_xres',
-            default=None, help="Specify target X resolution (default = 30.0)."
+            default=Context.DEFAULT_XRES, help="Specify target X resolution (default = 30)."
         )
         parser.add_argument(
             "--yres", "--input-y-resolution", type=str, required=False, dest='target_yres',
-            default=None, help="Specify target Y resolution (default = 30.0)."
+            default=Context.DEFAULT_XRES, help="Specify target Y resolution (default = 30)."
+        )
+        parser.add_argument(
+            "--sampling", "--reprojection-sampling-method", type=str, required=False, dest='target_sampling_method',
+            default=Context.DEFAULT_SAMPLING_METHOD, help="Specify target warp sampling method (default = 'average'')."
         )
         parser.add_argument(
             "--toa_suffix", "--input-toa-suffix", type=str, required=False, dest='toa_suffix',
-            default=None, help="Specify TOA file suffix (default = -toa.tif')."
+            default=Context.DEFAULT_TOA_SUFFIX, help="Specify TOA file suffix (default = -toa.tif')."
         )
         parser.add_argument(
             "--target_suffix", "--input-target-suffix", type=str, required=False, dest='target_suffix',
-            default=None, help="Specify TARGET file suffix (default = -ccdc.tif')."
+            default=Context.DEFAULT_TARGET_SUFFIX, help="Specify TARGET file suffix (default = -ccdc.tif')."
         )
         parser.add_argument(
             "--cloudmask_suffix", "--input-cloudmask-suffix", type=str, required=False, dest='cloudmask_suffix',
-            default=None, help="Specify CLOUDMASK file suffix (default = -toa.cloudmask.v1.2.tif')."
+            default=Context.DEFAULT_CLOUDMASK_SUFFIX, help="Specify CLOUDMASK file suffix (default = -toa.cloudmask.v1.2.tif')."
         )
         parser.add_argument(
             "--debug", "--debug_level", type=int, required=False, dest='debug_level',
-            default=0, help="Specify debug level [0,1,2,3]"
+            default=Context.DEBUG_NONE_VALUE, help="Specify debug level [0,1,2,3]"
         )
         parser.add_argument(
             "--clean", "--clean", required=False, dest='cleanbool',
