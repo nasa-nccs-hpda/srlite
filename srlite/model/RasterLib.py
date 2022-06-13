@@ -163,13 +163,13 @@ class RasterLib(object):
         r_ds = None
 
     def getIntersectionDs(self, context):
-        self._validateParms(context, [Context.FN_LIST])
+        self._validateParms(context, [Context.DS_INTERSECTION_LIST])
 
         # ########################################
         # # Align the CCDC and EVHR images, then take the intersection of the grid points
         # ########################################
         warp_ds_list = warplib.memwarp_multi(
-            context[Context.DS_INTERSECTION_LIST], res=context[Context.TARGET_RASTERX_SIZE] , extent='intersection', t_srs='first', r=context[Context.TARGET_SAMPLING_METHOD])
+            context[Context.DS_INTERSECTION_LIST], res='first', extent='intersection', t_srs='first', r=context[Context.TARGET_SAMPLING_METHOD])
         warp_ma_list = [iolib.ds_getma(ds) for ds in warp_ds_list]
         self._plot_lib.trace('\n TOA shape=' + str(warp_ma_list[0].shape) + ' TARGET shape=' + str(warp_ma_list[1].shape))
         return warp_ds_list, warp_ma_list
@@ -198,7 +198,7 @@ class RasterLib(object):
         warp_ma_list = [iolib.ds_getma(ds) for ds in warp_ds_list]
         return warp_ds_list, warp_ma_list
 
-    def _prepareEVHRCloudmask(self, context):
+    def prepareEVHRCloudmask(self, context):
         self._validateParms(context,
                             [Context.MA_CLOUDMASK_DOWNSCALE])
 
@@ -207,7 +207,7 @@ class RasterLib(object):
                                                                     cloudmaskWarpExternalBandMaArray)
         return cloudmaskWarpExternalBandMaArraycloudmaskWarpExternalBandMaArrayMasked
 
-    def prepareEVHRCloudmask(self, context):
+    def _prepareEVHRCloudmask(self, context):
         self._validateParms(context,
                             [Context.DS_LIST, Context.LIST_BAND_PAIRS, Context.LIST_BAND_PAIR_INDICES,
                              Context.REGRESSION_MODEL, Context.FN_LIST])

@@ -125,8 +125,7 @@ def main():
     context[Context.LIST_INDEX_CLOUDMASK] = -1
 
     toa_filter = '*' + context[Context.FN_TOA_SUFFIX]
-    for context[Context.FN_TOA] in (Path(context[Context.DIR_TOA]).glob(toa_filter)):
-#        for context[Context.FN_TOA] in sorted(Path(context[Context.DIR_TOA]).glob(toa_filter)):
+    for context[Context.FN_TOA] in sorted(Path(context[Context.DIR_TOA]).glob(toa_filter)):
         try:
             # Generate file names based on incoming EVHR file and declared suffixes - get snapshot
             context = contextClazz.getFileNames(str(context[Context.FN_TOA]).rsplit("/", 1), context)
@@ -177,7 +176,6 @@ def main():
 
                 # Reproject all other inputs to TOA to ensure equal number of samples
                 context[Context.FN_LIST] = [str(context[Context.FN_TOA_DOWNSCALE]), str(context[Context.FN_TARGET_DOWNSCALE])]
- #                                           str(context[Context.FN_CLOUDMASK_DOWNSCALE])]
                 if (eval(context[Context.CLOUD_MASK_FLAG])):
                     context[Context.FN_LIST].append(str(context[Context.FN_CLOUDMASK_DOWNSCALE]))
                 context[Context.DS_LIST], context[Context.MA_LIST] = rasterLib.getReprojection(context)
@@ -193,17 +191,17 @@ def main():
                     context[Context.MA_LIST][context[Context.LIST_INDEX_CLOUDMASK]]
 
                 # Get the common pixel intersection values of the EVHR & CCDC files (not cloudmask)
-                context[Context.FN_INTERSECTION_LIST] = [str(context[Context.FN_TOA_DOWNSCALE]),
-                                            str(context[Context.FN_TARGET_DOWNSCALE])]
-                intersectedListDs, intersectedListMa = rasterLib.getIntersection(context)
+                context[Context.DS_INTERSECTION_LIST] = [context[Context.DS_TOA_DOWNSCALE] ,
+                                            context[Context.DS_TARGET_DOWNSCALE]]
+                intersectedListDs, intersectedListMa = rasterLib.getIntersectionDs(context)
 
                 # Amend reprojected arrays with intersected arrays for TOA and TARGET
                 context[Context.DS_LIST][context[Context.LIST_INDEX_TOA]]  = \
-                    intersectedListDs[ context[Context.LIST_INDEX_TOA] ]
+                    intersectedListDs[context[Context.LIST_INDEX_TOA] ]
                 context[Context.DS_LIST][context[Context.LIST_INDEX_TARGET]]  = \
-                    intersectedListDs[ context[Context.LIST_INDEX_TARGET] ]
-                context[Context.MA_LIST][ context[Context.LIST_INDEX_TOA] ] = \
-                    intersectedListMa[ context[Context.LIST_INDEX_TOA] ]
+                    intersectedListDs[context[Context.LIST_INDEX_TARGET] ]
+                context[Context.MA_LIST][context[Context.LIST_INDEX_TOA] ] = \
+                    intersectedListMa[context[Context.LIST_INDEX_TOA] ]
                 context[Context.MA_LIST][context[Context.LIST_INDEX_TARGET]] = \
                     intersectedListMa[context[Context.LIST_INDEX_TARGET]]
 
@@ -221,6 +219,21 @@ def main():
 
                 context[Context.FN_DEST] = str(context[Context.FN_COG])
                 context[Context.FN_COG] = rasterLib.createImage(context)
+
+                # Clean up
+                context[Context.DS_TOA_DOWNSCALE] = None
+                context[Context.DS_TARGET_DOWNSCALE] = None
+                if (eval(context[Context.CLOUD_MASK_FLAG])):
+                    context[Context.DS_CLOUDMASK_DOWNSCALE] = None
+                    context[Context.MA_CLOUDMASK_DOWNSCALE] = None
+
+                context[Context.DS_LIST][context[Context.LIST_INDEX_TOA]] = None
+                context[Context.DS_LIST][context[Context.LIST_INDEX_TARGET]] = None
+                context[Context.MA_LIST][context[Context.LIST_INDEX_TOA]] = None
+                context[Context.MA_LIST][context[Context.LIST_INDEX_TARGET]] = None
+                if (eval(context[Context.CLOUD_MASK_FLAG])):
+                    context[Context.DS_LIST][context[Context.LIST_INDEX_CLOUDMASK]] = None
+                    context[Context.MA_LIST][context[Context.LIST_INDEX_CLOUDMASK]] = None
 
         except FileNotFoundError as exc:
             print('File Not Found - Error details: ', exc)
