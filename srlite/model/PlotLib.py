@@ -34,6 +34,27 @@ class PlotLib(object):
             print(value)
 
     # -------------------------------------------------------------------------
+    # plot_compare()
+    #
+    # Generate and display image maps for 2-dimensional list of masked arrays
+    # -------------------------------------------------------------------------
+    def plot_compare(self, evhr_pre_post_ma_list, compare_name_list):
+
+        figsize = (5, 3)
+        fig, ax = plt.subplots(ncols=1, nrows=1, figsize=figsize, sharex=True, sharey=True)
+        colors = ['#e41a1c', '#377eb8', '#4daf4a', '#984ea3', '#ff7f00']
+
+        for i, ma in enumerate(evhr_pre_post_ma_list):
+            f_name = compare_name_list[i]
+
+            h = ax.hist(ma.compressed(), bins=256, alpha=0.5, label=f_name, color=colors[i])
+            ax.legend()
+            ax.set_xlim((0, max([ma.mean() + 3 * ma.std() for ma in evhr_pre_post_ma_list])))
+            ax.set_xlabel('Reflectance (%)', fontsize=12)
+
+        plt.tight_layout()
+
+    # -------------------------------------------------------------------------
     # plot_maps()
     #
     # Generate and display image maps for 2-dimensional list of masked arrays
@@ -177,3 +198,49 @@ class PlotLib(object):
             show(imageSrc, ax=axrgb)
             show_hist(imageSrc, bins=50, histtype='stepfilled',lw=0.0, stacked=False, alpha=0.3, ax=axhist, title=title)
             pyplot.show()
+
+
+    def plot_maps2(self, masked_array_list, names_list, figsize=None, cmap_list=None, clim_list=None, title_text=""):
+        if figsize is None:
+            figsize = (len(names_list) * 7, 5)
+
+        fig, axa = plt.subplots(nrows=1, ncols=len(masked_array_list), figsize=figsize, sharex=False, sharey=False)
+
+        for i, ma in enumerate(masked_array_list):
+
+            if cmap_list is None:
+                cmap = 'RdYlGn'
+            else:
+                cmap = cmap_list[i]
+
+            if clim_list is None:
+                clim = malib.calcperc(ma, perc=(1, 95))
+            else:
+                clim = clim_list[i]
+
+            f_name = names_list[i]
+
+            divider = make_axes_locatable(axa[i])
+            cax = divider.append_axes('right', size='2.5%', pad=0.05)
+            im1 = axa[i].imshow(ma, cmap=cmap, clim=clim)
+            cb = fig.colorbar(im1, cax=cax, orientation='vertical', extend='max')
+            axa[i].set_title(title_text + os.path.split(f_name)[1], fontsize=10)
+            cb.set_label('Reflectance (%)')
+
+            plt.tight_layout()
+
+
+    def plot_hists2(self, masked_array_list, names_list, figsize=None, title_text=""):
+        if figsize is None:
+            figsize = (len(names_list) * 7, 5)
+
+        fig, axa = plt.subplots(nrows=1, ncols=len(masked_array_list), figsize=figsize, sharex=False, sharey=False)
+
+        for i, ma in enumerate(masked_array_list):
+            f_name = names_list[i]
+            print(f" {ma.count()} valid pixels in INPUT MASKED ARRAY version of {f_name}")
+
+            h = axa[i].hist(ma.compressed(), bins=256, alpha=0.75)
+            axa[i].set_title(title_text + os.path.split(f_name)[1], fontsize=10)
+
+        plt.tight_layout()
