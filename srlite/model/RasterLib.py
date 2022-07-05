@@ -162,6 +162,21 @@ class RasterLib(object):
         context[Context.TARGET_RASTER_COUNT] = r_ds.RasterCount
         r_ds = None
 
+    def getStatistics(self, context):
+        self._validateParms(context, [Context.MA_LIST, Context.MA_WARP_LIST])
+
+        # Get snapshot of attributes of EVHR, CCDC, and Cloudmask tifs and create plot")
+        [warp_ma.get_fill_value() for warp_ma in context[Context.MA_WARP_LIST]]
+
+        self._plot_lib.trace('\nAll these arrays should now have the same shape:\n')
+        [self._plot_lib.trace(ma.shape) for ma in context[Context.MA_WARP_LIST]]
+        self._plot_lib.trace('Input array mins/maxs')
+        [self._plot_lib.trace(f'input ma min: {ma.min()}') for ma in context[Context.MA_LIST]]
+        [self._plot_lib.trace(f'input ma max: {ma.max()}') for ma in context[Context.MA_LIST]]
+        self._plot_lib.trace('Warped array mins/maxs')
+        [self._plot_lib.trace(f'warped ma min: {ma.min()}') for ma in context[Context.MA_WARP_LIST]]
+        [self._plot_lib.trace(f'warped ma max: {ma.max()}') for ma in context[Context.MA_WARP_LIST]]
+
     def getIntersectionDs(self, context):
         self._validateParms(context, [Context.DS_INTERSECTION_LIST])
 
@@ -173,6 +188,54 @@ class RasterLib(object):
         warp_ma_list = [iolib.ds_getma(ds) for ds in warp_ds_list]
         self._plot_lib.trace('\n TOA shape=' + str(warp_ma_list[0].shape) + ' TARGET shape=' + str(warp_ma_list[1].shape))
         return warp_ds_list, warp_ma_list
+
+    def applyCommonMask(self, context):
+        self._validateParms(context, [Context.COMMON_MASK,  Context.MA_WARP_LIST])
+
+        context[Context.MA_WARP_MASKED_LIST] =  \
+            [np.ma.array(ma, mask=context[Context.COMMON_MASK]) for ma in  context[Context.MA_WARP_LIST]]
+
+        #plot_maps(warp_ma_masked_list, fn_list, title_text='30 m warped version with a common mask applied\n')
+        #plot_hists(warp_ma_masked_list, fn_list, title_text='30 m warped version with a common mask applied\n')
+        return  context[Context.MA_WARP_MASKED_LIST]
+
+    def applyCommonMask(self, context):
+        self._validateParms(context, [Context.COMMON_MASK,  Context.MA_WARP_LIST])
+
+        context[Context.MA_WARP_MASKED_LIST] =  \
+            [np.ma.array(ma, mask=context[Context.COMMON_MASK]) for ma in  context[Context.MA_WARP_LIST]]
+
+        #plot_maps(warp_ma_masked_list, fn_list, title_text='30 m warped version with a common mask applied\n')
+        #plot_hists(warp_ma_masked_list, fn_list, title_text='30 m warped version with a common mask applied\n')
+        return  context[Context.MA_WARP_MASKED_LIST]
+
+    def getCommonMask(self, context):
+        self._validateParms(context, [Context.MA_WARP_LIST])
+
+        # ########################################
+        # # Align the CCDC and EVHR images, then take the intersection of the grid points
+        # ########################################
+        # Mask negative values in input
+        context[Context.MA_WARP_VALID_LIST] = \
+            [np.ma.masked_where(ma < 0, ma) for ma in context[Context.MA_WARP_LIST]]
+
+        common_mask = malib.common_mask(context[Context.MA_WARP_VALID_LIST])
+        return common_mask
+
+    def getMaskedArrays(self, context):
+        self._validateParms(context, [Context.FN_LIST])
+
+        # ########################################
+        # # Align the CCDC and EVHR images, then take the intersection of the grid points
+        # ########################################
+        context[Context.MA_LIST]  = [iolib.fn_getma(fn) for fn in context[Context.FN_LIST]]
+        return context[Context.MA_LIST]
+
+    def maskNegativeValues(self, context):
+        self._validateParms(context, [Context.MA_LIST])
+
+        warp_valid_ma_list= [np.ma.masked_where(ma < 0, ma) for ma in context[Context.MA_LIST]]
+        return warp_valid_ma_list
 
     def getIntersection(self, context):
         self._validateParms(context, [Context.FN_INTERSECTION_LIST])
@@ -188,6 +251,30 @@ class RasterLib(object):
         return warp_ds_list, warp_ma_list
 
     def getReprojection(self, context):
+        self._validateParms(context, [Context.FN_LIST,Context.FN_TARGET,Context.FN_TOA])
+
+        # ########################################
+        # # Align context[Context.FN_LIST[>0]] to context[Context.FN_LIST[0]] return masked arrays of reprojected pixels
+        # ########################################
+        warp_ds_list = warplib.memwarp_multi_fn(context[Context.FN_LIST],
+                                                res=str(context[Context.FN_TARGET]),
+                                                extent=str(context[Context.FN_TOA]),
+                                                t_srs=str(context[Context.FN_TOA]),
+                                                r='mode',
+                                                dst_ndv=self.get_ndv(str(context[Context.FN_TOA]),
+                                                                     ))
+        warp_ma_list = [iolib.ds_getma(ds) for ds in warp_ds_list]
+
+        # self._plot_lib.plot_maps2(warp_ma_list, context[Context.FN_LIST], title_text='30 m warped version\n')
+        # self._plot_lib.plot_hists2(warp_ma_list, context[Context.FN_LIST], title_text='30 m warped version\n')
+
+        ndv_list = [self.get_ndv(fn) for fn in context[Context.FN_LIST]]
+        print ([ma.get_fill_value() for ma in warp_ma_list])
+        print(ndv_list)
+
+        return warp_ds_list, warp_ma_list
+
+    def __getReprojection(self, context):
         self._validateParms(context, [Context.FN_LIST])
 
         # ########################################
@@ -198,7 +285,31 @@ class RasterLib(object):
         warp_ma_list = [iolib.ds_getma(ds) for ds in warp_ds_list]
         return warp_ds_list, warp_ma_list
 
+    def applyEVHRCloudmask(self, context):
+        self._validateParms(context,
+                            [Context.MA_WARP_LIST])
+
+        ccdc_warp_ma = context[Context.MA_WARP_LIST][0]
+        evhr_warp_ma = context[Context.MA_WARP_LIST][1]
+        cloudmask_warp_ma = context[Context.MA_WARP_LIST][2]
+        context[Context.MA_WARP_CLOUD_LIST] = [ccdc_warp_ma, evhr_warp_ma,
+                                        np.ma.masked_where(cloudmask_warp_ma == 1.0, cloudmask_warp_ma)]
+        return context[Context.MA_WARP_CLOUD_LIST]
+
     def prepareEVHRCloudmask(self, context):
+        self._validateParms(context,
+                            [Context.MA_WARP_LIST, Context.LIST_INDEX_CLOUDMASK])
+
+        # Mask out clouds
+        cloudmask_warp_ma = context[Context.MA_WARP_LIST][context[Context.LIST_INDEX_CLOUDMASK]]
+        cloudmaskWarpExternalBandMaArrayMasked = \
+            np.ma.masked_where(cloudmask_warp_ma == 1.0, cloudmask_warp_ma)
+        context[Context.MA_WARP_LIST][context[Context.LIST_INDEX_CLOUDMASK]] = \
+            cloudmaskWarpExternalBandMaArrayMasked
+
+        return cloudmaskWarpExternalBandMaArrayMasked
+
+    def _prepareEVHRCloudmask(self, context):
         self._validateParms(context,
                             [Context.MA_CLOUDMASK_DOWNSCALE])
 
@@ -302,7 +413,7 @@ class RasterLib(object):
 
     def performRegression(self, context):
         self._validateParms(context,
-                            [Context.DS_LIST, Context.LIST_BAND_PAIRS, Context.LIST_BAND_PAIR_INDICES,
+                            [Context.MA_WARP_LIST, Context.LIST_BAND_PAIRS, Context.LIST_BAND_PAIR_INDICES,
                              Context.REGRESSION_MODEL, Context.FN_LIST])
 
         bandPairIndicesList = context[Context.LIST_BAND_PAIR_INDICES]
@@ -311,7 +422,7 @@ class RasterLib(object):
 
         warp_ma_masked_band_series = [numBandPairs]
         sr_prediction_list = []
-        warp_ds_list = context[Context.DS_LIST]
+        warp_ds_list = context[Context.DS_WARP_LIST]
         bandNamePairList = list(ast.literal_eval(context[Context.LIST_BAND_PAIRS]))
         minWarning = 0
         firstBand = True
@@ -355,10 +466,16 @@ class RasterLib(object):
             bandPairIndices = bandPairIndicesList[bandPairIndex + 1]
 
             # Get 30m CCDC Masked Arrays
-            ccdcBandMaArray = iolib.ds_getma(warp_ds_list[context[Context.LIST_INDEX_TARGET]],
-                                             bandPairIndices[context[Context.LIST_INDEX_TARGET]])
-            evhrBandMaArray = iolib.ds_getma(warp_ds_list[context[Context.LIST_INDEX_TOA]],
-                                             bandPairIndices[context[Context.LIST_INDEX_TOA]])
+#           cloudmask_warp_ma = context[Context.MA_WARP_LIST][context[Context.LIST_INDEX_CLOUDMASK]]
+#            ccdcBandMaArray = [context[Context.MA_WARP_LIST][context[Context.LIST_INDEX_TARGET]]][bandPairIndices[context[Context.LIST_INDEX_TARGET]
+ #           evhrBandMaArray = [context[Context.MA_WARP_LIST][context[Context.LIST_INDEX_TOA]]][bandPairIndices[context[Context.LIST_INDEX_TARGET]
+#            evhrBandMaArray = context[Context.MA_WARP_LIST][context[Context.LIST_INDEX_TOA]]
+#              ccdcBandMaArray = iolib.ds_getma(warp_ds_list[context[Context.LIST_INDEX_TARGET]],
+#                                               bandPairIndices[context[Context.LIST_INDEX_TARGET]])
+#              evhrBandMaArray = iolib.ds_getma(warp_ds_list[context[Context.LIST_INDEX_TOA]],
+#                                               bandPairIndices[context[Context.LIST_INDEX_TOA]])
+            ccdcBandMaArray = iolib.ds_getma(warp_ds_list[0], bandPairIndices[0])
+            evhrBandMaArray = iolib.ds_getma(warp_ds_list[1], bandPairIndices[1])
 
             #  Create single mask for all bands based on Blue-band threshold values
             #  Assumes Blue-band is first indice pair, so collect mask on 1st iteration only.
@@ -377,9 +494,25 @@ class RasterLib(object):
             if (thMask == True):
                 evhrBandMaArray = evhrBandMaThresholdArray
                 warp_ma_band_list_all.append(evhrBandMaThresholdArray)
-            common_mask_band_all = malib.common_mask(warp_ma_band_list_all)
 
-            # Apply the 3-way common mask to the CCDC and EVHR bands
+            # TODO fix diagnostics
+            [print(ma.shape) for ma in warp_ma_band_list_all]
+            print([warp_ma.get_fill_value() for warp_ma in warp_ma_band_list_all])
+            print('Input array mins/maxs')
+            [print(f'input ma min: {ma.min()}') for ma in context[Context.MA_LIST]]
+            [print(f'input ma max: {ma.max()}') for ma in context[Context.MA_LIST]]
+            print('Warped array mins/maxs')
+            [print(f'warped ma min: {ma.min()}') for ma in warp_ma_band_list_all]
+            [print(f'warped ma max: {ma.max()}') for ma in warp_ma_band_list_all]
+
+            # Mask negative values in input
+            # TODO make negative value masking optional
+            warp_valid_ma_band_list_all = [np.ma.masked_where(ma < 0, ma) for ma in warp_ma_band_list_all]
+
+            # Create common mask
+            common_mask_band_all = malib.common_mask(warp_valid_ma_band_list_all)
+
+            # Apply the 3-way common mask to the CCDC and EVHR bands (effectively dropping unneeded Cloudmask)
             warp_ma_masked_band_list = [np.ma.array(ccdcBandMaArray, mask=common_mask_band_all),
                                         np.ma.array(evhrBandMaArray, mask=common_mask_band_all)]
 
@@ -407,21 +540,29 @@ class RasterLib(object):
             evhr_toa_band = warp_ma_masked_band_list[evhr_sr_index].ravel()
 
             ccdc_sr_data_only_band = ccdc_sr_band[ccdc_sr_band.mask == False]
+            ccdc_sr_data_only_band_reshaped = ccdc_sr_data_only_band.reshape(-1, 1)
             evhr_toa_data_only_band = evhr_toa_band[evhr_toa_band.mask == False]
             evhr_toa_data_only_band_reshaped = evhr_toa_data_only_band.reshape(-1, 1)
 
             # Perform regression fit based on model type (TARGET against TOA)
             if (context[Context.REGRESSION_MODEL] == Context.REGRESSOR_MODEL_ROBUST):
                 model_data_only_band = HuberRegressor().fit(
-                    evhr_toa_data_only_band_reshaped, ccdc_sr_data_only_band )
+                    evhr_toa_data_only_band_reshaped, ccdc_sr_data_only_band_reshaped )
             else:
                 model_data_only_band = LinearRegression().fit(
-                    evhr_toa_data_only_band.reshape(-1, 1), ccdc_sr_data_only_band )
+                    evhr_toa_data_only_band_reshaped, ccdc_sr_data_only_band_reshaped )
 
             self._plot_lib.trace(str(bandNamePairList[bandPairIndex]) + '= > intercept: ' + str(
                 model_data_only_band.intercept_) + ' slope: ' + str(model_data_only_band.coef_) + ' score: ' +
                           str(model_data_only_band.score(evhr_toa_data_only_band.reshape(-1, 1),
                                                          ccdc_sr_data_only_band)))
+
+            self._plot_lib.trace('Check the mins of the input and output...')
+            input_min = warp_ma_masked_band_list[evhr_sr_index].reshape(-1, 1).min()
+            self._plot_lib.trace("Check input TOA min: " + str(input_min))
+            self._plot_lib.trace("Check output prediction of SR for the input TOA min: " +
+                                  str(model_data_only_band.predict(input_min.reshape(-1, 1))))
+
             self._plot_lib.plot_fit(evhr_toa_data_only_band, ccdc_sr_data_only_band, model_data_only_band.coef_[0],
                              model_data_only_band.intercept_)
 
@@ -437,7 +578,7 @@ class RasterLib(object):
 
             # Get 2m EVHR Masked Arrays
 
-            ######## Double check this after Caps win!!!
+            ######## Double-checked this after Paul's srlite_warp_example Notebook
             evhrBandMaArrayRaw = iolib.fn_getma(context[Context.FN_TOA], bandPairIndices[evhr_sr_index])
 #            evhrBandMaArrayRaw = iolib.fn_getma(context[Context.FN_LIST][1], bandPairIndices[1])
             sr_prediction_band = model_data_only_band.predict(evhrBandMaArrayRaw.ravel().reshape(-1, 1))
@@ -458,10 +599,12 @@ class RasterLib(object):
             ########################################
             evhr_pre_post_ma_list = [evhrBandMaArrayRaw, evhr_sr_ma_band]
             compare_name_list = ['EVHR TOA', 'EVHR SR-Lite']
+ #           self._plot_lib.plot_compare(evhr_pre_post_ma_list, compare_name_list)
+ #           self._plot_lib.plot_maps2(evhr_pre_post_ma_list, compare_name_list, (10,50))
 
-            self._plot_lib.plot_histograms(evhr_pre_post_ma_list, context[Context.FN_LIST], figsize=(5, 3),
-                                    title=str(bandNamePairList[bandPairIndex]) + " EVHR TOA vs EVHR SR")
-            self._plot_lib.plot_maps(evhr_pre_post_ma_list, compare_name_list, figsize=(10, 50))
+            # self._plot_lib.plot_histograms(evhr_pre_post_ma_list, context[Context.FN_LIST], figsize=(5, 3),
+            #                         title=str(bandNamePairList[bandPairIndex]) + " EVHR TOA vs EVHR SR")
+            # self._plot_lib.plot_maps(evhr_pre_post_ma_list, compare_name_list, figsize=(10, 50))
 
             ########################################
             ##### Compare the original CCDC histogram with result (CCDC SR vs EVHR SR)
@@ -476,15 +619,16 @@ class RasterLib(object):
             ########################################
             ##### Compare the original EVHR TOA histogram with result (EVHR TOA vs EVHR SR)
             ########################################
-            evhr_srlite_delta_list = [evhr_pre_post_ma_list[1], evhr_pre_post_ma_list[1] - evhr_pre_post_ma_list[0]]
-            compare_name_list = ['EVHR TOA', 'EVHR SR-Lite']
-            self._plot_lib.plot_histograms(evhr_srlite_delta_list, context[Context.FN_LIST], figsize=(5, 3),
-                                    title=str(bandNamePairList[bandPairIndex]) + " EVHR TOA vs EVHR SR DELTA ")
-            self._plot_lib.plot_maps([evhr_pre_post_ma_list[1],
-                               evhr_pre_post_ma_list[1] - evhr_pre_post_ma_list[0]],
-                              [compare_name_list[1],
-                               str(bandNamePairList[bandPairIndex]) + ' Difference: TOA-SR-Lite'], (10, 50),
-                              cmap_list=['RdYlGn', 'RdBu'])
+            if False:
+                evhr_srlite_delta_list = [evhr_pre_post_ma_list[1], evhr_pre_post_ma_list[1] - evhr_pre_post_ma_list[0]]
+                compare_name_list = ['EVHR TOA', 'EVHR SR-Lite']
+                self._plot_lib.plot_histograms(evhr_srlite_delta_list, context[Context.FN_LIST], figsize=(5, 3),
+                                        title=str(bandNamePairList[bandPairIndex]) + " EVHR TOA vs EVHR SR DELTA ")
+                self._plot_lib.plot_maps([evhr_pre_post_ma_list[1],
+                                   evhr_pre_post_ma_list[1] - evhr_pre_post_ma_list[0]],
+                                  [compare_name_list[1],
+                                   str(bandNamePairList[bandPairIndex]) + ' Difference: TOA-SR-Lite'], (10, 50),
+                                  cmap_list=['RdYlGn', 'RdBu'])
             print(f"Finished with {str(bandNamePairList[bandPairIndex])} Band")
 
         return sr_prediction_list
@@ -493,9 +637,10 @@ class RasterLib(object):
     def createImage(self, context):
         self._validateParms(context, [Context.DIR_OUTPUT, Context.FN_PREFIX,
                                       Context.CLEAN_FLAG,
-                                      Context.BAND_NUM, Context.FN_SRC,
+                                      Context.FN_SRC,
                                       Context.FN_DEST,
-                                      Context.LIST_BAND_PAIRS, Context.PRED_LIST])
+                                      Context.LIST_BAND_PAIRS, Context.PRED_LIST,
+                                      Context.LIST_TOA_BANDS])
 
         ########################################
         # Create .tif image from band-based prediction layers
@@ -503,6 +648,12 @@ class RasterLib(object):
         self._plot_lib.trace(f"\nAppy coefficients to High Res File...\n   {str(context[Context.FN_SRC])}")
 
         now = datetime.now()  # current date and time
+
+        context[Context.FN_SUFFIX] = str(Context.FN_SRLITE_NONCOG_SUFFIX)
+        context[Context.BAND_NUM] = len(list(context[Context.LIST_TOA_BANDS]))
+        context[Context.BAND_DESCRIPTION_LIST] = list(context[Context.LIST_TOA_BANDS])
+        context[Context.COG_FLAG] = True
+        context[Context.TARGET_NODATA_VALUE] = int(Context.DEFAULT_NODATA_VALUE)
 
         #  Derive file names for intermediate files
         output_name = "{}/{}".format(
@@ -652,6 +803,15 @@ class RasterLib(object):
                        xRes=context[Context.TARGET_XRES] , yRes=context[Context.TARGET_YRES], outputBounds=extent)
         ds = None
 
+    def downscale(self, context):
+        self._validateParms(context, [Context.CLEAN_FLAG, Context.FN_DEST,
+                                      Context.FN_SRC])
+
+        self.removeFile(context[Context.FN_DEST], context[Context.CLEAN_FLAG])
+        if not (os.path.exists(context[Context.FN_DEST])):
+            self.translate(context)
+        self.getAttributes(str(context[Context.FN_DEST]), "Downscale Combo Plot")
+
     def translate(self, context):
         self._validateParms(context, [Context.CLEAN_FLAG, Context.FN_DEST,
                                       Context.FN_SRC,
@@ -659,9 +819,8 @@ class RasterLib(object):
 
         self.removeFile(context[Context.FN_DEST], context[Context.CLEAN_FLAG])
         ds = gdal.Translate(context[Context.FN_DEST], context[Context.FN_SRC],
-                       xRes=context[Context.TARGET_XRES] , yRes=context[Context.TARGET_YRES])
+                            xRes=context[Context.TARGET_XRES], yRes=context[Context.TARGET_YRES])
         ds = None
-
 
     def cog(self, context):
         self._validateParms(context, [Context.CLEAN_FLAG, Context.FN_DEST,
@@ -682,3 +841,45 @@ class RasterLib(object):
         bandMaThresholdRangeArray = np.ma.masked_where(bandMaThresholdMaxArray < min, bandMaThresholdMaxArray)
         self._plot_lib.trace(' threshold range median =' + str(np.ma.median(bandMaThresholdRangeArray)))
         return bandMaThresholdRangeArray
+
+    def get_ndv(self, r_fn):
+        with rasterio.open(r_fn) as src:
+            return src.profile['nodata']
+
+    def refresh(self, context):
+
+        #Restore handles to file pool and reset internal flags
+        if str(Context.DS_TOA_DOWNSCALE) in context:
+            context[Context.DS_TOA_DOWNSCALE] = None
+        if str(Context.DS_TARGET_DOWNSCALE) in context:
+            context[Context.DS_TARGET_DOWNSCALE] = None
+        if (eval(context[Context.CLOUD_MASK_FLAG])):
+            if str(Context.DS_CLOUDMASK_DOWNSCALE) in context:
+                context[Context.DS_CLOUDMASK_DOWNSCALE] = None
+            if str(Context.MA_CLOUDMASK_DOWNSCALE) in context:
+                context[Context.MA_CLOUDMASK_DOWNSCALE] = None
+
+        if str(Context.DS_LIST) in context:
+            if str(Context.LIST_INDEX_TOA) in context:
+                if (int(context[Context.LIST_INDEX_TOA]) > -1):
+                    context[Context.DS_LIST][context[Context.LIST_INDEX_TOA]] = None
+            if str(Context.LIST_INDEX_TARGET) in context:
+                if (int(context[Context.LIST_INDEX_TARGET]) > -1):
+                    context[Context.DS_LIST][context[Context.LIST_INDEX_TARGET]] = None
+            if str(Context.LIST_INDEX_CLOUDMASK) in context:
+                if (int(context[Context.LIST_INDEX_CLOUDMASK]) > -1):
+                    context[Context.DS_LIST][context[Context.LIST_INDEX_CLOUDMASK]] = None
+            context[Context.DS_LIST] = None
+
+        if str(Context.MA_LIST) in context:
+            if str(Context.LIST_INDEX_TOA) in context:
+                if (int(context[Context.LIST_INDEX_TOA]) > -1):
+                    context[Context.MA_LIST][context[Context.LIST_INDEX_TOA]] = None
+            if str(Context.LIST_INDEX_TARGET) in context:
+                if (int(context[Context.LIST_INDEX_TARGET]) > -1):
+                    context[Context.MA_LIST][context[Context.LIST_INDEX_TARGET]] = None
+            if str(Context.LIST_INDEX_CLOUDMASK) in context:
+                if (int(context[Context.LIST_INDEX_CLOUDMASK]) > -1):
+                    context[Context.MA_LIST][context[Context.LIST_INDEX_CLOUDMASK]] = None
+            context[Context.MA_LIST] = None
+

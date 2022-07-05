@@ -5,7 +5,7 @@ import sys
 import argparse  # system libraries
 from datetime import datetime
 from srlite.model.PlotLib import PlotLib
-
+from pathlib import Path
 # -----------------------------------------------------------------------------
 # class Context
 #
@@ -25,9 +25,15 @@ class Context(object):
     FN_LIST = 'fn_list'
     FN_INTERSECTION_LIST = 'fn_intersection_lilst'
     DS_LIST = 'ds_list'
+    DS_WARP_LIST = 'ds_warp_list'
     DS_INTERSECTION_LIST = 'ds_intersection_lilst'
     MA_LIST = 'ma_list'
+    MA_WARP_LIST = 'ma_warp_list'
+    MA_WARP_CLOUD_LIST = 'ma_warp_cloud_list'
+    MA_WARP_VALID_LIST = 'ma_warp_valid_list'
+    MA_WARP_MASKED_LIST = 'ma_warp_masked_list'
     PRED_LIST = 'pred_list'
+    COMMON_MASK = 'comman_mask'
 
     FN_TOA = 'fn_toa'
     FN_TOA_DOWNSCALE = 'fn_toa_downscale'
@@ -379,20 +385,28 @@ class Context(object):
  #       context[Context.FN_PREFIX] = "WV02_20200812_M1BS_10300100AB21A400"
 
         context[Context.FN_PREFIX] = str((prefix[1]).split("-toa.tif", 1)[0])
-        context[Context.FN_TOA] = os.path.join(context[Context.DIR_TOA] + '/' +
-                                               context[Context.FN_PREFIX] + context[Context.FN_TOA_SUFFIX])
+        # If TOA is a file instead of directory, assume all inputs are files also
+        if os.path.isfile(Path(context[Context.DIR_TOA])):
+            context[Context.FN_TOA] = context[Context.DIR_TOA]
+            context[Context.FN_TARGET] = context[Context.DIR_TARGET]
+            context[Context.FN_CLOUDMASK] = context[Context.DIR_CLOUDMASK]
+        else:
+            context[Context.FN_TOA] = os.path.join(context[Context.DIR_TOA] + '/' +
+                context[Context.FN_PREFIX] + context[Context.FN_TOA_SUFFIX])
+            context[Context.FN_TARGET] = os.path.join(context[Context.DIR_TARGET] + '/' +
+                context[Context.FN_PREFIX] + context[Context.FN_TARGET_SUFFIX])
+            context[Context.FN_CLOUDMASK] = os.path.join(context[Context.DIR_CLOUDMASK] + '/' +
+                context[Context.FN_PREFIX] + context[Context.FN_CLOUDMASK_SUFFIX])
+
+        # Name artifacts according to TOA prefix
         context[Context.FN_TOA_DOWNSCALE] = os.path.join(context[Context.DIR_OUTPUT] + '/' +
-                                               context[Context.FN_PREFIX] + self.FN_TOA_DOWNSCALE_SUFFIX)
-        context[Context.FN_TARGET] = os.path.join(context[Context.DIR_TARGET] + '/' +
-                                                context[Context.FN_PREFIX] + context[Context.FN_TARGET_SUFFIX])
+            context[Context.FN_PREFIX] + self.FN_TOA_DOWNSCALE_SUFFIX)
         context[Context.FN_TARGET_DOWNSCALE] = os.path.join(context[Context.DIR_OUTPUT] + '/' +
-                                                context[Context.FN_PREFIX] + self.FN_TARGET_DOWNSCALE_SUFFIX)
-        context[Context.FN_CLOUDMASK] = os.path.join(context[Context.DIR_CLOUDMASK] + '/' +
-                                                     context[Context.FN_PREFIX] + context[Context.FN_CLOUDMASK_SUFFIX])
+            context[Context.FN_PREFIX] + self.FN_TARGET_DOWNSCALE_SUFFIX)
         context[Context.FN_CLOUDMASK_DOWNSCALE] = os.path.join(context[Context.DIR_OUTPUT] + '/' +
-                                                     context[Context.FN_PREFIX] + self.FN_CLOUDMASK_DOWNSCALE_SUFFIX)
+            context[Context.FN_PREFIX] + self.FN_CLOUDMASK_DOWNSCALE_SUFFIX)
         context[Context.FN_COG] = os.path.join(context[Context.DIR_OUTPUT] + '/' +
-                                               context[Context.FN_PREFIX] + self.FN_SRLITE_SUFFIX)
+            context[Context.FN_PREFIX] + self.FN_SRLITE_SUFFIX)
 
         if not (os.path.exists(context[Context.FN_TOA])):
             raise FileNotFoundError("TOA File not found: {}".format(context[Context.FN_TOA]))
