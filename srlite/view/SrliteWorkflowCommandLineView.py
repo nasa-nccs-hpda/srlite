@@ -305,14 +305,34 @@ if __name__ == "__main__":
 #/adapt/nobackup/projects/ilab/data/srlite/cloudmask/Yukon_Delta/WV02_20150616_M1BS_103001004351F000-toa.cloudmask.v1.2.tif
     #
     # # New inputs
-    # r_fn_ccdc = os.path.join(maindir, 'ccdc/CCDC_ALL/WV02_20180527_M1BS_103001007E5F8400-ccdc.tif')
-    # r_fn_evhr = os.path.join(maindir, 'toa/Alaska/WV02_20180527_M1BS_103001007E5F8400-toa.tif')
-    # r_fn_cloud = os.path.join(maindir, 'cloudmask/Alaska/WV02_20180527_M1BS_103001007E5F8400-toa.cloudmask.v1.2.tif')
+#    r_fn_ccdc = os.path.join(maindir, 'ccdc/CCDC_ALL/WV02_20180527_M1BS_103001007E5F8400-ccdc.tif')
+#    r_fn_ccdc = os.path.join(maindir, 'ccdc/ccdc_v20220620/WV02_20180527_M1BS_103001007E5F8400-ccdc.tif')
+#    r_fn_evhr = os.path.join(maindir, 'toa/Alaska/WV02_20180527_M1BS_103001007E5F8400-toa.tif')
+#    r_fn_cloud = os.path.join(maindir, 'cloudmask/Alaska/WV02_20180527_M1BS_103001007E5F8400-toa.cloudmask.v1.2.tif')
     #
-    r_fn_ccdc = '/adapt/nobackup/people/iluser/projects/srlite/input/CCDC_v2/WV02_20150616_M1BS_103001004351F000-ccdc.tif'
-    r_fn_evhr = '/gpfsm/ccds01/nobackup/people/iluser/projects/srlite/input/TOA_v2/Yukon_Delta/5-toas/WV02_20150616_M1BS_103001004351F000-toa.tif'
-    r_fn_cloud = '/adapt/nobackup/projects/ilab/data/srlite/cloudmask/Yukon_Delta/WV02_20150616_M1BS_103001004351F000-toa.cloudmask.v1.2.tif'
+    # r_fn_ccdc = '/adapt/nobackup/people/iluser/projects/srlite/input/CCDC_v2/WV02_20150616_M1BS_103001004351F000-ccdc.tif'
+    # r_fn_evhr = '/gpfsm/ccds01/nobackup/people/iluser/projects/srlite/input/TOA_v2/Yukon_Delta/5-toas/WV02_20150616_M1BS_103001004351F000-toa.tif'
+    # r_fn_cloud = '/adapt/nobackup/projects/ilab/data/srlite/cloudmask/Yukon_Delta/WV02_20150616_M1BS_103001004351F000-toa.cloudmask.v1.2.tif'
     # fn_list =[r_fn_ccdc, r_fn_evhr, r_fn_cloud]
+
+    r_fn_ccdc = '/adapt/nobackup/projects/ilab/data/srlite/ccdc/ccdc_v20220620/WV02_20110825_M1BS_103001000C5BD600-ccdc.tif'
+    r_fn_evhr = '/adapt/nobackup/projects/ilab/data/srlite/toa/Alaska/WV02_20110825_M1BS_103001000C5BD600-toa.tif'
+    r_fn_cloud = '/adapt/nobackup/projects/ilab/data/srlite/cloudmask/Alaska/WV02_20110825_M1BS_103001000C5BD600-toa.cloudmask.v1.2.tif'
+
+#    r_fn_ccdc = '/adapt/nobackup/projects/ilab/data/srlite/ccdc/ccdc_v20220620/WV02_20150616_M1BS_103001004351F000-ccdc.tif'
+ #   r_fn_evhr = '/gpfsm/ccds01/nobackup/projects/ilab/data/srlite/toa/Yukon_Delta/WV02_20150616_M1BS_103001004351F000-toa.tif'
+ #   r_fn_cloud = '/gpfsm/ccds01/nobackup/projects/ilab/data/srlite/cloudmask/Yukon_Delta/WV02_20150616_M1BS_103001004351F000-toa.cloudmask.v1.2.tif'
+    #
+    # region = 'Yukon_Delta'
+    # scene = 'WV02_20150616_M1BS_103001004351F000'
+    # version = '20220710'
+    #
+    # cloudDir = os.path.join('/gpfsm/ccds01/nobackup/projects/ilab/data/srlite/cloudmask', region)
+    # evhrSrliteDir = os.path.join(
+    #     '/gpfsm/ccds01/nobackup/projects/ilab/data/srlite/products/srlite-0.9.10-07042022-mode-warp/07052022', region)
+    # ccdcDir = os.path.join('/gpfsm/ccds01/nobackup/projects/ilab/data/srlite/ccdc/ccdc_v20220620')
+    # evhrToaDir = os.path.join('/gpfsm/ccds01/nobackup/projects/ilab/data/srlite/toa', region)
+
     #
     # OUTDIR = '/adapt/nobackup/people/pmontesa/userfs02/projects/srlite/misc'
     # If not arguments specified, use the defaults
@@ -327,9 +347,9 @@ if __name__ == "__main__":
                 "-cloudmask_dir", r_fn_cloud,
                 "-bandpairs", "[['blue_ccdc', 'BAND-B'], ['green_ccdc', 'BAND-G'], ['red_ccdc', 'BAND-R'], ['nir_ccdc', 'BAND-N']]",
 #                "-bandpairs", "[['BAND-B', 'blue_ccdc'], ['BAND-G', 'green_ccdc'], ['BAND-R', 'red_ccdc'], ['BAND-N', 'nir_ccdc']]",
-                "-output_dir", "../../../output/Yukon_Delta/07042022-9.10",
+                "-output_dir", "../../../output/Yukon_Delta/07122022-9.11-rma",
                 "--debug", "1",
-                "--regressor", "simple",
+                "--regressor", "rma",
                 "--clean",
                 "--cloudmask",
              ]):

@@ -104,6 +104,7 @@ class Context(object):
     REGRESSION_MODEL = 'regressor'
     REGRESSOR_MODEL_SIMPLE = 'simple'
     REGRESSOR_MODEL_ROBUST = 'robust'
+    REGRESSOR_MODEL_RMA = 'rma'
 
     # Algorithm classes
     # ALGORITHM_CLASS = 'algorithm'
@@ -293,7 +294,7 @@ class Context(object):
                             required=False,
                             dest='regressor',
                             default='robust',
-                            choices=['simple', 'robust'],
+                            choices=['simple', 'robust', 'rma'],
                             help='Choose which regression algorithm to use')
 
         # parser.add_argument('--algorithm',
