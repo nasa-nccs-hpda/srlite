@@ -21,7 +21,7 @@ from pathlib import Path
 from srlite.model.Context import Context
 from srlite.model.RasterLib import RasterLib
 
-def main():
+def _rma_main():
 
     ##############################################
     # Default configuration values
@@ -71,7 +71,7 @@ def main():
                 if (eval(context[Context.CLOUD_MASK_FLAG])):
                     context[Context.FN_LIST].append(str(context[Context.FN_CLOUDMASK]))
                     context[Context.LIST_INDEX_CLOUDMASK] = 2
-                context[Context.DS_WARP_LIST], context[Context.MA_WARP_LIST] = rasterLib.getReprojection(context)
+                context[Context.DS_WARP_LIST], context[Context.MA_WARP_LIST] = rasterLib.getCcdcReprojection(context)
 
                 # Perform regression to capture coefficients from intersected pixels and apply to 2m EVHR
                 context[Context.PRED_LIST] = rasterLib.performRegression(context)
@@ -173,7 +173,7 @@ def main99plus():
     print("\nTotal Elapsed Time for " + str(context[Context.DIR_OUTPUT])  + ': ',
            (time.time() - start_time) / 60.0)  # time in min
 
-def __main99():
+def main():
 
     ##############################################
     # Default configuration values
@@ -210,65 +210,67 @@ def __main99():
                 rasterLib.getAttributeSnapshot(context)
 
                 # Define order indices for list processing
-                context[Context.LIST_INDEX_TOA] = 0
-                context[Context.LIST_INDEX_TARGET] = 1
+                context[Context.LIST_INDEX_TARGET] = 0
+                context[Context.LIST_INDEX_TOA] = 1
                 context[Context.LIST_INDEX_CLOUDMASK] = -1  # increment if cloudmask requested
 
-                #  Downscale EVHR TOA from 2m to 30m - suffix root name with '-toa-30m.tif')
-                context[Context.FN_SRC] = str(context[Context.FN_TOA])
-                context[Context.FN_DEST] = str(context[Context.FN_TOA_DOWNSCALE])
-                rasterLib.downscale(context)
+                # #  Downscale EVHR TOA from 2m to 30m - suffix root name with '-toa-30m.tif')
+                # context[Context.FN_SRC] = str(context[Context.FN_TOA])
+                # context[Context.FN_DEST] = str(context[Context.FN_TOA_DOWNSCALE])
+                # rasterLib.downscale(context)
+                #
+                # # Retrieve target attributes from downscaled TOA (for memwarp guidance)
+                # rasterLib.setTargetAttributes(context, context[Context.FN_TOA_DOWNSCALE])
 
-                # Retrieve target attributes from downscaled TOA (for memwarp guidance)
-                rasterLib.setTargetAttributes(context, context[Context.FN_TOA_DOWNSCALE])
+                #  Reproject TARGET (CCDC) to attributes of EVHR TOA Downscale  - use 'average' for resampling method
+                context[Context.FN_LIST] = [str(context[Context.FN_TARGET]), str(context[Context.FN_TOA])]
+                context[Context.TARGET_FN] = str(context[Context.FN_TOA])
+                context[Context.TARGET_SAMPLING_METHOD] = 'average'
+                context[Context.DS_WARP_LIST], context[Context.MA_WARP_LIST] = rasterLib.getReprojection(context)
 
-                #  Downscale TARGET to attributes of EVHR
-                context[Context.FN_SRC] = str(context[Context.FN_TARGET])
-                context[Context.FN_DEST] = str(context[Context.FN_TARGET_DOWNSCALE])
-                rasterLib.downscale(context)
-
-                #  Downscale cloudmask to attributes of EVHR TOA Downscale, translate not warp() to skip averaging)
+                #  Reproject cloudmask to attributes of EVHR TOA Downscale  - use 'mode' for resampling method
                 if (eval(context[Context.CLOUD_MASK_FLAG])):
-                    context[Context.FN_SRC] = str(context[Context.FN_CLOUDMASK])
-                    context[Context.FN_DEST] = str(context[Context.FN_CLOUDMASK_DOWNSCALE])
-                    rasterLib.downscale(context)
+                    context[Context.FN_LIST] = [str(context[Context.FN_CLOUDMASK])]
+                    context[Context.TARGET_FN] = str(context[Context.FN_TOA])
+                    context[Context.TARGET_SAMPLING_METHOD] = 'mode'
+                    context[Context.DS_WARP_CLOUD_LIST], context[Context.MA_WARP_CLOUD_LIST] = rasterLib.getReprojection(context)
                     context[Context.LIST_INDEX_CLOUDMASK] = 2
 
                 # Validate that input band name pairs exist in EVHR & CCDC files
-                context[Context.FN_LIST] = [str(context[Context.FN_TOA]), str(context[Context.FN_TARGET])]
+                context[Context.FN_LIST] = [str(context[Context.FN_TARGET]), str(context[Context.FN_TOA])]
                 context[Context.LIST_BAND_PAIR_INDICES] = rasterLib.getBandIndices(context)
 
-                # Reproject all other inputs to TOA to ensure equal number of samples
-                context[Context.FN_LIST] = [str(context[Context.FN_TOA_DOWNSCALE]), str(context[Context.FN_TARGET_DOWNSCALE])]
-                if (eval(context[Context.CLOUD_MASK_FLAG])):
-                    context[Context.FN_LIST].append(str(context[Context.FN_CLOUDMASK_DOWNSCALE]))
-                context[Context.DS_LIST], context[Context.MA_LIST] = rasterLib.getReprojection(context)
+                # # Reproject all other inputs to TOA to ensure equal number of samples
+                # context[Context.FN_LIST] = [str(context[Context.FN_TOA_DOWNSCALE]), str(context[Context.FN_TARGET_DOWNSCALE])]
+                # if (eval(context[Context.CLOUD_MASK_FLAG])):
+                #     context[Context.FN_LIST].append(str(context[Context.FN_CLOUDMASK_DOWNSCALE]))
+                # context[Context.DS_LIST], context[Context.MA_LIST] = rasterLib.getCcdcReprojection(context)
 
-                # Save reprojected masked array for target and cloudmask
-                context[Context.DS_TOA_DOWNSCALE] = \
-                    context[Context.DS_LIST][context[Context.LIST_INDEX_TOA]]
-                context[Context.DS_TARGET_DOWNSCALE] = \
-                    context[Context.DS_LIST][context[Context.LIST_INDEX_TARGET]]
-                context[Context.DS_CLOUDMASK_DOWNSCALE] = \
-                    context[Context.DS_LIST][context[Context.LIST_INDEX_CLOUDMASK]]
-                context[Context.MA_CLOUDMASK_DOWNSCALE] = \
-                    context[Context.MA_LIST][context[Context.LIST_INDEX_CLOUDMASK]]
-
-                # Get the common pixel intersection values of the EVHR & CCDC files (not cloudmask)
-                context[Context.DS_INTERSECTION_LIST] = [context[Context.DS_TOA_DOWNSCALE] ,
-                                            context[Context.DS_TARGET_DOWNSCALE]]
-                intersectedListDs, intersectedListMa = rasterLib.getIntersectionDs(context)
-
-                # Amend reprojected arrays with intersected arrays for TOA and TARGET
-                context[Context.DS_LIST][context[Context.LIST_INDEX_TOA]]  = \
-                    intersectedListDs[context[Context.LIST_INDEX_TOA] ]
-                context[Context.DS_LIST][context[Context.LIST_INDEX_TARGET]]  = \
-                    intersectedListDs[context[Context.LIST_INDEX_TARGET] ]
-                context[Context.MA_LIST][context[Context.LIST_INDEX_TOA] ] = \
-                    intersectedListMa[context[Context.LIST_INDEX_TOA] ]
-                context[Context.MA_LIST][context[Context.LIST_INDEX_TARGET]] = \
-                    intersectedListMa[context[Context.LIST_INDEX_TARGET]]
-
+                # # Save reprojected masked array for target and cloudmask
+                # context[Context.DS_TOA_DOWNSCALE] = \
+                #     context[Context.DS_LIST][context[Context.LIST_INDEX_TOA]]
+                # context[Context.DS_TARGET_DOWNSCALE] = \
+                #     context[Context.DS_LIST][context[Context.LIST_INDEX_TARGET]]
+                # context[Context.DS_CLOUDMASK_DOWNSCALE] = \
+                #     context[Context.DS_LIST][context[Context.LIST_INDEX_CLOUDMASK]]
+                # context[Context.MA_CLOUDMASK_DOWNSCALE] = \
+                #     context[Context.MA_LIST][context[Context.LIST_INDEX_CLOUDMASK]]
+                #
+                # # Get the common pixel intersection values of the EVHR & CCDC files (not cloudmask)
+                # context[Context.DS_INTERSECTION_LIST] = [context[Context.DS_TOA_DOWNSCALE] ,
+                #                             context[Context.DS_TARGET_DOWNSCALE]]
+                # intersectedListDs, intersectedListMa = rasterLib.getIntersectionDs(context)
+                #
+                # # Amend reprojected arrays with intersected arrays for TOA and TARGET
+                # context[Context.DS_LIST][context[Context.LIST_INDEX_TOA]]  = \
+                #     intersectedListDs[context[Context.LIST_INDEX_TOA] ]
+                # context[Context.DS_LIST][context[Context.LIST_INDEX_TARGET]]  = \
+                #     intersectedListDs[context[Context.LIST_INDEX_TARGET] ]
+                # context[Context.MA_LIST][context[Context.LIST_INDEX_TOA] ] = \
+                #     intersectedListMa[context[Context.LIST_INDEX_TOA] ]
+                # context[Context.MA_LIST][context[Context.LIST_INDEX_TARGET]] = \
+                #     intersectedListMa[context[Context.LIST_INDEX_TARGET]]
+                #
                 # Perform regression to capture coefficients from intersected pixels and apply to 2m EVHR
                 context[Context.PRED_LIST] = rasterLib.performRegression(context)
 
@@ -315,13 +317,14 @@ if __name__ == "__main__":
     # r_fn_cloud = '/adapt/nobackup/projects/ilab/data/srlite/cloudmask/Yukon_Delta/WV02_20150616_M1BS_103001004351F000-toa.cloudmask.v1.2.tif'
     # fn_list =[r_fn_ccdc, r_fn_evhr, r_fn_cloud]
 
-    r_fn_ccdc = '/adapt/nobackup/projects/ilab/data/srlite/ccdc/ccdc_v20220620/WV02_20110825_M1BS_103001000C5BD600-ccdc.tif'
-    r_fn_evhr = '/adapt/nobackup/projects/ilab/data/srlite/toa/Alaska/WV02_20110825_M1BS_103001000C5BD600-toa.tif'
-    r_fn_cloud = '/adapt/nobackup/projects/ilab/data/srlite/cloudmask/Alaska/WV02_20110825_M1BS_103001000C5BD600-toa.cloudmask.v1.2.tif'
+    # r_fn_ccdc = '/adapt/nobackup/projects/ilab/data/srlite/ccdc/ccdc_v20220620/WV02_20110825_M1BS_103001000C5BD600-ccdc.tif'
+    # r_fn_evhr = '/adapt/nobackup/projects/ilab/data/srlite/toa/Alaska/WV02_20110825_M1BS_103001000C5BD600-toa.tif'
+    # r_fn_cloud = '/adapt/nobackup/projects/ilab/data/srlite/cloudmask/Alaska/WV02_20110825_M1BS_103001000C5BD600-toa.cloudmask.v1.2.tif'
 
-#    r_fn_ccdc = '/adapt/nobackup/projects/ilab/data/srlite/ccdc/ccdc_v20220620/WV02_20150616_M1BS_103001004351F000-ccdc.tif'
- #   r_fn_evhr = '/gpfsm/ccds01/nobackup/projects/ilab/data/srlite/toa/Yukon_Delta/WV02_20150616_M1BS_103001004351F000-toa.tif'
- #   r_fn_cloud = '/gpfsm/ccds01/nobackup/projects/ilab/data/srlite/cloudmask/Yukon_Delta/WV02_20150616_M1BS_103001004351F000-toa.cloudmask.v1.2.tif'
+    r_fn_ccdc = '/adapt/nobackup/projects/ilab/data/srlite/ccdc/ccdc_v20220620/WV02_20150616_M1BS_103001004351F000-ccdc.tif'
+    r_fn_evhr = '/gpfsm/ccds01/nobackup/projects/ilab/data/srlite/toa/Yukon_Delta/WV02_20150616_M1BS_103001004351F000-toa.tif'
+    r_fn_cloud = '/gpfsm/ccds01/nobackup/projects/ilab/data/srlite/cloudmask/Yukon_Delta/WV02_20150616_M1BS_103001004351F000-toa.cloudmask.v1.2.tif'
+
     #
     # region = 'Yukon_Delta'
     # scene = 'WV02_20150616_M1BS_103001004351F000'
@@ -347,9 +350,9 @@ if __name__ == "__main__":
                 "-cloudmask_dir", r_fn_cloud,
                 "-bandpairs", "[['blue_ccdc', 'BAND-B'], ['green_ccdc', 'BAND-G'], ['red_ccdc', 'BAND-R'], ['nir_ccdc', 'BAND-N']]",
 #                "-bandpairs", "[['BAND-B', 'blue_ccdc'], ['BAND-G', 'green_ccdc'], ['BAND-R', 'red_ccdc'], ['BAND-N', 'nir_ccdc']]",
-                "-output_dir", "../../../output/Yukon_Delta/07122022-9.11-rma",
+                "-output_dir", "../../../output/Yukon_Delta/07152022-9.11-robust",
                 "--debug", "1",
-                "--regressor", "rma",
+                "--regressor", "robust",
                 "--clean",
                 "--cloudmask",
              ]):

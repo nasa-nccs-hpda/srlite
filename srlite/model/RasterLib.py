@@ -254,7 +254,7 @@ class RasterLib(object):
         warp_ma_list = [iolib.ds_getma(ds) for ds in warp_ds_list]
         return warp_ds_list, warp_ma_list
 
-    def getReprojection(self, context):
+    def getCcdcReprojection(self, context):
         self._validateParms(context, [Context.FN_LIST,Context.FN_TARGET,Context.FN_TOA])
 
         # ########################################
@@ -262,9 +262,9 @@ class RasterLib(object):
         # ########################################
         warp_ds_list = warplib.memwarp_multi_fn(context[Context.FN_LIST],
                                                 res=str(context[Context.FN_TARGET]),
-                                                extent=str(context[Context.FN_TOA]),
-                                                t_srs=str(context[Context.FN_TOA]),
-                                                r='mode',
+                                                extent=str(context[Context.FN_TARGET]),
+                                                t_srs=str(context[Context.FN_TARGET]),
+                                                r='average',
                                                 dst_ndv=self.get_ndv(str(context[Context.FN_TOA]),
                                                                      ))
         warp_ma_list = [iolib.ds_getma(ds) for ds in warp_ds_list]
@@ -274,6 +274,30 @@ class RasterLib(object):
 
         ndv_list = [self.get_ndv(fn) for fn in context[Context.FN_LIST]]
         print ([ma.get_fill_value() for ma in warp_ma_list])
+        print(ndv_list)
+
+        return warp_ds_list, warp_ma_list
+
+    def getReprojection(self, context):
+        self._validateParms(context, [Context.FN_LIST, Context.TARGET_FN, Context.TARGET_SAMPLING_METHOD])
+
+        # ########################################
+        # # Align context[Context.FN_LIST[>0]] to context[Context.FN_LIST[0]] return masked arrays of reprojected pixels
+        # ########################################
+        warp_ds_list = warplib.memwarp_multi_fn(context[Context.FN_LIST],
+                                                res=context[Context.TARGET_XRES],
+                                                extent=str(context[Context.TARGET_FN]),
+                                                t_srs=str(context[Context.TARGET_FN]),
+                                                r=context[Context.TARGET_SAMPLING_METHOD] ,
+                                                dst_ndv=self.get_ndv(str(context[Context.TARGET_FN]),
+                                                                     ))
+        warp_ma_list = [iolib.ds_getma(ds) for ds in warp_ds_list]
+
+        # self._plot_lib.plot_maps2(warp_ma_list, context[Context.FN_LIST], title_text='30 m warped version\n')
+        # self._plot_lib.plot_hists2(warp_ma_list, context[Context.FN_LIST], title_text='30 m warped version\n')
+
+        ndv_list = [self.get_ndv(fn) for fn in context[Context.FN_LIST]]
+        print([ma.get_fill_value() for ma in warp_ma_list])
         print(ndv_list)
 
         return warp_ds_list, warp_ma_list
@@ -305,11 +329,11 @@ class RasterLib(object):
                             [Context.MA_WARP_LIST, Context.LIST_INDEX_CLOUDMASK])
 
         # Mask out clouds
-        cloudmask_warp_ma = context[Context.MA_WARP_LIST][context[Context.LIST_INDEX_CLOUDMASK]]
+        cloudmask_warp_ma = context[Context.MA_WARP_CLOUD_LIST][0]
         cloudmaskWarpExternalBandMaArrayMasked = \
             np.ma.masked_where(cloudmask_warp_ma == 1.0, cloudmask_warp_ma)
-        context[Context.MA_WARP_LIST][context[Context.LIST_INDEX_CLOUDMASK]] = \
-            cloudmaskWarpExternalBandMaArrayMasked
+        # cloudmaskWarpExternalBandMaArrayMasked = \
+        #     np.ma.masked_where(cloudmask_warp_ma > 0.0, cloudmask_warp_ma)
 
         return cloudmaskWarpExternalBandMaArrayMasked
 
