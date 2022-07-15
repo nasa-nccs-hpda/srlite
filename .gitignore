@@ -132,3 +132,8 @@ dmypy.json
 *.tif
 *.xml
 *.sif
+/srlite/view/runAll.sh
+/srlite/view/runAllRma.sh
+/.idea/src.iml
+/.idea/shelf/Uncommitted_changes_before_Checkout_at_7_15_22,_5_06_AM_[Default_Changelist]/shelved.patch
+/.idea/shelf/Uncommitted_changes_before_rebase_[Default_Changelist]/shelved.patch
