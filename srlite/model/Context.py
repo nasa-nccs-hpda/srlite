@@ -23,10 +23,11 @@ class Context(object):
     FN_DEST = 'fn_dest'
     FN_SRC = 'fn_src'
     FN_LIST = 'fn_list'
-    FN_INTERSECTION_LIST = 'fn_intersection_lilst'
+    FN_INTERSECTION_LIST = 'fn_intersection_list'
     DS_LIST = 'ds_list'
     DS_WARP_LIST = 'ds_warp_list'
-    DS_INTERSECTION_LIST = 'ds_intersection_lilst'
+    DS_INTERSECTION_LIST = 'ds_intersection_list'
+    DS_WARP_CLOUD_LIST = 'ds_warp_cloud_list'
     MA_LIST = 'ma_list'
     MA_WARP_LIST = 'ma_warp_list'
     MA_WARP_CLOUD_LIST = 'ma_warp_cloud_list'
@@ -78,6 +79,7 @@ class Context(object):
     # Target vars and defaults
     TARGET_GEO_TRANSFORM = 'target_geo_transform'
     TARGET_EXTENT = 'target_extent'
+    TARGET_FN = 'target_fn'
     TARGET_XRES = 'target_xres'
     TARGET_YRES = 'target_yres'
     TARGET_PRJ = 'target_prj'
@@ -104,6 +106,7 @@ class Context(object):
     REGRESSION_MODEL = 'regressor'
     REGRESSOR_MODEL_SIMPLE = 'simple'
     REGRESSOR_MODEL_ROBUST = 'robust'
+    REGRESSOR_MODEL_RMA = 'rma'
 
     # Algorithm classes
     # ALGORITHM_CLASS = 'algorithm'
@@ -293,7 +296,7 @@ class Context(object):
                             required=False,
                             dest='regressor',
                             default='robust',
-                            choices=['simple', 'robust'],
+                            choices=['simple', 'robust', 'rma'],
                             help='Choose which regression algorithm to use')
 
         # parser.add_argument('--algorithm',

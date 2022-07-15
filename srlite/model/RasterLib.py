@@ -13,6 +13,10 @@ import numpy as np
 from srlite.model.Context import Context
 from sklearn.linear_model import HuberRegressor, LinearRegression
 
+#Not in current ilab kernel
+from pylr2 import regress2
+import pandas as pd
+
 # -----------------------------------------------------------------------------
 # class Context
 #
@@ -250,7 +254,7 @@ class RasterLib(object):
         warp_ma_list = [iolib.ds_getma(ds) for ds in warp_ds_list]
         return warp_ds_list, warp_ma_list
 
-    def getReprojection(self, context):
+    def getCcdcReprojection(self, context):
         self._validateParms(context, [Context.FN_LIST,Context.FN_TARGET,Context.FN_TOA])
 
         # ########################################
@@ -258,9 +262,9 @@ class RasterLib(object):
         # ########################################
         warp_ds_list = warplib.memwarp_multi_fn(context[Context.FN_LIST],
                                                 res=str(context[Context.FN_TARGET]),
-                                                extent=str(context[Context.FN_TOA]),
-                                                t_srs=str(context[Context.FN_TOA]),
-                                                r='mode',
+                                                extent=str(context[Context.FN_TARGET]),
+                                                t_srs=str(context[Context.FN_TARGET]),
+                                                r='average',
                                                 dst_ndv=self.get_ndv(str(context[Context.FN_TOA]),
                                                                      ))
         warp_ma_list = [iolib.ds_getma(ds) for ds in warp_ds_list]
@@ -270,6 +274,30 @@ class RasterLib(object):
 
         ndv_list = [self.get_ndv(fn) for fn in context[Context.FN_LIST]]
         print ([ma.get_fill_value() for ma in warp_ma_list])
+        print(ndv_list)
+
+        return warp_ds_list, warp_ma_list
+
+    def getReprojection(self, context):
+        self._validateParms(context, [Context.FN_LIST, Context.TARGET_FN, Context.TARGET_SAMPLING_METHOD])
+
+        # ########################################
+        # # Align context[Context.FN_LIST[>0]] to context[Context.FN_LIST[0]] return masked arrays of reprojected pixels
+        # ########################################
+        warp_ds_list = warplib.memwarp_multi_fn(context[Context.FN_LIST],
+                                                res=context[Context.TARGET_XRES],
+                                                extent=str(context[Context.TARGET_FN]),
+                                                t_srs=str(context[Context.TARGET_FN]),
+                                                r=context[Context.TARGET_SAMPLING_METHOD] ,
+                                                dst_ndv=self.get_ndv(str(context[Context.TARGET_FN]),
+                                                                     ))
+        warp_ma_list = [iolib.ds_getma(ds) for ds in warp_ds_list]
+
+        # self._plot_lib.plot_maps2(warp_ma_list, context[Context.FN_LIST], title_text='30 m warped version\n')
+        # self._plot_lib.plot_hists2(warp_ma_list, context[Context.FN_LIST], title_text='30 m warped version\n')
+
+        ndv_list = [self.get_ndv(fn) for fn in context[Context.FN_LIST]]
+        print([ma.get_fill_value() for ma in warp_ma_list])
         print(ndv_list)
 
         return warp_ds_list, warp_ma_list
@@ -301,11 +329,11 @@ class RasterLib(object):
                             [Context.MA_WARP_LIST, Context.LIST_INDEX_CLOUDMASK])
 
         # Mask out clouds
-        cloudmask_warp_ma = context[Context.MA_WARP_LIST][context[Context.LIST_INDEX_CLOUDMASK]]
+        cloudmask_warp_ma = context[Context.MA_WARP_CLOUD_LIST][0]
         cloudmaskWarpExternalBandMaArrayMasked = \
             np.ma.masked_where(cloudmask_warp_ma == 1.0, cloudmask_warp_ma)
-        context[Context.MA_WARP_LIST][context[Context.LIST_INDEX_CLOUDMASK]] = \
-            cloudmaskWarpExternalBandMaArrayMasked
+        # cloudmaskWarpExternalBandMaArrayMasked = \
+        #     np.ma.masked_where(cloudmask_warp_ma > 0.0, cloudmask_warp_ma)
 
         return cloudmaskWarpExternalBandMaArrayMasked
 
@@ -411,6 +439,17 @@ class RasterLib(object):
                                  title='cloudmaskWarpExternalBandMaArrayMasked')
         return cloudmaskWarpExternalBandMaArrayMasked
 
+    def ma2df(self, ma, product, band):
+        raveled = ma.ravel()
+        unmasked = raveled[raveled.mask == False]
+        df = pd.DataFrame(unmasked)
+        df.columns = [product + band]
+        df[product + band] = df[product + band] * 0.0001
+        # df.columns = ['Reflectance']
+        # df['Product'] = product
+        # df['Band'] = band
+        return df
+
     def performRegression(self, context):
         self._validateParms(context,
                             [Context.MA_WARP_LIST, Context.LIST_BAND_PAIRS, Context.LIST_BAND_PAIR_INDICES,
@@ -496,15 +535,15 @@ class RasterLib(object):
                 warp_ma_band_list_all.append(evhrBandMaThresholdArray)
 
             # TODO fix diagnostics
-            [print(ma.shape) for ma in warp_ma_band_list_all]
-            print([warp_ma.get_fill_value() for warp_ma in warp_ma_band_list_all])
-            print('Input array mins/maxs')
-            [print(f'input ma min: {ma.min()}') for ma in context[Context.MA_LIST]]
-            [print(f'input ma max: {ma.max()}') for ma in context[Context.MA_LIST]]
-            print('Warped array mins/maxs')
-            [print(f'warped ma min: {ma.min()}') for ma in warp_ma_band_list_all]
-            [print(f'warped ma max: {ma.max()}') for ma in warp_ma_band_list_all]
-
+            # [print(ma.shape) for ma in warp_ma_band_list_all]
+            # print([warp_ma.get_fill_value() for warp_ma in warp_ma_band_list_all])
+            # print('Input array mins/maxs')
+            # [print(f'input ma min: {ma.min()}') for ma in context[Context.MA_LIST]]
+            # [print(f'input ma max: {ma.max()}') for ma in context[Context.MA_LIST]]
+            # print('Warped array mins/maxs')
+            # [print(f'warped ma min: {ma.min()}') for ma in warp_ma_band_list_all]
+            # [print(f'warped ma max: {ma.max()}') for ma in warp_ma_band_list_all]
+            #
             # Mask negative values in input
             # TODO make negative value masking optional
             warp_valid_ma_band_list_all = [np.ma.masked_where(ma < 0, ma) for ma in warp_ma_band_list_all]
@@ -544,27 +583,57 @@ class RasterLib(object):
             evhr_toa_data_only_band = evhr_toa_band[evhr_toa_band.mask == False]
             evhr_toa_data_only_band_reshaped = evhr_toa_data_only_band.reshape(-1, 1)
 
+            self._plot_lib.trace('Check the mins of the input and output...')
+            input_min = warp_ma_masked_band_list[evhr_sr_index].reshape(-1, 1).min()
+            self._plot_lib.trace("Check input TOA min: " + str(input_min))
+
             # Perform regression fit based on model type (TARGET against TOA)
             if (context[Context.REGRESSION_MODEL] == Context.REGRESSOR_MODEL_ROBUST):
                 model_data_only_band = HuberRegressor().fit(
                     evhr_toa_data_only_band_reshaped, ccdc_sr_data_only_band_reshaped )
-            else:
+                self._plot_lib.trace(str(bandNamePairList[bandPairIndex]) + '= > intercept: ' + str(
+                    model_data_only_band.intercept_) + ' slope: ' + str(model_data_only_band.coef_) + ' score: ' +
+                                     str(model_data_only_band.score(evhr_toa_data_only_band.reshape(-1, 1),
+                                                                    ccdc_sr_data_only_band)))
+                self._plot_lib.plot_fit(evhr_toa_data_only_band, ccdc_sr_data_only_band, model_data_only_band.coef_[0],
+                                        model_data_only_band.intercept_)
+                self._plot_lib.trace("Check output prediction of SR for the input TOA min: " +
+                                     str(model_data_only_band.predict(input_min.reshape(-1, 1))))
+            elif (context[Context.REGRESSION_MODEL] == Context.REGRESSOR_MODEL_SIMPLE):
                 model_data_only_band = LinearRegression().fit(
                     evhr_toa_data_only_band_reshaped, ccdc_sr_data_only_band_reshaped )
+                self._plot_lib.trace(str(bandNamePairList[bandPairIndex]) + '= > intercept: ' + str(
+                    model_data_only_band.intercept_) + ' slope: ' + str(model_data_only_band.coef_) + ' score: ' +
+                                     str(model_data_only_band.score(evhr_toa_data_only_band.reshape(-1, 1),
+                                                                    ccdc_sr_data_only_band)))
+                self._plot_lib.trace("Check output prediction of SR for the input TOA min: " +
+                                     str(model_data_only_band.predict(input_min.reshape(-1, 1))))
+                self._plot_lib.plot_fit(evhr_toa_data_only_band, ccdc_sr_data_only_band, model_data_only_band.coef_[0],
+                                        model_data_only_band.intercept_)
+            elif (context[Context.REGRESSION_MODEL] == Context.REGRESSOR_MODEL_RMA):
+#                rma_model = regress2(np.array(x_var), np.array(y_var), _method_type_2="reduced major axis")
+                reflect_df = pd.concat([
+                    self.ma2df(evhr_toa_data_only_band, 'EVHR_TOA', 'Band'),
+                    self.ma2df(ccdc_sr_data_only_band, 'CCDC_SR', 'Band')],
+                    axis=1)
+                model_data_only_band = regress2(np.array(reflect_df['EVHR_TOABand']), np.array(reflect_df['CCDC_SRBand']),
+                                         _method_type_2="reduced major axis")
+#                model_data_only_band = regress2(np.array(evhr_toa_data_only_band),
+ #                                               np.array(ccdc_sr_data_only_band),  _method_type_2="reduced major axis")
+                rma_slope = model_data_only_band['slope']
+                rma_intercept = model_data_only_band['intercept']
+                self._plot_lib.trace(f'RMA Minimum Prediction Band slope intercept: {str(bandNamePairList[bandPairIndex])} {rma_slope} {rma_intercept}')
+                minReshaped = (input_min.reshape(-1, 1))
+                sr_prediction_min_band = (minReshaped * rma_slope) + (rma_intercept * 10000)
+                self._plot_lib.trace("Check output prediction of SR for the input TOA min: " +
+                                     str(sr_prediction_min_band))
+                # self._plot_lib.plot_fit(evhr_toa_data_only_band, ccdc_sr_data_only_band, model_data_only_band.coef_[0],
+                #                         model_data_only_band.intercept_)
+            else:
+                print('Invalid regressor specified %s' % context[Context.REGRESSION_MODEL] )
+                sys.exit(1)
 
-            self._plot_lib.trace(str(bandNamePairList[bandPairIndex]) + '= > intercept: ' + str(
-                model_data_only_band.intercept_) + ' slope: ' + str(model_data_only_band.coef_) + ' score: ' +
-                          str(model_data_only_band.score(evhr_toa_data_only_band.reshape(-1, 1),
-                                                         ccdc_sr_data_only_band)))
 
-            self._plot_lib.trace('Check the mins of the input and output...')
-            input_min = warp_ma_masked_band_list[evhr_sr_index].reshape(-1, 1).min()
-            self._plot_lib.trace("Check input TOA min: " + str(input_min))
-            self._plot_lib.trace("Check output prediction of SR for the input TOA min: " +
-                                  str(model_data_only_band.predict(input_min.reshape(-1, 1))))
-
-            self._plot_lib.plot_fit(evhr_toa_data_only_band, ccdc_sr_data_only_band, model_data_only_band.coef_[0],
-                             model_data_only_band.intercept_)
 
             ########################################
             # #### Apply the model to the original EVHR (2m) to predict surface reflectance
@@ -580,8 +649,18 @@ class RasterLib(object):
 
             ######## Double-checked this after Paul's srlite_warp_example Notebook
             evhrBandMaArrayRaw = iolib.fn_getma(context[Context.FN_TOA], bandPairIndices[evhr_sr_index])
-#            evhrBandMaArrayRaw = iolib.fn_getma(context[Context.FN_LIST][1], bandPairIndices[1])
-            sr_prediction_band = model_data_only_band.predict(evhrBandMaArrayRaw.ravel().reshape(-1, 1))
+            evhrBandMaArrayRawReshaped = evhrBandMaArrayRaw.ravel().reshape(-1, 1)
+
+ #           evhrBandMaArrayRaw = iolib.fn_getma(context[Context.FN_LIST][1], bandPairIndices[1])
+            if (context[Context.REGRESSION_MODEL] == Context.REGRESSOR_MODEL_RMA):
+                #evhr_srlite_rma_b = (warp_ma_masked_list[4] * rma_slope_b) + (rma_intercept_b * 10000)
+                rma_slope = model_data_only_band['slope']
+                rma_intercept = model_data_only_band['intercept']
+                self._plot_lib.trace(f'RMA Band slope intercept: {str(bandNamePairList[bandPairIndex])} {rma_slope} {rma_intercept}')
+                sr_prediction_band = (evhrBandMaArrayRaw * rma_slope) + (rma_intercept * 10000)
+            else:
+                sr_prediction_band = model_data_only_band.predict(evhrBandMaArrayRawReshaped)
+
             self._plot_lib.trace(f'Post-prediction shape : {sr_prediction_band.shape}')
 
             # Return to original shape and apply original mask
