@@ -6,6 +6,7 @@ import argparse  # system libraries
 from datetime import datetime
 from srlite.model.PlotLib import PlotLib
 from pathlib import Path
+import csv
 # -----------------------------------------------------------------------------
 # class Context
 #
@@ -127,10 +128,13 @@ class Context(object):
     LOG_FLAG = 'log_flag'
     CLEAN_FLAG = 'clean_flag'
     COG_FLAG = 'cog_flag'
+    CSV_FLAG = 'csv_flag'
+    CSV_WRITER = 'csv_writer'
 
     # Quality flag and list of values
     QUALITY_MASK_FLAG = 'qf_mask_flag'
     LIST_QUALITY_MASK = 'list_quality_mask'
+    POSITIVE_MASK_FLAG = 'positive_mask_flag'
 
     # Cloud mask flag
     CLOUD_MASK_FLAG = 'cloud_mask_flag'
@@ -144,6 +148,7 @@ class Context(object):
     context_dict = {}
     plotLib = None
     debug_level = 0
+    writer = None
 
     # -------------------------------------------------------------------------
     # __init__
@@ -179,6 +184,8 @@ class Context(object):
             # self.context_dict[Context.ALGORITHM_CLASS] = str(args.algorithm)
             self.context_dict[Context.STORAGE_TYPE] = str(args.storage)
             self.context_dict[Context.CLOUD_MASK_FLAG] = str(args.cmaskbool)
+            self.context_dict[Context.POSITIVE_MASK_FLAG] = str(args.pmaskbool)
+            self.context_dict[Context.CSV_FLAG] = str(args.csvbool)
             self.context_dict[Context.QUALITY_MASK_FLAG] = str(args.qfmaskbool)
             self.context_dict[Context.LIST_QUALITY_MASK] = str(args.qfmask_list)
 
@@ -210,6 +217,23 @@ class Context(object):
         plotLib.trace(f'Storage:    {self.context_dict[Context.STORAGE_TYPE]}')
         if (eval(self.context_dict[Context.CLOUD_MASK_FLAG] )):
             plotLib.trace(f'Cloud Mask:    {self.context_dict[Context.CLOUD_MASK_FLAG]}')
+        if (eval(self.context_dict[Context.POSITIVE_MASK_FLAG] )):
+            plotLib.trace(f'Positive Pixels Only Flag:    {self.context_dict[Context.POSITIVE_MASK_FLAG]}')
+        if (eval(self.context_dict[Context.CSV_FLAG] )):
+            plotLib.trace(f'CSV Flag:    {self.context_dict[Context.CSV_FLAG]}')
+            # Define the structure of the data
+            student_header = ['name', 'age', 'major', 'minor']
+            # Define the actual data
+            student_data = ['Jack', 23, 'Physics', 'Chemistry']
+
+            with open('srlite.csv', 'w') as file:
+                # 2. Create a CSV writer
+                writer = csv.writer(file)
+                # 3. Write data to the file
+                writer.writerow(student_header)
+                writer.writerow(student_data)
+            self.context_dict[Context.CSV_WRITER] = writer
+
         if (eval(self.context_dict[Context.QUALITY_MASK_FLAG])):
             plotLib.trace(f'Quality Mask:    {self.context_dict[Context.QUALITY_MASK_FLAG]}')
             plotLib.trace(f'Quality Mask Values:    {self.context_dict[Context.LIST_QUALITY_MASK]}')
@@ -305,6 +329,20 @@ class Context(object):
         #                     default='target',
         #                     choices=['target', 'landsat', 'threshold'],
         #                     help='Choose which algorithm to apply to regression')
+
+        parser.add_argument('--pmask',
+                            required=False,
+                            dest='pmaskbool',
+                            default=False,
+                            action='store_true',
+                            help='Suppress negative pixel values in reprojected bands')
+
+        parser.add_argument('--csv',
+                            required=False,
+                            dest='csvbool',
+                            default=False,
+                            action='store_true',
+                            help='Generate CSV file with runtime history')
 
         parser.add_argument('--storage',
                             required=False,
