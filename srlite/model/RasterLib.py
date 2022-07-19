@@ -332,8 +332,6 @@ class RasterLib(object):
         cloudmask_warp_ma = context[Context.MA_WARP_CLOUD_LIST][0]
         cloudmaskWarpExternalBandMaArrayMasked = \
             np.ma.masked_where(cloudmask_warp_ma == 1.0, cloudmask_warp_ma)
-        # cloudmaskWarpExternalBandMaArrayMasked = \
-        #     np.ma.masked_where(cloudmask_warp_ma > 0.0, cloudmask_warp_ma)
 
         return cloudmaskWarpExternalBandMaArrayMasked
 
@@ -450,6 +448,46 @@ class RasterLib(object):
         # df['Band'] = band
         return df
 
+    def prepareMasks(self, context):
+
+        # Get optional Cloudmask
+        if (eval(context[Context.CLOUD_MASK_FLAG])):
+            context['cloudmaskEVHRWarpExternalBandMaArrayMasked'] = self.prepareEVHRCloudmask(context)
+
+        # Get optional Quality flag mask
+        if (eval(context[Context.QUALITY_MASK_FLAG])):
+            context['cloudmaskQFWarpExternalBandMaArrayMasked'] = self.prepareQualityFlagMask(context)
+
+    def _getCommonMask(self, context, targetBandArray, toaBandArray):
+
+        context['evhrBandMaThresholdArray'] = None
+        #  Create a common mask that intersects the CCDC/QF, EVHR, and Cloudmasks - this will then be used to correct the input EVHR & CCDC/QF
+        warp_ma_band_list_all = [targetBandArray, toaBandArray]
+        if (eval(context[Context.CLOUD_MASK_FLAG])):
+            warp_ma_band_list_all.append(context['cloudmaskEVHRWarpExternalBandMaArrayMasked'])
+        if (eval(context[Context.QUALITY_MASK_FLAG])):
+            warp_ma_band_list_all.append(context['cloudmaskQFWarpExternalBandMaArrayMasked'])
+        if (eval(context[Context.THRESHOLD_MASK_FLAG])):
+            if (context['evhrBandMaThresholdArray']  == None):
+                #  Create single mask for all bands based on Blue-band threshold values
+                #  Assumes Blue-band is first indice pair, so collect mask on 1st iteration only.
+                context['evhrBandMaThresholdArray'] = self._applyThreshold(context[Context.THRESHOLD_MIN],
+                                                                           context[Context.THRESHOLD_MAX],
+                                                                           toaBandArray)
+                firstBand = False
+            warp_ma_band_list_all.append(context['evhrBandMaThresholdArray'])
+
+        # Mask negative values in input (if requested)
+        if (eval(context[Context.POSITIVE_MASK_FLAG])):
+            warp_valid_ma_band_list_all = [np.ma.masked_where(ma < 0, ma) for ma in warp_ma_band_list_all]
+        else:
+            warp_valid_ma_band_list_all = warp_ma_band_list_all
+
+        # Create common mask
+        common_mask_band_all = malib.common_mask(warp_valid_ma_band_list_all)
+
+        return common_mask_band_all
+
     def performRegression(self, context):
         self._validateParms(context,
                             [Context.MA_WARP_LIST, Context.LIST_BAND_PAIRS, Context.LIST_BAND_PAIR_INDICES,
@@ -459,36 +497,14 @@ class RasterLib(object):
         self._plot_lib.trace('bandPairIndicesList: ' + str(bandPairIndicesList))
         numBandPairs = len(bandPairIndicesList)
 
-        warp_ma_masked_band_series = [numBandPairs]
+#        warp_ma_masked_band_series = [numBandPairs]
         sr_prediction_list = []
         warp_ds_list = context[Context.DS_WARP_LIST]
         bandNamePairList = list(ast.literal_eval(context[Context.LIST_BAND_PAIRS]))
         minWarning = 0
         firstBand = True
 
-        cloudmaskEVHRWarpExternalBandMaArrayMasked = cloudmaskQFWarpExternalBandMaArrayMasked = None
-        # Get optional Cloudmask
-        cloudMask = False
-        if (eval(context[Context.CLOUD_MASK_FLAG])):
-            cloudMask = True
-            cloudmaskEVHRWarpExternalBandMaArrayMasked = self.prepareEVHRCloudmask(context)
-
-        # Get optional Quality flag mask
-        qfMask = False
-        if (eval(context[Context.QUALITY_MASK_FLAG] )):
-            qfMask = True
-            cloudmaskQFWarpExternalBandMaArrayMasked = self.prepareQualityFlagMask(context)
-
-        # Get optional Threshold mask
-        thMask = False
-        if (eval(context[Context.THRESHOLD_MASK_FLAG])):
-            thMask = True
-              # Apply user-specified threshold range for Blue Band pixel mask and apply to each band
-            evhrBandMaArrayThresholdMin = context[Context.THRESHOLD_MIN]
-            evhrBandMaArrayThresholdMax = context[Context.THRESHOLD_MAX]
-            self._plot_lib.trace(' evhrBandMaArrayThresholdMin = ' + str(evhrBandMaArrayThresholdMin))
-            self._plot_lib.trace(' evhrBandMaArrayThresholdMax = ' + str(evhrBandMaArrayThresholdMax))
-            minWarning = evhrBandMaArrayThresholdMin
+        self.prepareMasks(context)
 
         ########################################
         # ### FOR EACH BAND PAIR,
@@ -504,40 +520,41 @@ class RasterLib(object):
             # Retrieve band pair
             bandPairIndices = bandPairIndicesList[bandPairIndex + 1]
 
-            # Get 30m CCDC Masked Arrays
-            ccdcBandMaArray = iolib.ds_getma(warp_ds_list[0], bandPairIndices[0])
-            evhrBandMaArray = iolib.ds_getma(warp_ds_list[1], bandPairIndices[1])
+            # Get 30m EVHR/CCDC Masked Arrays
+            targetBandMaArray = iolib.ds_getma(warp_ds_list[0], bandPairIndices[0])
+            toaBandMaArray = iolib.ds_getma(warp_ds_list[1], bandPairIndices[1])
 
-            #  Create single mask for all bands based on Blue-band threshold values
-            #  Assumes Blue-band is first indice pair, so collect mask on 1st iteration only.
-            if (thMask == True):
-                if (firstBand == True):
-                    evhrBandMaThresholdArray = self._applyThreshold(evhrBandMaArrayThresholdMin, evhrBandMaArrayThresholdMax,
-                                                               evhrBandMaArray)
-                    firstBand = False
+            # #  Create a common mask that intersects the CCDC/QF, EVHR, and Cloudmasks - this will then be used to correct the input EVHR & CCDC/QF
+            # warp_ma_band_list_all = [ccdcBandMaArray, evhrBandMaArray]
+            # if (eval(context[Context.CLOUD_MASK_FLAG])):
+            #     warp_ma_band_list_all.append(context['cloudmaskEVHRWarpExternalBandMaArrayMasked'])
+            # if (eval(context[Context.QUALITY_MASK_FLAG])):
+            #     warp_ma_band_list_all.append(context['cloudmaskQFWarpExternalBandMaArrayMasked'])
+            # if (eval(context[Context.THRESHOLD_MASK_FLAG])):
+            #     if (firstBand == True):
+            #         #  Create single mask for all bands based on Blue-band threshold values
+            #         #  Assumes Blue-band is first indice pair, so collect mask on 1st iteration only.
+            #         context['evhrBandMaThresholdArray'] = self._applyThreshold(context[Context.THRESHOLD_MIN],
+            #                                                 context[Context.THRESHOLD_MAX],
+            #                                                 evhrBandMaArray)
+            #         firstBand = False
+            #     warp_ma_band_list_all.append(context['evhrBandMaThresholdArray'])
+            #
+            # # Mask negative values in input (if requested)
+            # if (eval(context[Context.POSITIVE_MASK_FLAG])):
+            #     warp_valid_ma_band_list_all = [np.ma.masked_where(ma < 0, ma) for ma in warp_ma_band_list_all]
+            # else:
+            #     warp_valid_ma_band_list_all = warp_ma_band_list_all
+            #
+            # # Create common mask
+            # common_mask_band_all = malib.common_mask(warp_valid_ma_band_list_all)
 
-            #  Create a common mask that intersects the CCDC/QF, EVHR, and Cloudmasks - this will then be used to correct the input EVHR & CCDC/QF
-            warp_ma_band_list_all = [ccdcBandMaArray, evhrBandMaArray]
-            if (cloudMask == True):
-                warp_ma_band_list_all.append(cloudmaskEVHRWarpExternalBandMaArrayMasked)
-            if (qfMask == True):
-                warp_ma_band_list_all.append(cloudmaskQFWarpExternalBandMaArrayMasked)
-            if (thMask == True):
-                evhrBandMaArray = evhrBandMaThresholdArray
-                warp_ma_band_list_all.append(evhrBandMaThresholdArray)
-
-            # Mask negative values in input (if requested)
-            if (eval(context[Context.POSITIVE_MASK_FLAG])):
-                warp_valid_ma_band_list_all = [np.ma.masked_where(ma < 0, ma) for ma in warp_ma_band_list_all]
-            else:
-                warp_valid_ma_band_list_all = warp_ma_band_list_all
-
-            # Create common mask
-            common_mask_band_all = malib.common_mask(warp_valid_ma_band_list_all)
+            # Create common mask based on user-specified list (e.g., cloudmask, threshold, QF)
+            common_mask_band_all = self._getCommonMask(context, targetBandMaArray, toaBandMaArray)
 
             # Apply the 3-way common mask to the CCDC and EVHR bands (effectively dropping unneeded Cloudmask)
-            warp_ma_masked_band_list = [np.ma.array(ccdcBandMaArray, mask=common_mask_band_all),
-                                        np.ma.array(evhrBandMaArray, mask=common_mask_band_all)]
+            warp_ma_masked_band_list = [np.ma.array(targetBandMaArray, mask=common_mask_band_all),
+                                        np.ma.array(toaBandMaArray, mask=common_mask_band_all)]
 
             # Check the mins of each ma - they should be greater than 0
             for j, ma in enumerate(warp_ma_masked_band_list):
@@ -545,12 +562,9 @@ class RasterLib(object):
                 if (ma.min() < minWarning):
                     self._plot_lib.trace("Warning: Masked array values should be larger than " + str(minWarning))
 #                    exit(1)
-            self._plot_lib.plot_maps(warp_ma_masked_band_list, context[Context.FN_LIST], figsize=(10, 5),
-                              title=str(bandNamePairList[bandPairIndex]) + ' Reflectance (%)')
-            self._plot_lib.plot_histograms(warp_ma_masked_band_list, context[Context.FN_LIST], figsize=(10, 3),
-                                    title=str(bandNamePairList[bandPairIndex]) + " BAND COMMON ARRAY")
 
-            warp_ma_masked_band_series.append(warp_ma_masked_band_list)
+            ########### save prediction for each band #############
+#            warp_ma_masked_band_series.append(warp_ma_masked_band_list)
 
             ########################################
             # ### WARPED MASKED ARRAY WITH COMMON MASK, DATA VALUES ONLY
@@ -567,8 +581,8 @@ class RasterLib(object):
             evhr_toa_data_only_band = evhr_toa_band[evhr_toa_band.mask == False]
             evhr_toa_data_only_band_reshaped = evhr_toa_data_only_band.reshape(-1, 1)
 
-            input_min = warp_ma_masked_band_list[evhr_sr_index].reshape(-1, 1).min()
-            self._plot_lib.trace("Check input TOA min: " + str(input_min))
+#            input_min = warp_ma_masked_band_list[evhr_sr_index].reshape(-1, 1).min()
+#            self._plot_lib.trace("Check input TOA min: " + str(input_min))
 
             # common metadata
             band = str(bandNamePairList[bandPairIndex])
@@ -576,8 +590,8 @@ class RasterLib(object):
             # Perform regression fit based on model type (TARGET against TOA)
 
             # Get 2m EVHR Masked Arrays
-            evhrBandMaArrayRaw = iolib.fn_getma(context[Context.FN_TOA], bandPairIndices[evhr_sr_index])
-            evhrBandMaArrayRawReshaped = evhrBandMaArrayRaw.ravel().reshape(-1, 1)
+            toaBandMaArrayRaw = iolib.fn_getma(context[Context.FN_TOA], bandPairIndices[evhr_sr_index])
+            toaBandMaArrayRawReshaped = toaBandMaArrayRaw.ravel().reshape(-1, 1)
 
             ####################
             ### Huber (robust) Regressor
@@ -592,7 +606,7 @@ class RasterLib(object):
                 intercept = model_data_only_band.intercept_
                 slope = model_data_only_band.coef_
                 score = model_data_only_band.score(evhr_toa_data_only_band.reshape(-1, 1), ccdc_sr_data_only_band)
-                sr_prediction_band = model_data_only_band.predict(evhrBandMaArrayRawReshaped)
+                sr_prediction_band = model_data_only_band.predict(toaBandMaArrayRawReshaped)
 
                 self._plot_lib.trace(str(bandNamePairList[bandPairIndex]) + '= > intercept: ' + str(intercept)
                     + ' slope: ' + str(slope) + ' score: ' + str(score))
@@ -608,7 +622,7 @@ class RasterLib(object):
                 intercept = model_data_only_band.intercept_
                 slope = model_data_only_band.coef_
                 score = model_data_only_band.score(evhr_toa_data_only_band.reshape(-1, 1), ccdc_sr_data_only_band)
-                sr_prediction_band = model_data_only_band.predict(evhrBandMaArrayRawReshaped)
+                sr_prediction_band = model_data_only_band.predict(toaBandMaArrayRawReshaped)
 
                 self._plot_lib.trace(str(bandNamePairList[bandPairIndex]) + '= > intercept: ' + str(intercept)
                     + ' slope: ' + str(slope) + ' score: ' + str(score))
@@ -628,20 +642,12 @@ class RasterLib(object):
                 slope = model_data_only_band['slope']
                 intercept = model_data_only_band['intercept']
 
-                self._plot_lib.trace(f'RMA Minimum Prediction Band slope intercept: {str(bandNamePairList[bandPairIndex])} {slope} {intercept}')
-                minReshaped = (input_min.reshape(-1, 1))
-                sr_prediction_min_band = (minReshaped * slope) + (intercept * 10000)
-
-                self._plot_lib.trace("Check output prediction of SR for the input TOA min: " + str(sr_prediction_min_band))
-
                 self._plot_lib.trace(f'RMA Band slope intercept: {str(bandNamePairList[bandPairIndex])} {slope} {intercept}')
-                sr_prediction_band = (evhrBandMaArrayRaw * slope) + (intercept * 10000)
+                sr_prediction_band = (toaBandMaArrayRaw * slope) + (intercept * 10000)
 
             else:
                 print('Invalid regressor specified %s' % context[Context.REGRESSION_MODEL] )
                 sys.exit(1)
-
-            self._plot_lib.trace("Current prediction of SR for the input TOA : " + str(sr_prediction_band[0]))
 
             ########################################
             # #### Apply the model to the original EVHR (2m) to predict surface reflectance
@@ -649,35 +655,15 @@ class RasterLib(object):
             self._plot_lib.trace(
                 f'Applying model to {str(bandNamePairList[bandPairIndex])} in file '
                 f'{os.path.basename(context[Context.FN_LIST][context[Context.LIST_INDEX_TOA]])}')
-            self._plot_lib.trace(f'Input masked array shape: {evhrBandMaArray.shape}')
-
- #            # Get 2m EVHR Masked Arrays
- #
- #            ######## Double-checked this after Paul's srlite_warp_example Notebook
- #            evhrBandMaArrayRaw = iolib.fn_getma(context[Context.FN_TOA], bandPairIndices[evhr_sr_index])
- #            evhrBandMaArrayRawReshaped = evhrBandMaArrayRaw.ravel().reshape(-1, 1)
- #
- # #           evhrBandMaArrayRaw = iolib.fn_getma(context[Context.FN_LIST][1], bandPairIndices[1])
- #            if (context[Context.REGRESSION_MODEL] == Context.REGRESSOR_MODEL_RMA):
- #                #evhr_srlite_rma_b = (warp_ma_masked_list[4] * rma_slope_b) + (rma_intercept_b * 10000)
- #                rma_slope = model_data_only_band['slope']
- #                rma_intercept = model_data_only_band['intercept']
- #                self._plot_lib.trace(f'RMA Band slope intercept: {str(bandNamePairList[bandPairIndex])} {rma_slope} {rma_intercept}')
- #                sr_prediction_band = (evhrBandMaArrayRaw * rma_slope) + (rma_intercept * 10000)
- #            else:
- #                sr_prediction_band = model_data_only_band.predict(evhrBandMaArrayRawReshaped)
- #
- #            self._plot_lib.trace(f'Post-prediction shape : {sr_prediction_band.shape}')
 
             # Return to original shape and apply original mask
-            orig_dims = evhrBandMaArrayRaw.shape
-            evhr_sr_ma_band = np.ma.array(sr_prediction_band.reshape(orig_dims), mask=evhrBandMaArrayRaw.mask)
+            toa_sr_ma_band = np.ma.array(sr_prediction_band.reshape(toaBandMaArrayRaw.shape), mask=toaBandMaArrayRaw.mask)
 
             # Check resulting ma
-            self._plot_lib.trace(f'Final masked array shape: {evhr_sr_ma_band.shape}')
+            self._plot_lib.trace(f'Input masked array shape: {toaBandMaArray.shape} and Final masked array shape: {toa_sr_ma_band.shape}')
 
-            ########### save prediction #############
-            sr_prediction_list.append(evhr_sr_ma_band)
+            ########### save prediction for each band #############
+            sr_prediction_list.append(toa_sr_ma_band)
 
             print(f"Finished with {str(bandNamePairList[bandPairIndex])} Band")
 
