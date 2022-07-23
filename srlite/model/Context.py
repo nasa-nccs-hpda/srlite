@@ -68,6 +68,7 @@ class Context(object):
     LIST_BAND_PAIRS = 'list_band_pairs'
     LIST_BAND_PAIR_INDICES = 'list_band_pairs_indices'
     LIST_TOA_BANDS = 'list_toa_bands'
+    LIST_TARGET_BANDS = 'list_target_bands'
     BAND_NUM = 'band_num'
     BAND_DESCRIPTION_LIST= 'band_description_list'
 
@@ -264,7 +265,7 @@ class Context(object):
             default=None, help="Specify directory path containing TARGET files."
         )
         parser.add_argument(
-            "-cloudmask_dir", "--input-cloudmask-dir", type=str, required=True, dest='cloudmask_dir',
+            "-cloudmask_dir", "--input-cloudmask-dir", type=str, required=False, dest='cloudmask_dir',
             default=None, help="Specify directory path containing Cloudmask files."
         )
         parser.add_argument(
@@ -454,9 +455,10 @@ class Context(object):
         if not (os.path.exists(context[Context.FN_TARGET])):
             self.plot_lib.trace("Processing: " + context[Context.FN_TOA])
             raise FileNotFoundError("TARGET File not found: {}".format(context[Context.FN_TARGET]))
-        if not (os.path.exists(context[Context.FN_CLOUDMASK])):
-            self.plot_lib.trace("Processing: " + context[Context.FN_TOA])
-            raise FileNotFoundError("Cloudmask File not found: {}".format(context[Context.FN_CLOUDMASK]))
+        if (eval(self.context_dict[Context.CLOUD_MASK_FLAG] )):
+            if not (os.path.exists(context[Context.FN_CLOUDMASK])):
+                self.plot_lib.trace("Processing: " + context[Context.FN_TOA])
+                raise FileNotFoundError("Cloudmask File not found: {}".format(context[Context.FN_CLOUDMASK]))
 
         return context
 

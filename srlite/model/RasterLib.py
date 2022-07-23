@@ -58,6 +58,13 @@ class RasterLib(object):
                 print("Error: Missing required parameter: " + str(parm))
                 exit(1)
 
+    def _representsInt(self, s):
+        try:
+            int(s)
+            return True
+        except ValueError:
+            return False
+
     def getBandIndices(self, context):
         self._validateParms(context, [Context.LIST_BAND_PAIRS, Context.FN_LIST])
         """
@@ -75,6 +82,7 @@ class RasterLib(object):
         numBandPairs = len(bandNamePairList)
         bandIndices = [numBandPairs]
         toaBandNames = []
+        targetBandNames = []
 
         for bandPairIndex in range(0, numBandPairs):
 
@@ -86,6 +94,9 @@ class RasterLib(object):
                 band = ccdcDs.GetRasterBand(ccdcIndex)
                 bandDescription = band.GetDescription()
                 bandName = currentBandPair[context[Context.LIST_INDEX_TARGET]]
+                if (self._representsInt(bandName)):
+                    ccdcBandIndex = int(bandName)
+                    break
                 if len(bandDescription) == 0:
                     ccdcBandIndex = bandPairIndex + 1
                     self._plot_lib.trace(f"Band has no description {bandName} - assume index of current band  {ccdcBandIndex}")
@@ -100,24 +111,30 @@ class RasterLib(object):
                 band = evhrDs.GetRasterBand(evhrIndex)
                 bandDescription = band.GetDescription()
                 bandName = currentBandPair[context[Context.LIST_INDEX_TOA]]
-                if len(bandDescription) == 0:
-                    evhrBandIndex = bandPairIndex + 1
-                    self._plot_lib.trace(f"Band has no description {bandName} - assume index of current band  {evhrBandIndex}")
+                if (self._representsInt(bandName)):
+                    evhrBandIndex = int(bandName)
                     break
                 else:
-                    if (bandDescription == bandName):
-                        evhrBandIndex = evhrIndex
+                    if len(bandDescription) == 0:
+                        evhrBandIndex = bandPairIndex + 1
+                        self._plot_lib.trace(f"Band has no description {bandName} - assume index of current band  {evhrBandIndex}")
                         break
+                    else:
+                        if (bandDescription == bandName):
+                            evhrBandIndex = evhrIndex
+                            break
 
             if ((ccdcBandIndex == -1) or (evhrBandIndex == -1)):
                 ccdcDs = evhrDs = None
                 self._plot_lib.trace(f"Invalid band pairs - verify correct name and case {currentBandPair}")
                 exit(f"Invalid band pairs - verify correct name and case {currentBandPair}")
 
-            bandIndices.append([ccdcIndex, evhrIndex])
+            bandIndices.append([ccdcBandIndex, evhrBandIndex])
             toaBandNames.append(currentBandPair[1])
+            targetBandNames.append(currentBandPair[0])
 
         context[Context.LIST_TOA_BANDS] = toaBandNames
+        context[Context.LIST_TARGET_BANDS] = targetBandNames
 
         ccdcDs = evhrDs = None
         self._plot_lib.trace('validated bandIndices=' + str(bandIndices))
@@ -775,13 +792,11 @@ class RasterLib(object):
         meta.update(count=numBandPairs)
 
         meta.update({
-#            "dtype": context[Context.TARGET_DTYPE],
             "nodata": context[Context.TARGET_NODATA_VALUE],
             "descriptions": context[Context.BAND_DESCRIPTION_LIST]
         })
 
         band_data_list = context[Context.PRED_LIST]
-#        bandNamePairList = list(ast.literal_eval(context[Context.LIST_BAND_PAIRS]))
         band_description_list = list(context[Context.BAND_DESCRIPTION_LIST])
 
         ########################################
@@ -790,7 +805,7 @@ class RasterLib(object):
         with rasterio.open(output_name, 'w', **meta) as dst:
             for id in range(0, numBandPairs):
                 bandPrediction = band_data_list[id]
-                dst.set_band_description(id+1, band_description_list[id])
+                dst.set_band_description(id+1, str(band_description_list[id]))
                 bandPrediction1 = np.ma.masked_values(bandPrediction, context[Context.TARGET_NODATA_VALUE])
                 dst.write_band(id+1, bandPrediction1)
 
