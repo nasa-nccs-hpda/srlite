@@ -13,9 +13,10 @@ import numpy as np
 from srlite.model.Context import Context
 from sklearn.linear_model import HuberRegressor, LinearRegression
 
-#Not in current ilab kernel
+#Not in current ilab kernel (or introduced from diagnostics
 from pylr2 import regress2
 import pandas as pd
+import sklearn
 
 # -----------------------------------------------------------------------------
 # class Context
@@ -488,21 +489,182 @@ class RasterLib(object):
 
         return common_mask_band_all
 
-    def performRegression(self, context):
+    def predictSurfaceReflectance(self, context, band_name, toa_hr_band, target_sr_band, toa_sr_band):
+
+        # Perform regression fit based on model type (TARGET against TOA)
+        target_sr_band = target_sr_band.ravel()
+        toa_sr_band = toa_sr_band.ravel()
+        sr_prediction_band = None
+        model_data_only_band = None
+
+        target_sr_data_only_band = target_sr_band[target_sr_band.mask == False]
+        target_sr_data_only_band_reshaped = target_sr_data_only_band.reshape(-1, 1)
+        toa_sr_data_only_band = toa_sr_band[toa_sr_band.mask == False]
+        toa_sr_data_only_band_reshaped = toa_sr_data_only_band.reshape(-1, 1)
+
+        ####################
+        ### Huber (robust) Regressor
+        ####################
+        if (context[Context.REGRESSION_MODEL] == Context.REGRESSOR_MODEL_ROBUST):
+            # ravel the Y band (e.g., CCDC) - /home/gtamkin/.conda/envs/ilab_gt/lib/python3.7/site-packages/sklearn/utils/validation.py:993: DataConversion
+            # Warning: A column-vector y was passed when a 1d array was expected. Please change the shape of y to (n_samples, ), for example using ravel().
+            model_data_only_band = HuberRegressor().fit(
+                toa_sr_data_only_band_reshaped, target_sr_data_only_band_reshaped.ravel())
+
+            #  band-specific metadata
+            intercept = model_data_only_band.intercept_
+            slope = model_data_only_band.coef_
+            score = model_data_only_band.score(toa_sr_data_only_band.reshape(-1, 1), target_sr_data_only_band)
+            sr_prediction_band = model_data_only_band.predict(toa_hr_band.reshape(-1, 1))
+
+        ####################
+        ### OLS (simple) Regressor
+        ####################
+        elif (context[Context.REGRESSION_MODEL] == Context.REGRESSOR_MODEL_SIMPLE):
+            model_data_only_band = LinearRegression().fit(
+                toa_sr_data_only_band_reshaped, target_sr_data_only_band_reshaped)
+
+            #  band-specific metadata
+            intercept = model_data_only_band.intercept_
+            slope = model_data_only_band.coef_
+            score = model_data_only_band.score(toa_sr_data_only_band.reshape(-1, 1), target_sr_data_only_band)
+            sr_prediction_band = model_data_only_band.predict(toa_hr_band.reshape(-1, 1))
+
+        ####################
+        ### Reduced Major Axis (rma) Regressor
+        ####################
+        elif (context[Context.REGRESSION_MODEL] == Context.REGRESSOR_MODEL_RMA):
+
+            reflect_df = pd.concat([
+                self.ma2df(toa_sr_data_only_band, 'EVHR_TOA', 'Band'),
+                self.ma2df(target_sr_data_only_band, 'CCDC_SR', 'Band')],
+                axis=1)
+            model_data_only_band = regress2(np.array(reflect_df['EVHR_TOABand']), np.array(reflect_df['CCDC_SRBand']),
+                                            _method_type_2="reduced major axis")
+
+            slope = model_data_only_band['slope']
+            intercept = model_data_only_band['intercept']
+
+            sr_prediction_band = (toa_hr_band * slope) + (intercept * 10000)
+
+        else:
+            print('Invalid regressor specified %s' % context[Context.REGRESSION_MODEL])
+            sys.exit(1)
+
+        metrics_srlite = None
+        if (metrics_srlite != None):
+            reflect_df = pd.concat([
+                self.ma2df(target_sr_band,'CCDC_SR', 'Band-B'),
+                self.ma2df(toa_sr_band, 'EVHR_TOA', 'Band-B')],
+                axis=1)
+            reflect_df_long = pd.wide_to_long(reflect_df.reset_index(),
+                                              stubnames=['CCDC_SR', 'EVHR_TOA'],
+                                              #  stubnames=['CCDC_SR', 'EVHR_TOA', 'EVHR_SRLite', 'EVHR_SR_RMA'],
+                                              i='index', j='Band', suffix='\D+').reset_index()
+
+            from pandas.api.types import CategoricalDtype
+            bandsType = CategoricalDtype(categories=['Band-B'], ordered=True)
+    #        bandsType = CategoricalDtype(categories=['Blue', 'Green', 'Red', 'NIR'], ordered=True)
+            reflect_df_long['Band'] = reflect_df_long['Band'].astype(bandsType)
+
+            #       def _sr_performance(self, context, df, sr_model, bandName):
+
+            metrics_srlite = pd.concat([
+                 pd.DataFrame([self._sr_performance(context, reflect_df_long, model_data_only_band, 'Band-B')])
+            ]).reset_index()
+
+        return sr_prediction_band, metrics_srlite
+
+    def mean_bias_error(self, y_true, y_pred):
+            '''
+            Parameters:
+                y_true (array): Array of observed values
+                y_pred (array): Array of prediction values
+
+            Returns:
+                mbe (float): Bias score
+            '''
+            y_true = np.array(y_true)
+            y_pred = np.array(y_pred)
+            y_true = y_true.reshape(len(y_true), 1)
+            y_pred = y_pred.reshape(len(y_pred), 1)
+            diff = (y_true - y_pred)
+            mbe = diff.mean()
+            # print('MBE = ', mbe)
+            return mbe
+
+    def ma2df(self, ma, product, band):
+        raveled = ma.ravel()
+        unmasked = raveled[raveled.mask == False]
+        df = pd.DataFrame(unmasked)
+        df.columns = [product + band]
+        df[product + band] = df[product + band] * 0.0001
+        # df.columns = ['Reflectance']
+        # df['Product'] = product
+        # df['Band'] = band
+        return df
+
+    # reflect_df = pd.concat([
+    #     ma2df(warp_ma_masked_list[0], 'CCDC_SR', 'Blue'),
+    #     ma2df(warp_ma_masked_list[1], 'CCDC_SR', 'Green'),
+    #     ma2df(warp_ma_masked_list[2], 'CCDC_SR', 'Red'),
+    #     ma2df(warp_ma_masked_list[3], 'CCDC_SR', 'NIR'),
+    #     ma2df(warp_ma_masked_list[4], 'EVHR_TOA', 'Blue'),
+    #     ma2df(warp_ma_masked_list[5], 'EVHR_TOA', 'Green'),
+    #     ma2df(warp_ma_masked_list[6], 'EVHR_TOA', 'Red'),
+    #     ma2df(warp_ma_masked_list[7], 'EVHR_TOA', 'NIR'),
+    #     ma2df(warp_ma_masked_list[8], 'EVHR_SRLite', 'Blue'),
+    #     ma2df(warp_ma_masked_list[9], 'EVHR_SRLite', 'Green'),
+    #     ma2df(warp_ma_masked_list[10], 'EVHR_SRLite', 'Red'),
+    #     ma2df(warp_ma_masked_list[11], 'EVHR_SRLite', 'NIR')],
+    #     axis=1)
+
+    def _sr_performance(self, context, df, sr_model, bandName):
+
+            sr = df[df['Band'] == bandName]
+#            sr_model = LinearRegression().fit(sr['EVHR_SRLite'].values.reshape(-1, 1), sr['CCDC_SR'])
+            intercept = sr_model.intercept_
+            slope = sr_model.coef_
+            # score = sr_model.score(sr['EVHR_SRLite'].values.reshape(-1, 1), sr['CCDC_SR'])
+            # r2_score = sklearn.metrics.r2_score(sr['CCDC_SR'].values.reshape(-1, 1), sr['EVHR_SRLite'])
+            # explained_variance = sklearn.metrics.explained_variance_score(sr['CCDC_SR'].values.reshape(-1, 1),
+            #                                                               sr['EVHR_SRLite'])
+            # mbe = self.mean_bias_error(sr['CCDC_SR'].values.reshape(-1, 1), sr['EVHR_SRLite'])
+            # mae = sklearn.metrics.mean_absolute_error(sr['CCDC_SR'].values.reshape(-1, 1), sr['EVHR_SRLite'])
+            # mape = sklearn.metrics.mean_absolute_percentage_error(sr['CCDC_SR'].values.reshape(-1, 1),
+            #                                                       sr['EVHR_SRLite'])
+            # medae = sklearn.metrics.median_absolute_error(sr['CCDC_SR'].values.reshape(-1, 1), sr['EVHR_SRLite'])
+            # mse = sklearn.metrics.mean_squared_error(sr['CCDC_SR'].values.reshape(-1, 1), sr['EVHR_SRLite'])
+            # rmse = mse ** 0.5
+            # mean_ccdc_sr = sr['CCDC_SR'].mean()
+            # mean_evhr_srlite = sr['EVHR_SRLite'].mean()
+            # mae_norm = mae / mean_ccdc_sr
+            # rmse_norm = rmse / mean_ccdc_sr
+
+            metadata = {'band': bandName,
+                        'intercept': intercept, 'slope': slope[0]}
+
+            # metadata =  {'region': context['region'], 'scene': context['scene'], 'band': bandName, 'version': context['version'], \
+            #         'intercept': intercept, 'slope': slope[0], 'score': score, 'r2_score': r2_score,
+            #         'explained_variance': explained_variance, \
+            #         'mbe': mbe, 'mae': mae, 'mape': mape, 'medae': medae, 'rmse': rmse, \
+            #         'mean_ccdc_sr': mean_ccdc_sr, 'mean_evhr_srlite': mean_evhr_srlite, 'mae_norm': mae_norm,
+            #         'rmse_norm': rmse_norm}
+
+            return metadata
+
+    def simulateSurfaceReflectance(self, context):
         self._validateParms(context,
                             [Context.MA_WARP_LIST, Context.LIST_BAND_PAIRS, Context.LIST_BAND_PAIR_INDICES,
                              Context.REGRESSION_MODEL, Context.FN_LIST])
 
         bandPairIndicesList = context[Context.LIST_BAND_PAIR_INDICES]
-        self._plot_lib.trace('bandPairIndicesList: ' + str(bandPairIndicesList))
-        numBandPairs = len(bandPairIndicesList)
+#        numBandPairs = len(bandPairIndicesList)
 
-#        warp_ma_masked_band_series = [numBandPairs]
         sr_prediction_list = []
         warp_ds_list = context[Context.DS_WARP_LIST]
         bandNamePairList = list(ast.literal_eval(context[Context.LIST_BAND_PAIRS]))
         minWarning = 0
-        firstBand = True
 
         self.prepareMasks(context)
 
@@ -510,7 +672,7 @@ class RasterLib(object):
         # ### FOR EACH BAND PAIR,
         # now, each input should have same exact dimensions, grid, projection. They ony differ in their values (CCDC is surface reflectance, EVHR is TOA reflectance)
         ########################################
-        for bandPairIndex in range(0, numBandPairs - 1):
+        for bandPairIndex in range(0, len(bandPairIndicesList) - 1):
 
             self._plot_lib.trace('=>')
             self._plot_lib.trace('====================================================================================')
@@ -524,130 +686,32 @@ class RasterLib(object):
             targetBandMaArray = iolib.ds_getma(warp_ds_list[0], bandPairIndices[0])
             toaBandMaArray = iolib.ds_getma(warp_ds_list[1], bandPairIndices[1])
 
-            # #  Create a common mask that intersects the CCDC/QF, EVHR, and Cloudmasks - this will then be used to correct the input EVHR & CCDC/QF
-            # warp_ma_band_list_all = [ccdcBandMaArray, evhrBandMaArray]
-            # if (eval(context[Context.CLOUD_MASK_FLAG])):
-            #     warp_ma_band_list_all.append(context['cloudmaskEVHRWarpExternalBandMaArrayMasked'])
-            # if (eval(context[Context.QUALITY_MASK_FLAG])):
-            #     warp_ma_band_list_all.append(context['cloudmaskQFWarpExternalBandMaArrayMasked'])
-            # if (eval(context[Context.THRESHOLD_MASK_FLAG])):
-            #     if (firstBand == True):
-            #         #  Create single mask for all bands based on Blue-band threshold values
-            #         #  Assumes Blue-band is first indice pair, so collect mask on 1st iteration only.
-            #         context['evhrBandMaThresholdArray'] = self._applyThreshold(context[Context.THRESHOLD_MIN],
-            #                                                 context[Context.THRESHOLD_MAX],
-            #                                                 evhrBandMaArray)
-            #         firstBand = False
-            #     warp_ma_band_list_all.append(context['evhrBandMaThresholdArray'])
-            #
-            # # Mask negative values in input (if requested)
-            # if (eval(context[Context.POSITIVE_MASK_FLAG])):
-            #     warp_valid_ma_band_list_all = [np.ma.masked_where(ma < 0, ma) for ma in warp_ma_band_list_all]
-            # else:
-            #     warp_valid_ma_band_list_all = warp_ma_band_list_all
-            #
-            # # Create common mask
-            # common_mask_band_all = malib.common_mask(warp_valid_ma_band_list_all)
-
             # Create common mask based on user-specified list (e.g., cloudmask, threshold, QF)
             common_mask_band_all = self._getCommonMask(context, targetBandMaArray, toaBandMaArray)
 
-            # Apply the 3-way common mask to the CCDC and EVHR bands (effectively dropping unneeded Cloudmask)
+            # Apply the 3-way common mask to the CCDC and EVHR bands
             warp_ma_masked_band_list = [np.ma.array(targetBandMaArray, mask=common_mask_band_all),
                                         np.ma.array(toaBandMaArray, mask=common_mask_band_all)]
 
-            # Check the mins of each ma - they should be greater than 0
+             # Check the mins of each ma - they should be greater than 0
             for j, ma in enumerate(warp_ma_masked_band_list):
                 j = j + 1
                 if (ma.min() < minWarning):
                     self._plot_lib.trace("Warning: Masked array values should be larger than " + str(minWarning))
 #                    exit(1)
 
-            ########### save prediction for each band #############
-#            warp_ma_masked_band_series.append(warp_ma_masked_band_list)
-
             ########################################
             # ### WARPED MASKED ARRAY WITH COMMON MASK, DATA VALUES ONLY
             # CCDC SR is first element in list, which needs to be the y-var: b/c we are predicting SR from TOA ++++++++++[as per PM - 01/05/2022]
             ########################################
 
-            ccdc_sr_index = context[Context.LIST_INDEX_TARGET]
-            ccdc_sr_band = warp_ma_masked_band_list[ccdc_sr_index].ravel()
-            evhr_sr_index = context[Context.LIST_INDEX_TOA]
-            evhr_toa_band = warp_ma_masked_band_list[evhr_sr_index].ravel()
-
-            ccdc_sr_data_only_band = ccdc_sr_band[ccdc_sr_band.mask == False]
-            ccdc_sr_data_only_band_reshaped = ccdc_sr_data_only_band.reshape(-1, 1)
-            evhr_toa_data_only_band = evhr_toa_band[evhr_toa_band.mask == False]
-            evhr_toa_data_only_band_reshaped = evhr_toa_data_only_band.reshape(-1, 1)
-
-#            input_min = warp_ma_masked_band_list[evhr_sr_index].reshape(-1, 1).min()
-#            self._plot_lib.trace("Check input TOA min: " + str(input_min))
-
-            # common metadata
-            band = str(bandNamePairList[bandPairIndex])
-
-            # Perform regression fit based on model type (TARGET against TOA)
-
-            # Get 2m EVHR Masked Arrays
-            toaBandMaArrayRaw = iolib.fn_getma(context[Context.FN_TOA], bandPairIndices[evhr_sr_index])
-            toaBandMaArrayRawReshaped = toaBandMaArrayRaw.ravel().reshape(-1, 1)
-
-            ####################
-            ### Huber (robust) Regressor
-            ####################
-            if (context[Context.REGRESSION_MODEL] == Context.REGRESSOR_MODEL_ROBUST):
-                # ravel the Y band (e.g., CCDC) - /home/gtamkin/.conda/envs/ilab_gt/lib/python3.7/site-packages/sklearn/utils/validation.py:993: DataConversion
-                # Warning: A column-vector y was passed when a 1d array was expected. Please change the shape of y to (n_samples, ), for example using ravel().
-                model_data_only_band = HuberRegressor().fit(
-                    evhr_toa_data_only_band_reshaped, ccdc_sr_data_only_band_reshaped.ravel())
-
-                #  band-specific metadata
-                intercept = model_data_only_band.intercept_
-                slope = model_data_only_band.coef_
-                score = model_data_only_band.score(evhr_toa_data_only_band.reshape(-1, 1), ccdc_sr_data_only_band)
-                sr_prediction_band = model_data_only_band.predict(toaBandMaArrayRawReshaped)
-
-                self._plot_lib.trace(str(bandNamePairList[bandPairIndex]) + '= > intercept: ' + str(intercept)
-                    + ' slope: ' + str(slope) + ' score: ' + str(score))
-
-            ####################
-            ### OLS (simple) Regressor
-            ####################
-            elif (context[Context.REGRESSION_MODEL] == Context.REGRESSOR_MODEL_SIMPLE):
-                model_data_only_band = LinearRegression().fit(
-                    evhr_toa_data_only_band_reshaped, ccdc_sr_data_only_band_reshaped)
-
-                #  band-specific metadata
-                intercept = model_data_only_band.intercept_
-                slope = model_data_only_band.coef_
-                score = model_data_only_band.score(evhr_toa_data_only_band.reshape(-1, 1), ccdc_sr_data_only_band)
-                sr_prediction_band = model_data_only_band.predict(toaBandMaArrayRawReshaped)
-
-                self._plot_lib.trace(str(bandNamePairList[bandPairIndex]) + '= > intercept: ' + str(intercept)
-                    + ' slope: ' + str(slope) + ' score: ' + str(score))
-
-            ####################
-            ### Reduced Major Axis (rma) Regressor
-            ####################
-            elif (context[Context.REGRESSION_MODEL] == Context.REGRESSOR_MODEL_RMA):
-
-                reflect_df = pd.concat([
-                    self.ma2df(evhr_toa_data_only_band, 'EVHR_TOA', 'Band'),
-                    self.ma2df(ccdc_sr_data_only_band, 'CCDC_SR', 'Band')],
-                    axis=1)
-                model_data_only_band = regress2(np.array(reflect_df['EVHR_TOABand']), np.array(reflect_df['CCDC_SRBand']),
-                                         _method_type_2="reduced major axis")
-
-                slope = model_data_only_band['slope']
-                intercept = model_data_only_band['intercept']
-
-                self._plot_lib.trace(f'RMA Band slope intercept: {str(bandNamePairList[bandPairIndex])} {slope} {intercept}')
-                sr_prediction_band = (toaBandMaArrayRaw * slope) + (intercept * 10000)
-
-            else:
-                print('Invalid regressor specified %s' % context[Context.REGRESSION_MODEL] )
-                sys.exit(1)
+            # Get 2m TOA Masked Array
+            toaBandMaArrayRaw = iolib.fn_getma(context[Context.FN_TOA], bandPairIndices[context[Context.LIST_INDEX_TOA]])
+            sr_prediction_band, metadata = self.predictSurfaceReflectance(context,
+                                                                "BAND-B",
+                                                                toaBandMaArrayRaw,
+                                                                warp_ma_masked_band_list[context[Context.LIST_INDEX_TARGET]],
+                                                                warp_ma_masked_band_list[context[Context.LIST_INDEX_TOA]])
 
             ########################################
             # #### Apply the model to the original EVHR (2m) to predict surface reflectance
@@ -661,6 +725,7 @@ class RasterLib(object):
 
             # Check resulting ma
             self._plot_lib.trace(f'Input masked array shape: {toaBandMaArray.shape} and Final masked array shape: {toa_sr_ma_band.shape}')
+            self._plot_lib.trace(f'Metrics: {metadata}')
 
             ########### save prediction for each band #############
             sr_prediction_list.append(toa_sr_ma_band)

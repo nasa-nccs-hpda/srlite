@@ -81,7 +81,7 @@ def main():
 
                  # Perform regression to capture coefficients from intersected pixels and apply to 2m EVHR
                 context[Context.FN_LIST] = [str(context[Context.FN_TARGET]), str(context[Context.FN_TOA])]
-                context[Context.PRED_LIST] = rasterLib.performRegression(context)
+                context[Context.PRED_LIST] = rasterLib.simulateSurfaceReflectance(context)
 
                 # Create COG image from stack of processed bands
                 context[Context.FN_SRC] = str(context[Context.FN_TOA])
@@ -128,9 +128,9 @@ if __name__ == "__main__":
                 "-cloudmask_dir", r_fn_cloud,
                 "-bandpairs", "[['blue_ccdc', 'BAND-B'], ['green_ccdc', 'BAND-G'], ['red_ccdc', 'BAND-R'], ['nir_ccdc', 'BAND-N']]",
 #                "-bandpairs", "[['BAND-B', 'blue_ccdc'], ['BAND-G', 'green_ccdc'], ['BAND-R', 'red_ccdc'], ['BAND-N', 'nir_ccdc']]",
-                "-output_dir", "../../../output/Yukon_Delta/07192022-9.12-refactor-simple",
+                "-output_dir", "../../../output/Yukon_Delta/07232022-9.12-refactor-rma",
                 "--debug", "1",
-                "--regressor", "simple",
+                "--regressor", "rma",
                 "--clean",
                 "--cloudmask",
                 "--pmask",
