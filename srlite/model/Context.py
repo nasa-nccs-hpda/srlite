@@ -24,7 +24,7 @@ class Context(object):
     FN_DEST = 'fn_dest'
     FN_SRC = 'fn_src'
     FN_LIST = 'fn_list'
-    FN_INTERSECTION_LIST = 'fn_intersection_list'
+    FN_REPROJECTION_LIST = 'fn_reprojection_list'
     DS_LIST = 'ds_list'
     DS_WARP_LIST = 'ds_warp_list'
     DS_INTERSECTION_LIST = 'ds_intersection_list'

@@ -71,7 +71,6 @@ class RasterLib(object):
         Validate band name pairs and return corresponding gdal indices
         """
         bandNamePairList = list(ast.literal_eval(context[Context.LIST_BAND_PAIRS]))
-        self._plot_lib.trace('bandNamePairList=' + str(bandNamePairList))
 
         fn_list = context[Context.FN_LIST]
         ccdcDs = gdal.Open(fn_list[context[Context.LIST_INDEX_TARGET]], gdal.GA_ReadOnly)
@@ -137,7 +136,7 @@ class RasterLib(object):
         context[Context.LIST_TARGET_BANDS] = targetBandNames
 
         ccdcDs = evhrDs = None
-        self._plot_lib.trace('validated bandIndices=' + str(bandIndices))
+        self._plot_lib.trace(f'Band Names: {str(bandNamePairList)} Indices: {str(bandIndices)}')
         return bandIndices
 
     def getAttributeSnapshot(self, context):
@@ -149,22 +148,42 @@ class RasterLib(object):
         if (eval(context[Context.CLOUD_MASK_FLAG])):
             self.getAttributes(str(context[Context.FN_CLOUDMASK]), "Cloudmask Combo Plot")
 
+    def replaceNdv(self, src_fn, new_ndv):
+        ds = gdal.Open(src_fn)
+        b = ds.GetRasterBand(1)
+        #Extract old ndv
+        old_ndv = iolib.get_ndv_b(b)
+
+        print(src_fn)
+        print("Replacing old ndv %s with new ndv %s" % (old_ndv, new_ndv))
+
+        #Load masked array
+        bma = iolib.ds_getma(ds)
+
+        #Handle cases with input ndv of nan
+        #if old_ndv == np.nan:
+        bma = np.ma.fix_invalid(bma)
+
+        #Set new fill value
+        bma.set_fill_value(new_ndv)
+        #Fill ma with new value and write out
+        out_fn = os.path.splitext(src_fn)[0] + '_ndv.tif'
+        iolib.writeGTiff(bma.filled(), out_fn, ds, ndv=new_ndv)
+        return out_fn
+
     def getAttributes(self, r_fn, title=None):
         geotransform = None
         r_ds = iolib.fn_getds(r_fn)
         if (self._debug_level >= 1):
-            self._plot_lib.trace("\n File Name is {}".format(r_fn))
-            self._plot_lib.trace(r_ds.GetProjection())
-            self._plot_lib.trace("Driver: {}/{}".format(r_ds.GetDriver().ShortName,
-                                         r_ds.GetDriver().LongName))
-            self._plot_lib.trace("Size is {} x {} x {}".format(r_ds.RasterXSize,
-                                                r_ds.RasterYSize,
-                                                r_ds.RasterCount))
+            self._plot_lib.trace("\nFile Name is {}".format(r_fn))
+            self._plot_lib.trace("Raster Count is: {},  Size is: ({} x {})".format(
+                r_ds.RasterCount, r_ds.RasterYSize, r_ds.RasterXSize))
             self._plot_lib.trace("Projection is {}".format(r_ds.GetProjection()))
             geotransform = r_ds.GetGeoTransform()
             if geotransform:
-                self._plot_lib.trace("Origin = ({}, {})".format(geotransform[0], geotransform[3]))
-                self._plot_lib.trace("Pixel Size = ({}, {})".format(geotransform[1], geotransform[5]))
+                self._plot_lib.trace(f'Origin: ({geotransform[0]}, {geotransform[3]}), Resolution: ({geotransform[1]}, {geotransform[5]})  ')
+                # self._plot_lib.trace("Origin = ({}, {})".format(geotransform[0], geotransform[3])) \
+                # + "Resolution= ({}, {})".format(geotransform[1], geotransform[5])
 
         if (self._debug_level >= 2):
             self._plot_lib.plot_combo(r_fn, figsize=(14, 7), title=title)
@@ -297,26 +316,37 @@ class RasterLib(object):
         return warp_ds_list, warp_ma_list
 
     def getReprojection(self, context):
-        self._validateParms(context, [Context.FN_LIST, Context.TARGET_FN, Context.TARGET_SAMPLING_METHOD])
+        self._validateParms(context, [Context.FN_LIST, Context.FN_REPROJECTION_LIST, Context.TARGET_FN, Context.TARGET_SAMPLING_METHOD])
 
         # ########################################
         # # Align context[Context.FN_LIST[>0]] to context[Context.FN_LIST[0]] return masked arrays of reprojected pixels
         # ########################################
-        warp_ds_list = warplib.memwarp_multi_fn(context[Context.FN_LIST],
+        ndv_list = [self.get_ndv(fn) for fn in context[Context.FN_REPROJECTION_LIST]]
+        self._plot_lib.trace(f'Fill values before re-projection:  {ndv_list}')
+
+    # Ensure that all NoData values match TARGET_FN (e.g., TOA)
+        dst_ndv = self.get_ndv(str(context[Context.TARGET_FN]))
+#        index = 0
+        for fn in context[Context.FN_LIST]:
+            current_ndv = self.get_ndv(fn)
+            if (current_ndv != dst_ndv):
+                out_fn = self.replaceNdv(fn, dst_ndv)
+                index = context[Context.FN_LIST].index(fn)
+                context[Context.FN_LIST][index] = out_fn
+                index = context[Context.FN_REPROJECTION_LIST].index(fn)
+                context[Context.FN_REPROJECTION_LIST][index] = out_fn
+#               index = index+1
+
+        # Reproject inputs to TOA attributes (res, extent, srs, nodata)
+        warp_ds_list = warplib.memwarp_multi_fn(context[Context.FN_REPROJECTION_LIST],
                                                 res=context[Context.TARGET_XRES],
                                                 extent=str(context[Context.TARGET_FN]),
                                                 t_srs=str(context[Context.TARGET_FN]),
-                                                r=context[Context.TARGET_SAMPLING_METHOD] ,
-                                                dst_ndv=self.get_ndv(str(context[Context.TARGET_FN]),
-                                                                     ))
+                                                r=context[Context.TARGET_SAMPLING_METHOD],
+                                                dst_ndv=dst_ndv)
+
         warp_ma_list = [iolib.ds_getma(ds) for ds in warp_ds_list]
-
-        # self._plot_lib.plot_maps2(warp_ma_list, context[Context.FN_LIST], title_text='30 m warped version\n')
-        # self._plot_lib.plot_hists2(warp_ma_list, context[Context.FN_LIST], title_text='30 m warped version\n')
-
-        ndv_list = [self.get_ndv(fn) for fn in context[Context.FN_LIST]]
-        print([ma.get_fill_value() for ma in warp_ma_list])
-        print(ndv_list)
+        self._plot_lib.trace(f'Fill values after re-projection:  { [ma.get_fill_value() for ma in warp_ma_list]}')
 
         return warp_ds_list, warp_ma_list
 
