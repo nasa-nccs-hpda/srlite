@@ -96,9 +96,9 @@ class Context(object):
     TARGET_SAMPLING_METHOD = 'target_sampling_method'
 
     # Default values
-    DEFAULT_TOA_SUFFIX = '-toa.tif'
-    DEFAULT_TARGET_SUFFIX =  '-ccdc.tif'
-    DEFAULT_CLOUDMASK_SUFFIX ='-toa.cloudmask.v1.2.tif'
+    DEFAULT_TOA_SUFFIX = 'toa.tif'
+    DEFAULT_TARGET_SUFFIX =  'ccdc.tif'
+    DEFAULT_CLOUDMASK_SUFFIX ='toa.cloudmask.v1.2.tif'
     DEFAULT_XRES = 30
     DEFAULT_YRES = 30
     DEFAULT_NODATA_VALUE = -9999
@@ -169,9 +169,9 @@ class Context(object):
             self.context_dict[Context.TARGET_YRES] = int(args.target_yres)
             self.context_dict[Context.TARGET_SAMPLING_METHOD] = str(args.target_sampling_method)
 
-            self.context_dict[Context.FN_TOA_SUFFIX] = str(args.toa_suffix)
-            self.context_dict[Context.FN_TARGET_SUFFIX] = str(args.target_suffix)
-            self.context_dict[Context.FN_CLOUDMASK_SUFFIX] = str(args.cloudmask_suffix)
+            self.context_dict[Context.FN_TOA_SUFFIX] =  '-' + str(args.toa_suffix)
+            self.context_dict[Context.FN_TARGET_SUFFIX] =  '-' +  str(args.target_suffix)
+            self.context_dict[Context.FN_CLOUDMASK_SUFFIX] = '-' + str(args.cloudmask_suffix)
 
             self.context_dict[Context.REGRESSION_MODEL] = str(args.regressor)
             self.context_dict[Context.DEBUG_LEVEL] = int(args.debug_level)
