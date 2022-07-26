@@ -327,7 +327,7 @@ class RasterLib(object):
     # Ensure that all NoData values match TARGET_FN (e.g., TOA)
         dst_ndv = self.get_ndv(str(context[Context.TARGET_FN]))
 #        index = 0
-        for fn in context[Context.FN_LIST]:
+        for fn in context[Context.FN_REPROJECTION_LIST]:
             current_ndv = self.get_ndv(fn)
             if (current_ndv != dst_ndv):
                 out_fn = self.replaceNdv(fn, dst_ndv)
