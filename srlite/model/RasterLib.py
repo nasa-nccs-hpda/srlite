@@ -392,7 +392,7 @@ class RasterLib(object):
                                                                     cloudmaskWarpExternalBandMaArray)
         return cloudmaskWarpExternalBandMaArraycloudmaskWarpExternalBandMaArrayMasked
 
-    def _prepareEVHRCloudmask(self, context):
+    def __prepareEVHRCloudmask(self, context):
         self._validateParms(context,
                             [Context.DS_LIST, Context.LIST_BAND_PAIRS, Context.LIST_BAND_PAIR_INDICES,
                              Context.REGRESSION_MODEL, Context.FN_LIST])
@@ -438,6 +438,33 @@ class RasterLib(object):
         return cloudmaskWarpExternalBandMaArrayMasked
 
     def prepareQualityFlagMask(self, context):
+        self._validateParms(context,
+                            [Context.MA_WARP_LIST, Context.LIST_INDEX_CLOUDMASK])
+
+        # Mask out clouds
+        cloudmask_warp_ds_target = context[Context.DS_WARP_LIST][context[Context.LIST_INDEX_TARGET]]
+        cloudmask_warp_ma = iolib.ds_getma(cloudmask_warp_ds_target, 8)
+        # cloudmaskWarpExternalBandMaArray = iolib.fn_getma(context[Context.FN_TARGET_DOWNSCALE], 8)
+        # cloudmaskWarpExternalBandMaArrayMasked = \
+        #     np.ma.masked_where(cloudmask_warp_ma == 1.0, cloudmask_warp_ma)
+
+        # Create a mask where the pixel values equal to '0, 3, 4' are suppressed because these correspond to NoData, Clouds, and Cloud Shadows
+        self._plot_lib.trace(
+            f'\nSuppress values=[0, 3, 4] according to Band #8 because they correspond to NoData, Clouds, and Cloud Shadows')
+        #        cloudmaskWarpExternalBandMaArrayMasked = (cloudmaskWarpExternalBandMaArray == 0) & (cloudmaskWarpExternalBandMaArray == 3) & (cloudmaskWarpExternalBandMaArray == 4)
+
+        ndv = int(Context.DEFAULT_NODATA_VALUE)
+        cloudmaskWarpExternalBandArrayData = np.ma.getdata(cloudmask_warp_ma)
+        cloudmaskWarpExternalBandArrayDataQfFiltered = np.select(
+            [cloudmaskWarpExternalBandArrayData == 0, cloudmaskWarpExternalBandArrayData == 3,
+             cloudmaskWarpExternalBandArrayData == 4], [ndv, ndv, ndv], cloudmaskWarpExternalBandArrayData)
+        cloudmaskWarpExternalBandArrayDataQfNdvFiltered = np.select([cloudmaskWarpExternalBandArrayDataQfFiltered != ndv], [0.0],
+                                                         cloudmaskWarpExternalBandArrayDataQfFiltered)
+        cloudmaskWarpExternalBandMaArrayMasked = np.ma.masked_where(cloudmaskWarpExternalBandArrayDataQfNdvFiltered == ndv,
+                                                                    cloudmaskWarpExternalBandArrayDataQfNdvFiltered)
+        return cloudmaskWarpExternalBandMaArrayMasked
+
+    def _prepareQualityFlagMask(self, context):
         self._validateParms(context,
                             [Context.DS_LIST, Context.LIST_BAND_PAIRS, Context.LIST_BAND_PAIR_INDICES,
                              Context.REGRESSION_MODEL, Context.FN_LIST])
@@ -597,6 +624,9 @@ class RasterLib(object):
         else:
             print('Invalid regressor specified %s' % context[Context.REGRESSION_MODEL])
             sys.exit(1)
+
+        self._plot_lib.trace(f"\nRegressor=[{context[Context.REGRESSION_MODEL]}] "
+                             f"slope=[{slope}] intercept=[{intercept}]")
 
         metrics_srlite = None
         if (metrics_srlite != None):
