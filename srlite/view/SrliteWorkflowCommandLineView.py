@@ -81,7 +81,9 @@ def main():
 
                  # Perform regression to capture coefficients from intersected pixels and apply to 2m EVHR
 #                context[Context.FN_LIST] = [str(context[Context.FN_TARGET]), str(context[Context.FN_TOA])]
-                context[Context.PRED_LIST] = rasterLib.simulateSurfaceReflectance(context)
+                context[Context.PRED_LIST] ,sr_metrics_list= rasterLib.simulateSurfaceReflectance(context)
+                figureBase = 'region' + '_' + 'scene'
+                sr_metrics_list.to_csv(os.path.join(context[Context.DIR_OUTPUT_CSV], figureBase + '_SRLite_metrics.csv'))
 
                 # Create COG image from stack of processed bands
                 context[Context.FN_SRC] = str(context[Context.FN_TOA])
@@ -128,7 +130,7 @@ if __name__ == "__main__":
                 "-cloudmask_dir", r_fn_cloud,
                 "-bandpairs", "[['blue_ccdc', 'BAND-B'], ['green_ccdc', 'BAND-G'], ['red_ccdc', 'BAND-R'], ['nir_ccdc', 'BAND-N']]",
 #                "-bandpairs", "[['BAND-B', 'blue_ccdc'], ['BAND-G', 'green_ccdc'], ['BAND-R', 'red_ccdc'], ['BAND-N', 'nir_ccdc']]",
-                "-output_dir", "../../../output/Yukon_Delta/07252022-9.12-rma",
+                "-output_dir", "../../../output/Yukon_Delta/09062022-9.12-rma",
                 "--debug", "1",
                 "--regressor", "rma",
                 "--clean",

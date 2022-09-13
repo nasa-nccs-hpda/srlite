@@ -19,6 +19,7 @@ class Context(object):
     DIR_TARGET = 'dir_target'
     DIR_CLOUDMASK = 'dir_cloudmask'
     DIR_OUTPUT = 'dir_out'
+    DIR_OUTPUT_CSV = 'dir_out_cvs'
 
     # File names
     FN_DEST = 'fn_dest'
@@ -222,18 +223,11 @@ class Context(object):
             plotLib.trace(f'Positive Pixels Only Flag:    {self.context_dict[Context.POSITIVE_MASK_FLAG]}')
         if (eval(self.context_dict[Context.CSV_FLAG] )):
             plotLib.trace(f'CSV Flag:    {self.context_dict[Context.CSV_FLAG]}')
-            # Define the structure of the data
-            student_header = ['name', 'age', 'major', 'minor']
-            # Define the actual data
-            student_data = ['Jack', 23, 'Physics', 'Chemistry']
-
-            with open('srlite.csv', 'w') as file:
-                # 2. Create a CSV writer
-                writer = csv.writer(file)
-                # 3. Write data to the file
-                writer.writerow(student_header)
-                writer.writerow(student_data)
-            self.context_dict[Context.CSV_WRITER] = writer
+            self.context_dict[Context.DIR_OUTPUT_CSV] = os.path.join(self.context_dict[Context.DIR_OUTPUT], 'csv')
+            try:
+                os.makedirs(self.context_dict[Context.DIR_OUTPUT_CSV] , exist_ok=True)
+            except OSError as error:
+                print("Directory '%s' can not be created" % self.context_dict[Context.DIR_OUTPUT_CSV] )
 
         if (eval(self.context_dict[Context.QUALITY_MASK_FLAG])):
             plotLib.trace(f'Quality Mask:    {self.context_dict[Context.QUALITY_MASK_FLAG]}')
