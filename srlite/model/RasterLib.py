@@ -632,8 +632,8 @@ class RasterLib(object):
             print('Invalid regressor specified %s' % context[Context.REGRESSION_MODEL])
             sys.exit(1)
 
-        self._plot_lib.trace(f"\nRegressor=[{context[Context.REGRESSION_MODEL]}] "
-                             f"slope={metadata['slope']} intercept={metadata['intercept']} score=[{metadata['score']}]")
+ #       self._plot_lib.trace(f"\nRegressor=[{context[Context.REGRESSION_MODEL]}] "
+ #                            f"slope={metadata['slope']} intercept={metadata['intercept']} score=[{metadata['score']}]")
 
         # add context-sensitive
         metadata['regressor'] = context[Context.REGRESSION_MODEL]
@@ -755,19 +755,12 @@ class RasterLib(object):
             self._plot_lib.trace(f'Input masked array shape: {toaBandMaArray.shape} and Final masked array shape: {toa_sr_ma_band.shape}')
             self._plot_lib.trace(f'Metrics: {metadata}')
 
-            ########### save prediction for each band #############
+            ########### save predictions and metadata for each band #############
             sr_prediction_list.append(toa_sr_ma_band)
-
-            # metrics_evhr = pd.concat(metadata)
-            # ]).reset_index()
-            # df = pd.DataFrame(metadata, index=[bandPairIndex])
             if (bandPairIndex == 0):
- #               sr_metrics_list = pd.DataFrame(metadata)
                sr_metrics_list = pd.concat([pd.DataFrame([metadata], index=[bandPairIndex])])
             else:
                 sr_metrics_list = pd.concat([sr_metrics_list, pd.DataFrame([metadata], index=[bandPairIndex])])
-            #               sr_metrics_list.concat(metadata, index=[bandPairIndex])
-#            ]).reset_index()
 
             print(f"Finished with {str(bandNamePairList[bandPairIndex])} Band")
 
