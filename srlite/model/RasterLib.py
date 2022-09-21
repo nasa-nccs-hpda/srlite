@@ -563,7 +563,7 @@ class RasterLib(object):
 
         return common_mask_band_all
 
-    def predictSurfaceReflectance(self, context, toa_hr_band, target_sr_band, toa_sr_band):
+    def predictSurfaceReflectance(self, context, band_name, toa_hr_band, target_sr_band, toa_sr_band):
 
         # Perform regression fit based on model type (TARGET against TOA)
         target_sr_band = target_sr_band.ravel()
@@ -587,10 +587,10 @@ class RasterLib(object):
                 toa_sr_data_only_band_reshaped, target_sr_data_only_band_reshaped.ravel())
 
             #  band-specific metadata
-            metadata = self._model_metrics_(model_data_only_band,
-                                            model_data_only_band.intercept_[0],
+            metadata = self._model_metrics_(model_data_only_band.intercept_[0],
                                             model_data_only_band.coef_[0][0],
-                                            toa_sr_data_only_band, target_sr_data_only_band)
+                                            toa_sr_data_only_band,
+                                            target_sr_data_only_band)
 
             sr_prediction_band = model_data_only_band.predict(toa_hr_band.reshape(-1, 1))
 
@@ -602,10 +602,10 @@ class RasterLib(object):
                 toa_sr_data_only_band_reshaped, target_sr_data_only_band_reshaped)
 
             #  band-specific metadata
-            metadata = self._model_metrics_(model_data_only_band,
-                                            model_data_only_band.intercept_[0],
+            metadata = self._model_metrics_(model_data_only_band.intercept_[0],
                                             model_data_only_band.coef_[0][0],
-                                            toa_sr_data_only_band, target_sr_data_only_band)
+                                            toa_sr_data_only_band,
+                                            target_sr_data_only_band)
 
             sr_prediction_band = model_data_only_band.predict(toa_hr_band.reshape(-1, 1))
 
@@ -621,10 +621,10 @@ class RasterLib(object):
             model_data_only_band = regress2(np.array(reflect_df['EVHR_TOABand']), np.array(reflect_df['CCDC_SRBand']),
                                             _method_type_2="reduced major axis")
 
-            metadata = self._model_metrics_(model_data_only_band,
-                                            model_data_only_band['slope'],
+            metadata = self._model_metrics_(model_data_only_band['slope'],
                                             model_data_only_band['intercept'],
-                                            toa_sr_data_only_band, target_sr_data_only_band)
+                                            toa_sr_data_only_band,
+                                            target_sr_data_only_band)
 
             sr_prediction_band = (toa_hr_band * metadata['slope']) + (metadata['intercept'] * 10000)
 
@@ -636,6 +636,7 @@ class RasterLib(object):
  #                            f"slope={metadata['slope']} intercept={metadata['intercept']} score=[{metadata['score']}]")
 
         # add context-sensitive
+        metadata['band'] = band_name
         metadata['regressor'] = context[Context.REGRESSION_MODEL]
         return sr_prediction_band, metadata
 
@@ -658,11 +659,14 @@ class RasterLib(object):
             return mbe
 
 #    def _sr_performance_(self, context, df, sr_model, bandName):
-    def _model_metrics_(self, sr_model, slope, intercept, toa_sr_data_only_band, target_sr_data_only_band):
+    def _model_metrics_(self, slope, intercept, toa_sr_data_only_band, target_sr_data_only_band):
 
             metadata = {}
             metadata['intercept'] = intercept
             metadata['slope']  = slope
+
+            sr_model = LinearRegression().fit(toa_sr_data_only_band.reshape(-1,1), target_sr_data_only_band)
+#            sr_model = LinearRegression().fit(toa_sr_data_only_band.values.reshape(-1,1), target_sr_data_only_band)
             metadata['score']  = sr_model.score(toa_sr_data_only_band.reshape(-1, 1), target_sr_data_only_band)
             metadata['r2_score']  = sklearn.metrics.r2_score(target_sr_data_only_band.reshape(-1, 1), toa_sr_data_only_band)
             metadata['explained_variance']  = sklearn.metrics.explained_variance_score(target_sr_data_only_band.reshape(-1, 1),
@@ -737,6 +741,7 @@ class RasterLib(object):
             # Get 2m TOA Masked Array
             toaBandMaArrayRaw = iolib.fn_getma(context[Context.FN_TOA], bandPairIndices[context[Context.LIST_INDEX_TOA]])
             sr_prediction_band, metadata = self.predictSurfaceReflectance(context,
+                                                                bandNamePairList[bandPairIndex][1],
                                                                 toaBandMaArrayRaw,
                                                                 warp_ma_masked_band_list[context[Context.LIST_INDEX_TARGET]],
                                                                 warp_ma_masked_band_list[context[Context.LIST_INDEX_TOA]])
