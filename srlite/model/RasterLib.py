@@ -518,10 +518,19 @@ class RasterLib(object):
         df = pd.DataFrame(unmasked)
         df.columns = [product + band]
         df[product + band] = df[product + band] * 0.0001
-        # df.columns = ['Reflectance']
-        # df['Product'] = product
-        # df['Band'] = band
         return df
+
+    def generateCSV(self, context, sr_metrics_list):
+        if (eval(context[Context.CSV_FLAG])):
+            batch = context[Context.BATCH_NAME]
+            if (batch == 'None'):
+                batch = os.path.basename(context[Context.DIR_TOA])
+            figureBase = batch + '_' + context[Context.FN_PREFIX] \
+                         + '_' + context[Context.REGRESSION_MODEL]
+            path = os.path.join(context[Context.DIR_OUTPUT_CSV],
+                                            figureBase + '_SRLite_metrics.csv')
+            sr_metrics_list.to_csv(path)
+            self._plot_lib.trace(f"\nCreated CSV with coefficients...\n   {path}")
 
     def prepareMasks(self, context):
 
@@ -580,15 +589,15 @@ class RasterLib(object):
         ####################
         ### Huber (robust) Regressor
         ####################
-        if (context[Context.REGRESSION_MODEL] == Context.REGRESSOR_MODEL_ROBUST):
+        if (context[Context.REGRESSION_MODEL] == Context.REGRESSOR_MODEL_HUBER):
             # ravel the Y band (e.g., CCDC) - /home/gtamkin/.conda/envs/ilab_gt/lib/python3.7/site-packages/sklearn/utils/validation.py:993: DataConversion
             # Warning: A column-vector y was passed when a 1d array was expected. Please change the shape of y to (n_samples, ), for example using ravel().
             model_data_only_band = HuberRegressor().fit(
                 toa_sr_data_only_band_reshaped, target_sr_data_only_band_reshaped.ravel())
 
             #  band-specific metadata
-            metadata = self._model_metrics_(model_data_only_band.intercept_[0],
-                                            model_data_only_band.coef_[0][0],
+            metadata = self._model_metrics_(model_data_only_band.intercept_,
+                                            model_data_only_band.coef_[0],
                                             toa_sr_data_only_band,
                                             target_sr_data_only_band)
 
@@ -597,13 +606,13 @@ class RasterLib(object):
         ####################
         ### OLS (simple) Regressor
         ####################
-        elif (context[Context.REGRESSION_MODEL] == Context.REGRESSOR_MODEL_SIMPLE):
+        elif (context[Context.REGRESSION_MODEL] == Context.REGRESSOR_MODEL_OLS):
             model_data_only_band = LinearRegression().fit(
                 toa_sr_data_only_band_reshaped, target_sr_data_only_band_reshaped)
 
             #  band-specific metadata
-            metadata = self._model_metrics_(model_data_only_band.intercept_[0],
-                                            model_data_only_band.coef_[0][0],
+            metadata = self._model_metrics_(model_data_only_band.intercept_,
+                                            model_data_only_band.coef_[0],
                                             toa_sr_data_only_band,
                                             target_sr_data_only_band)
 

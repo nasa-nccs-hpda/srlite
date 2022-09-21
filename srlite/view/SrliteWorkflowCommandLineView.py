@@ -80,19 +80,16 @@ def main():
                     context[Context.DS_WARP_CLOUD_LIST], context[Context.MA_WARP_CLOUD_LIST] = rasterLib.getReprojection(context)
                     context[Context.LIST_INDEX_CLOUDMASK] = 2
 
-                 # Perform regression to capture coefficients from intersected pixels and apply to 2m EVHR
-#                context[Context.FN_LIST] = [str(context[Context.FN_TARGET]), str(context[Context.FN_TOA])]
-                context[Context.PRED_LIST] ,sr_metrics_list= rasterLib.simulateSurfaceReflectance(context)
-                region = os.path.basename(context[Context.DIR_TOA])
-                #region = str(pathlib.PurePath(str(context[Context.DIR_TOA]) + '//'))
-                #region = os.path.split(os.path.dirname(str(context[Context.DIR_TOA])))[0]
-                figureBase = region + '_' + context[Context.FN_PREFIX]
-                sr_metrics_list.to_csv(os.path.join(context[Context.DIR_OUTPUT_CSV], figureBase + '_SRLite_metrics.csv'))
+                # Perform regression to capture coefficients from intersected pixels and apply to 2m EVHR
+                context[Context.PRED_LIST], sr_metrics_list= rasterLib.simulateSurfaceReflectance(context)
 
                 # Create COG image from stack of processed bands
                 context[Context.FN_SRC] = str(context[Context.FN_TOA])
                 context[Context.FN_DEST] = str(context[Context.FN_COG])
                 context[Context.FN_COG] = rasterLib.createImage(context)
+
+                # Generate CSV
+                rasterLib.generateCSV(context, sr_metrics_list)
 
                 # Clean up
                 rasterLib.refresh(context)

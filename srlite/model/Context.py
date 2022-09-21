@@ -14,6 +14,9 @@ import csv
 # -----------------------------------------------------------------------------
 class Context(object):
 
+    # Custom name for current run
+    BATCH_NAME = 'batch_name'
+
     # Directories
     DIR_TOA = 'dir_toa'
     DIR_TARGET = 'dir_target'
@@ -107,15 +110,9 @@ class Context(object):
 
     # Regression algorithms
     REGRESSION_MODEL = 'regressor'
-    REGRESSOR_MODEL_SIMPLE = 'simple'
-    REGRESSOR_MODEL_ROBUST = 'robust'
+    REGRESSOR_MODEL_OLS = 'ols'
+    REGRESSOR_MODEL_HUBER = 'huber'
     REGRESSOR_MODEL_RMA = 'rma'
-
-    # Algorithm classes
-    # ALGORITHM_CLASS = 'algorithm'
-    # ALGORITHM_CLASS_TARGET = 'target'
-    # ALGORITHM_CLASS_QF = 'landsat'
-    # ALGORITHM_CLASS_THRESHOLD = 'threshold'
 
     # Storage type
     STORAGE_TYPE = 'storage'
@@ -160,6 +157,7 @@ class Context(object):
         args = self._getParser()
         # Initialize serializable context for orchestration
         try:
+            self.context_dict[Context.BATCH_NAME] = str(args.batch_name)
             self.context_dict[Context.DIR_TOA] = str(args.toa_dir)
             self.context_dict[Context.DIR_TARGET] = str(args.target_dir)
             self.context_dict[Context.DIR_CLOUDMASK] = str(args.cloudmask_dir)
@@ -207,6 +205,7 @@ class Context(object):
 
         # Echo input parameter values
         plotLib.trace(f'Initializing SRLite Regression script with the following parameters')
+        plotLib.trace(f'Batch:    {self.context_dict[Context.BATCH_NAME]}')
         plotLib.trace(f'TOA Directory:    {self.context_dict[Context.DIR_TOA]}')
         plotLib.trace(f'TARGET Directory:    {self.context_dict[Context.DIR_TARGET]}')
         plotLib.trace(f'Cloudmask Directory:    {self.context_dict[Context.DIR_CLOUDMASK]}')
@@ -250,6 +249,10 @@ class Context(object):
         """
         parser = argparse.ArgumentParser()
 
+        parser.add_argument(
+            "--batch", "--batch", type=str, required=False, dest='batch_name',
+            default=None, help="Specify batch name for run."
+        )
         parser.add_argument(
             "-toa_dir", "--input-toa-dir", type=str, required=True, dest='toa_dir',
             default=None, help="Specify directory path containing TOA files."
@@ -315,15 +318,8 @@ class Context(object):
                             required=False,
                             dest='regressor',
                             default='robust',
-                            choices=['simple', 'robust', 'rma'],
+                            choices=['ols', 'huber', 'rma'],
                             help='Choose which regression algorithm to use')
-
-        # parser.add_argument('--algorithm',
-        #                     required=False,
-        #                     dest='algorithm',
-        #                     default='target',
-        #                     choices=['target', 'landsat', 'threshold'],
-        #                     help='Choose which algorithm to apply to regression')
 
         parser.add_argument('--pmask',
                             required=False,
