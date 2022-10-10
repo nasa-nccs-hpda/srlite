@@ -7,13 +7,14 @@ from datetime import datetime
 from srlite.model.PlotLib import PlotLib
 from pathlib import Path
 import csv
+
+
 # -----------------------------------------------------------------------------
 # class Context
 #
 # This class is a serializable context for orchestration.
 # -----------------------------------------------------------------------------
 class Context(object):
-
     # Custom name for current run
     BATCH_NAME = 'batch_name'
 
@@ -39,7 +40,9 @@ class Context(object):
     MA_WARP_VALID_LIST = 'ma_warp_valid_list'
     MA_WARP_MASKED_LIST = 'ma_warp_masked_list'
     PRED_LIST = 'pred_list'
-    COMMON_MASK = 'comman_mask'
+    METRICS_LIST = 'metrics_list'
+    COMMON_MASK_LIST = 'common_mask_list'
+    COMMON_MASK = 'common_mask'
 
     FN_TOA = 'fn_toa'
     FN_TOA_DOWNSCALE = 'fn_toa_downscale'
@@ -55,6 +58,7 @@ class Context(object):
     MA_CLOUDMASK_DOWNSCALE = 'ma_cloudmask_downscale'
     FN_PREFIX = 'fn_prefix'
     FN_COG = 'fn_cog'
+    FN_COG_8BAND = 'fn_cog_8band'
     FN_SUFFIX = 'fn_suffix'
     GEOM_TOA = 'geom_toa'
 
@@ -74,7 +78,7 @@ class Context(object):
     LIST_TOA_BANDS = 'list_toa_bands'
     LIST_TARGET_BANDS = 'list_target_bands'
     BAND_NUM = 'band_num'
-    BAND_DESCRIPTION_LIST= 'band_description_list'
+    BAND_DESCRIPTION_LIST = 'band_description_list'
 
     # Index of data arrays FN_LIST, MA_LIST
     LIST_INDEX_TOA = 'list_index_toa'
@@ -93,7 +97,7 @@ class Context(object):
     TARGET_RASTERX_SIZE = 'target_rasterX_size'
     TARGET_RASTERY_SIZE = 'target_rasterY_size'
     TARGET_RASTER_COUNT = 'target_raster_count'
-    TARGET_DRIVER= 'target_driver'
+    TARGET_DRIVER = 'target_driver'
     TARGET_OUTPUT_TYPE = 'target_output_type'
     TARGET_DTYPE = 'target_dtype'
     TARGET_NODATA_VALUE = 'target_nodata_value'
@@ -101,8 +105,8 @@ class Context(object):
 
     # Default values
     DEFAULT_TOA_SUFFIX = 'toa.tif'
-    DEFAULT_TARGET_SUFFIX =  'ccdc.tif'
-    DEFAULT_CLOUDMASK_SUFFIX ='toa.cloudmask.v1.2.tif'
+    DEFAULT_TARGET_SUFFIX = 'ccdc.tif'
+    DEFAULT_CLOUDMASK_SUFFIX = 'toa.cloudmask.v1.2.tif'
     DEFAULT_XRES = 30
     DEFAULT_YRES = 30
     DEFAULT_NODATA_VALUE = -9999
@@ -128,6 +132,7 @@ class Context(object):
     CLEAN_FLAG = 'clean_flag'
     COG_FLAG = 'cog_flag'
     CSV_FLAG = 'csv_flag'
+    BAND8_FLAG = 'band8_flag'
     CSV_WRITER = 'csv_writer'
 
     # Quality flag and list of values
@@ -168,8 +173,8 @@ class Context(object):
             self.context_dict[Context.TARGET_YRES] = int(args.target_yres)
             self.context_dict[Context.TARGET_SAMPLING_METHOD] = str(args.target_sampling_method)
 
-            self.context_dict[Context.FN_TOA_SUFFIX] =  '-' + str(args.toa_suffix)
-            self.context_dict[Context.FN_TARGET_SUFFIX] =  '-' +  str(args.target_suffix)
+            self.context_dict[Context.FN_TOA_SUFFIX] = '-' + str(args.toa_suffix)
+            self.context_dict[Context.FN_TARGET_SUFFIX] = '-' + str(args.target_suffix)
             self.context_dict[Context.FN_CLOUDMASK_SUFFIX] = '-' + str(args.cloudmask_suffix)
 
             self.context_dict[Context.REGRESSION_MODEL] = str(args.regressor)
@@ -180,12 +185,13 @@ class Context(object):
                 self._create_logfile(self.context_dict[Context.REGRESSION_MODEL],
                                      self.context_dict[Context.DIR_OUTPUT])
             if (int(self.context_dict[Context.DEBUG_LEVEL]) >= int(self.DEBUG_TRACE_VALUE)):
-                    print(sys.path)
+                print(sys.path)
             # self.context_dict[Context.ALGORITHM_CLASS] = str(args.algorithm)
             self.context_dict[Context.STORAGE_TYPE] = str(args.storage)
             self.context_dict[Context.CLOUD_MASK_FLAG] = str(args.cmaskbool)
             self.context_dict[Context.POSITIVE_MASK_FLAG] = str(args.pmaskbool)
             self.context_dict[Context.CSV_FLAG] = str(args.csvbool)
+            self.context_dict[Context.BAND8_FLAG] = str(args.band8bool)
             self.context_dict[Context.QUALITY_MASK_FLAG] = str(args.qfmaskbool)
             self.context_dict[Context.LIST_QUALITY_MASK] = str(args.qfmask_list)
 
@@ -214,19 +220,21 @@ class Context(object):
         plotLib.trace(f'Regression Model:    {self.context_dict[Context.REGRESSION_MODEL]}')
         plotLib.trace(f'Debug Level: {self.context_dict[Context.DEBUG_LEVEL]}')
         plotLib.trace(f'Clean Flag: {self.context_dict[Context.CLEAN_FLAG]}')
+        plotLib.trace(f'CSV Flag: {self.context_dict[Context.CSV_FLAG]}')
+        plotLib.trace(f'Band8 Flag: {self.context_dict[Context.BAND8_FLAG]}')
         plotLib.trace(f'Log: {self.context_dict[Context.LOG_FLAG]}')
-        plotLib.trace(f'Storage:    {self.context_dict[Context.STORAGE_TYPE]}')
-        if (eval(self.context_dict[Context.CLOUD_MASK_FLAG] )):
+        #       plotLib.trace(f'Storage:    {self.context_dict[Context.STORAGE_TYPE]}')
+        if (eval(self.context_dict[Context.CLOUD_MASK_FLAG])):
             plotLib.trace(f'Cloud Mask:    {self.context_dict[Context.CLOUD_MASK_FLAG]}')
-        if (eval(self.context_dict[Context.POSITIVE_MASK_FLAG] )):
+        if (eval(self.context_dict[Context.POSITIVE_MASK_FLAG])):
             plotLib.trace(f'Positive Pixels Only Flag:    {self.context_dict[Context.POSITIVE_MASK_FLAG]}')
-        if (eval(self.context_dict[Context.CSV_FLAG] )):
+        if (eval(self.context_dict[Context.CSV_FLAG])):
             plotLib.trace(f'CSV Flag:    {self.context_dict[Context.CSV_FLAG]}')
             self.context_dict[Context.DIR_OUTPUT_CSV] = os.path.join(self.context_dict[Context.DIR_OUTPUT], 'csv')
             try:
-                os.makedirs(self.context_dict[Context.DIR_OUTPUT_CSV] , exist_ok=True)
+                os.makedirs(self.context_dict[Context.DIR_OUTPUT_CSV], exist_ok=True)
             except OSError as error:
-                print("Directory '%s' can not be created" % self.context_dict[Context.DIR_OUTPUT_CSV] )
+                print("Directory '%s' can not be created" % self.context_dict[Context.DIR_OUTPUT_CSV])
 
         if (eval(self.context_dict[Context.QUALITY_MASK_FLAG])):
             plotLib.trace(f'Quality Mask:    {self.context_dict[Context.QUALITY_MASK_FLAG]}')
@@ -300,7 +308,8 @@ class Context(object):
         )
         parser.add_argument(
             "--cloudmask_suffix", "--input-cloudmask-suffix", type=str, required=False, dest='cloudmask_suffix',
-            default=Context.DEFAULT_CLOUDMASK_SUFFIX, help="Specify CLOUDMASK file suffix (default = -toa.cloudmask.v1.2.tif')."
+            default=Context.DEFAULT_CLOUDMASK_SUFFIX,
+            help="Specify CLOUDMASK file suffix (default = -toa.cloudmask.v1.2.tif')."
         )
         parser.add_argument(
             "--debug", "--debug_level", type=int, required=False, dest='debug_level',
@@ -334,6 +343,14 @@ class Context(object):
                             default=False,
                             action='store_true',
                             help='Generate CSV file with runtime history')
+
+        parser.add_argument('--band8',
+                            required=False,
+                            dest='band8bool',
+                            default=False,
+                            action='store_true',
+                            help='Generate missing spectral bands [Coastal,Yellow,Rededge,NIR2] ' \
+                                 + 'when using CCDC as the target  - use only when input = [Blue|Green|Red|NIR]')
 
         parser.add_argument('--storage',
                             required=False,
@@ -414,7 +431,7 @@ class Context(object):
         :param context: input context object dictionary
         :return: updated context
         """
- #       context[Context.FN_PREFIX] = "WV02_20200812_M1BS_10300100AB21A400"
+        #       context[Context.FN_PREFIX] = "WV02_20200812_M1BS_10300100AB21A400"
 
         context[Context.FN_PREFIX] = str((prefix[1]).split("-toa.tif", 1)[0])
         # If TOA is a file instead of directory, assume all inputs are files also
@@ -424,28 +441,31 @@ class Context(object):
             context[Context.FN_CLOUDMASK] = context[Context.DIR_CLOUDMASK]
         else:
             context[Context.FN_TOA] = os.path.join(context[Context.DIR_TOA] + '/' +
-                context[Context.FN_PREFIX] + context[Context.FN_TOA_SUFFIX])
+                                                   context[Context.FN_PREFIX] + context[Context.FN_TOA_SUFFIX])
             context[Context.FN_TARGET] = os.path.join(context[Context.DIR_TARGET] + '/' +
-                context[Context.FN_PREFIX] + context[Context.FN_TARGET_SUFFIX])
+                                                      context[Context.FN_PREFIX] + context[Context.FN_TARGET_SUFFIX])
             context[Context.FN_CLOUDMASK] = os.path.join(context[Context.DIR_CLOUDMASK] + '/' +
-                context[Context.FN_PREFIX] + context[Context.FN_CLOUDMASK_SUFFIX])
+                                                         context[Context.FN_PREFIX] + context[
+                                                             Context.FN_CLOUDMASK_SUFFIX])
 
         # Name artifacts according to TOA prefix
         context[Context.FN_TOA_DOWNSCALE] = os.path.join(context[Context.DIR_OUTPUT] + '/' +
-            context[Context.FN_PREFIX] + self.FN_TOA_DOWNSCALE_SUFFIX)
+                                                         context[Context.FN_PREFIX] + self.FN_TOA_DOWNSCALE_SUFFIX)
         context[Context.FN_TARGET_DOWNSCALE] = os.path.join(context[Context.DIR_OUTPUT] + '/' +
-            context[Context.FN_PREFIX] + self.FN_TARGET_DOWNSCALE_SUFFIX)
+                                                            context[
+                                                                Context.FN_PREFIX] + self.FN_TARGET_DOWNSCALE_SUFFIX)
         context[Context.FN_CLOUDMASK_DOWNSCALE] = os.path.join(context[Context.DIR_OUTPUT] + '/' +
-            context[Context.FN_PREFIX] + self.FN_CLOUDMASK_DOWNSCALE_SUFFIX)
+                                                               context[
+                                                                   Context.FN_PREFIX] + self.FN_CLOUDMASK_DOWNSCALE_SUFFIX)
         context[Context.FN_COG] = os.path.join(context[Context.DIR_OUTPUT] + '/' +
-            context[Context.FN_PREFIX] + self.FN_SRLITE_SUFFIX)
+                                               context[Context.FN_PREFIX] + self.FN_SRLITE_SUFFIX)
 
         if not (os.path.exists(context[Context.FN_TOA])):
             raise FileNotFoundError("TOA File not found: {}".format(context[Context.FN_TOA]))
         if not (os.path.exists(context[Context.FN_TARGET])):
             self.plot_lib.trace("Processing: " + context[Context.FN_TOA])
             raise FileNotFoundError("TARGET File not found: {}".format(context[Context.FN_TARGET]))
-        if (eval(self.context_dict[Context.CLOUD_MASK_FLAG] )):
+        if (eval(self.context_dict[Context.CLOUD_MASK_FLAG])):
             if not (os.path.exists(context[Context.FN_CLOUDMASK])):
                 self.plot_lib.trace("Processing: " + context[Context.FN_TOA])
                 raise FileNotFoundError("Cloudmask File not found: {}".format(context[Context.FN_CLOUDMASK]))
@@ -464,7 +484,7 @@ class Context(object):
         :return: logfile instance, stdour and stderr being logged to file
         """
         logfile = os.path.join(logdir, '{}_log_{}_model.txt'.format(
-        datetime.now().strftime("%Y%m%d-%H%M%S"), model))
+            datetime.now().strftime("%Y%m%d-%H%M%S"), model))
         print('See ', logfile)
         so = se = open(logfile, 'w')  # open our log file
         sys.stdout = os.fdopen(sys.stdout.fileno(), 'w')  # stdout buffering
