@@ -744,8 +744,8 @@ class RasterLib(object):
         # Correction coefficients for simulated bands
         yellowGreenCorr = 0.473
         yellowRedCorr = 0.527
-        RededgeRedCorr = 0.621
-        RededgeNIR1Corr = 0.379
+        rededgeRedCorr = 0.621
+        rededgeNIR1Corr = 0.379
 
         # Retrieve slope, intercept, and score coefficients for data-driven bands
         blueSlope = sr_metrics_list['slope'][0]
@@ -859,8 +859,8 @@ class RasterLib(object):
                                               'Red', model, redIntercept, redSlope)]),
             pd.DataFrame([self.sr_performance(reflect_df_long,
                                               'RedEdge', model,
-                                              (redIntercept * RededgeRedCorr) + (NIR1Intercept * RededgeNIR1Corr),
-                                              (redSlope * RededgeRedCorr) + (NIR1Slope * RededgeNIR1Corr),
+                                              (redIntercept * rededgeRedCorr) + (NIR1Intercept * rededgeNIR1Corr),
+                                              (redSlope * rededgeRedCorr) + (NIR1Slope * rededgeNIR1Corr),
                                               ndv_value)]),
             pd.DataFrame([self.sr_performance(reflect_df_long,
                                               'NIR', model, NIR1Intercept, NIR1Slope)]),
@@ -868,37 +868,103 @@ class RasterLib(object):
                                               'NIR2', model, NIR1Intercept, NIR1Slope, ndv_value)]),
         ]).reset_index()
 
-        # Now that CSV is taken care of, create/update bands
-        evhrToa8 = [context[Context.FN_TOA]]
-        evhrToa = gdal.Open(str(context[Context.FN_TOA]))
-        warp_ds_list_toa8 = warplib.memwarp_multi_fn(
-            evhrToa8, res=evhrToa, extent=evhrToa, t_srs=evhrToa, r='average', dst_ndv=_ndv)
+        # # Now that CSV is taken care of, create/update bands
+        # evhrToa8 = [context[Context.FN_TOA]]
+        # evhrToa = gdal.Open(str(context[Context.FN_TOA]))
+        # warp_ds_list_toa8 = warplib.memwarp_multi_fn(
+        #     evhrToa8, res=evhrToa, extent=evhrToa, t_srs=evhrToa, r='average', dst_ndv=_ndv)
 
-        warp_ma_list_toa8 = [self.ds_getma(warp_ds_list_toa8[0],1), self.ds_getma(warp_ds_list_toa8[0],2),
-                             self.ds_getma(warp_ds_list_toa8[0],3), self.ds_getma(warp_ds_list_toa8[0],4),
-                             self.ds_getma(warp_ds_list_toa8[0],5), self.ds_getma(warp_ds_list_toa8[0],6),
-                             self.ds_getma(warp_ds_list_toa8[0],7), self.ds_getma(warp_ds_list_toa8[0],8)]
+        # warp_ma_list_toa8_ = [self.ds_getma(warp_ds_list_toa8[0],1), self.ds_getma(warp_ds_list_toa8[0],2),
+        #                      self.ds_getma(warp_ds_list_toa8[0],3), self.ds_getma(warp_ds_list_toa8[0],4),
+        #                      self.ds_getma(warp_ds_list_toa8[0],5), self.ds_getma(warp_ds_list_toa8[0],6),
+        #                      self.ds_getma(warp_ds_list_toa8[0],7), self.ds_getma(warp_ds_list_toa8[0],8)]
+        #
+        # warp_ma_list_toa8 = [iolib.fn_getma(context[Context.FN_TOA],1), iolib.fn_getma(context[Context.FN_TOA],2),
+        #                      iolib.fn_getma(context[Context.FN_TOA],3), iolib.fn_getma(context[Context.FN_TOA],4),
+        #                      iolib.fn_getma(context[Context.FN_TOA],5), iolib.fn_getma(context[Context.FN_TOA],6),
+        #                      iolib.fn_getma(context[Context.FN_TOA],7), iolib.fn_getma(context[Context.FN_TOA],8)]
+
+        toa_ma_band_coastal = iolib.fn_getma(context[Context.FN_TOA],1)
+        toa_ma_band_blue = iolib.fn_getma(context[Context.FN_TOA],2)
+        toa_ma_band_green = iolib.fn_getma(context[Context.FN_TOA],3)
+        toa_ma_band_yellow = iolib.fn_getma(context[Context.FN_TOA],4)
+        toa_ma_band_red = iolib.fn_getma(context[Context.FN_TOA],5)
+        toa_ma_band_rededge = iolib.fn_getma(context[Context.FN_TOA],6)
+        toa_ma_band_nir1 = iolib.fn_getma(context[Context.FN_TOA],7)
+        toa_ma_band_nir2 = iolib.fn_getma(context[Context.FN_TOA],8)
+
+        sr_prediction_band_coastal = \
+            ((toa_ma_band_coastal * metrics_srlite_long['slope'][0]) + (metrics_srlite_long['intercept'][0] * 10000))
+        sr_prediction_band_reshaped_coastal = sr_prediction_band_coastal.reshape(toa_ma_band_coastal.shape)
+        sr_prediction_band_ma_coastal = np.ma.array(
+            sr_prediction_band_reshaped_coastal,
+            mask=toa_ma_band_coastal.mask)
+
+        sr_prediction_band_blue = \
+            ((toa_ma_band_blue * metrics_srlite_long['slope'][0]) + (metrics_srlite_long['intercept'][0] * 10000))
+        sr_prediction_band_reshaped_blue = sr_prediction_band_blue.reshape(toa_ma_band_blue.shape)
+        sr_prediction_band_ma_blue = np.ma.array(
+            sr_prediction_band_reshaped_blue,
+            mask=toa_ma_band_blue.mask)
+
+        sr_prediction_band_green = \
+            ((toa_ma_band_green * metrics_srlite_long['slope'][1]) + (metrics_srlite_long['intercept'][1] * 10000))
+        sr_prediction_band_reshaped_green = sr_prediction_band_green.reshape(toa_ma_band_green.shape)
+        sr_prediction_band_ma_green = np.ma.array(
+            sr_prediction_band_reshaped_green,
+            mask=toa_ma_band_green.mask)
+
+# X = 1
+# A = 2
+# Y = 3
+#         twit = \
+#         (((maListToa[3].astype(float) * params_df.query('band == "Green"')['slope'].reset_index(drop=True)[0]) + (params_df.query('band == "Green"')['intercept'].reset_index(drop=True)[0] * 10000)) * 0.518) \
+#         + \
+#         (((maListToa[3].astype(float) * params_df.query('band == "Red"')['slope'].reset_index(drop=True)[0]) + (params_df.query('band == "Red"')['intercept'].reset_index(drop=True)[0] * 10000)) * 0.482),
+
+        sr_prediction_band_yellow = \
+            (((toa_ma_band_yellow.astype(float) * metrics_srlite_long['slope'][1]) + (metrics_srlite_long['intercept'][1] * 10000)) * yellowGreenCorr) + (((toa_ma_band_yellow.astype(float) * metrics_srlite_long['slope'][2]) + (metrics_srlite_long['intercept'][2] * 10000)) * yellowRedCorr)
+        sr_prediction_band_reshaped_yellow = sr_prediction_band_yellow.reshape(toa_ma_band_yellow.shape)
+        sr_prediction_band_ma_yellow = np.ma.array(
+            sr_prediction_band_reshaped_yellow,
+            mask=toa_ma_band_yellow.mask)
+
+        sr_prediction_band_red = \
+            ((toa_ma_band_red * metrics_srlite_long['slope'][2]) + (metrics_srlite_long['intercept'][2] * 10000))
+        sr_prediction_band_reshaped_red = sr_prediction_band_red.reshape(toa_ma_band_red.shape)
+        sr_prediction_band_ma_red = np.ma.array(
+            sr_prediction_band_reshaped_red,
+            mask=toa_ma_band_red.mask)
+
+        sr_prediction_band_rededge = \
+            (((toa_ma_band_rededge.astype(float) * metrics_srlite_long['slope'][2]) + (metrics_srlite_long['intercept'][2] * 10000)) * rededgeRedCorr) + (((toa_ma_band_rededge.astype(float) * metrics_srlite_long['slope'][3]) + (metrics_srlite_long['intercept'][3] * 10000)) * rededgeNIR1Corr)
+            # (((toa_ma_band_rededge.astype(float) * metrics_srlite_long['slope'][2]) +
+            #   ((metrics_srlite_long['intercept'][2] * 10000) * rededgeRedCorr) +
+            #  (toa_ma_band_rededge.astype(float) * metrics_srlite_long['slope'][3]) +
+            #   ((metrics_srlite_long['intercept'][3] * 10000)) * rededgeNIR1Corr))
+        sr_prediction_band_reshaped_rededge = sr_prediction_band_rededge.reshape(toa_ma_band_rededge.shape)
+        sr_prediction_band_ma_rededge = np.ma.array(
+            sr_prediction_band_reshaped_rededge,
+            mask=toa_ma_band_rededge.mask)
+
+        sr_prediction_band_nir1 = \
+            ((toa_ma_band_nir1 * metrics_srlite_long['slope'][3]) + (metrics_srlite_long['intercept'][3] * 10000))
+        sr_prediction_band_reshaped_nir1 = sr_prediction_band_nir1.reshape(toa_ma_band_nir1.shape)
+        sr_prediction_band_ma_nir1 = np.ma.array(
+            sr_prediction_band_reshaped_nir1,
+            mask=toa_ma_band_nir1.mask)
+
+        sr_prediction_band_nir2 = \
+            ((toa_ma_band_nir2 * metrics_srlite_long['slope'][3]) + (metrics_srlite_long['intercept'][3] * 10000))
+        sr_prediction_band_reshaped_nir2 = sr_prediction_band_nir2.reshape(toa_ma_band_nir2.shape)
+        sr_prediction_band_ma_nir2 = np.ma.array(
+            sr_prediction_band_reshaped_nir2,
+            mask=toa_ma_band_nir2.mask)
 
         result_weighted_8band = [
-            #Aerosol
-            (warp_ma_list_toa8[0] * metrics_srlite_long['slope'][0]) + (metrics_srlite_long['intercept'][0] * 10000),
-            #Blue
-            (warp_ma_list_toa8[1] * metrics_srlite_long['slope'][0]) + (metrics_srlite_long['intercept'][0] * 10000),
-            #Green
-            (warp_ma_list_toa8[2] * metrics_srlite_long['slope'][1]) + (metrics_srlite_long['intercept'][1] * 10000),
-            #Yellow
-            (((warp_ma_list_toa8[3].astype(float) * metrics_srlite_long['slope'][1]) + (metrics_srlite_long['intercept'][1] * 10000)) * yellowGreenCorr) +
-            (((warp_ma_list_toa8[3].astype(float) * metrics_srlite_long['slope'][2]) + (metrics_srlite_long['intercept'][2] * 10000)) * yellowRedCorr),
-            #Red
-            (warp_ma_list_toa8[4] * metrics_srlite_long['slope'][2]) + (metrics_srlite_long['intercept'][2] * 10000),
-            #Rededge
-            (((warp_ma_list_toa8[5].astype(float) * metrics_srlite_long['slope'][2]) + (metrics_srlite_long['intercept'][2] * 10000)) * RededgeRedCorr) +
-            (((warp_ma_list_toa8[5].astype(float) * metrics_srlite_long['slope'][3]) + (metrics_srlite_long['intercept'][3] * 10000)) * RededgeNIR1Corr),
-            #NIR1
-            (warp_ma_list_toa8[6] * metrics_srlite_long['slope'][3]) + (metrics_srlite_long['intercept'][3] * 10000),
-            #NIR2
-            (warp_ma_list_toa8[7] * metrics_srlite_long['slope'][3]) + (metrics_srlite_long['intercept'][3] * 10000),
-            ]
+            sr_prediction_band_ma_coastal, sr_prediction_band_ma_blue, sr_prediction_band_ma_green, sr_prediction_band_ma_yellow,
+            sr_prediction_band_ma_red, sr_prediction_band_ma_rededge, sr_prediction_band_ma_nir1, sr_prediction_band_ma_nir2
+        ]
 
         return context[Context.FN_COG], metrics_srlite_long, result_weighted_8band
 
@@ -932,7 +998,7 @@ class RasterLib(object):
         # Correction coefficients for simulated bands
         yellowGreenCorr = 0.473
         yellowRedCorr = 0.527
-        RededgeRedCorr = 0.621
+        rededgeRedCorr = 0.621
         RededgeNIR1Corr = 0.379
 
         # Generate diagnostics for simulated bands - use fill value to indicate bogus data
@@ -968,8 +1034,8 @@ class RasterLib(object):
             context,
             'BAND-RE',
             context[Context.REGRESSION_MODEL],
-            (redIntercept * RededgeRedCorr) + (NIR1Intercept * RededgeNIR1Corr),
-            (redSlope * RededgeRedCorr) + (NIR1Slope * RededgeNIR1Corr),
+            (redIntercept * rededgeRedCorr) + (NIR1Intercept * RededgeNIR1Corr),
+            (redSlope * rededgeRedCorr) + (NIR1Slope * RededgeNIR1Corr),
             None,
             None,
             ndv_value='NA'
@@ -993,7 +1059,7 @@ class RasterLib(object):
         # Generate weighted bands
         bandAerosol = bandBlue
         bandYellow = (bandGreen * yellowGreenCorr) + (bandRed * yellowRedCorr)
-        bandRededge = (bandRed * RededgeRedCorr) + (bandNIR1 * RededgeNIR1Corr)
+        bandRededge = (bandRed * rededgeRedCorr) + (bandNIR1 * RededgeNIR1Corr)
         bandNIR2 = bandNIR1
 
 #        sr_prediction_band = (toa_hr_band * metadata['slope']) + (metadata['intercept'] * 10000)
@@ -1259,8 +1325,11 @@ class RasterLib(object):
             sr_unmasked_prediction_list.append(sr_prediction_band)
 
             # Return to original shape and apply original mask
+            toa_sr_ma_band_reshaped = sr_prediction_band.reshape(toaBandMaArrayRaw.shape)
+            print(toa_sr_ma_band_reshaped, toaBandMaArrayRaw.shape, toaBandMaArrayRaw, toaBandMaArrayRaw.mask)
+
             toa_sr_ma_band = np.ma.array(
-                sr_prediction_band.reshape(toaBandMaArrayRaw.shape),
+                toa_sr_ma_band_reshaped,
                 mask=toaBandMaArrayRaw.mask)
             sr_prediction_list.append(toa_sr_ma_band)
 
