@@ -42,7 +42,7 @@ FROM: ./ilab-base_gdal-3.3.3-v2.sif
 
     mkdir -p ${PROJECT_PATH}
     # RECOMMENDED LOCATION - CURRENTLY INCLUDED IN CORE
-    git clone --single-branch --branch srlite-0.9.14-srlite-0.9.14-10132022-csv-8band https://github.com/nasa-nccs-hpda/srlite.git \
+    git clone --single-branch --branch srlite-0.9.14-10132022-csv-8band https://github.com/nasa-nccs-hpda/srlite.git \
 		${PROJECT_PATH}/srlite
     chmod a+rwx -R ${PROJECT_PATH}/*
 
