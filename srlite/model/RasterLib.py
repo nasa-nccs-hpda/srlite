@@ -350,8 +350,6 @@ class RasterLib(object):
         # self._plot_lib.plot_hists2(warp_ma_list, context[Context.FN_LIST], title_text='30 m warped version\n')
 
         ndv_list = [self.get_ndv(fn) for fn in context[Context.FN_LIST]]
-        print([ma.get_fill_value() for ma in warp_ma_list])
-        print(ndv_list)
 
         return warp_ds_list, warp_ma_list
 
@@ -575,15 +573,17 @@ class RasterLib(object):
 
     def generateCSV(self, context, sr_metrics_list):
         if (eval(context[Context.CSV_FLAG])):
-            batch = context[Context.BATCH_NAME]
-            if (batch == 'None'):
-                batch = os.path.basename(context[Context.DIR_TOA])
-            figureBase = batch + '_' + context[Context.FN_PREFIX] \
-                         + '_' + context[Context.REGRESSION_MODEL]
+            if (context[Context.BATCH_NAME] != 'None'):
+                figureBase = context[Context.BATCH_NAME] + '_' + context[Context.FN_PREFIX] \
+                             + '_' + context[Context.REGRESSION_MODEL]
+            else:
+                figureBase = context[Context.FN_PREFIX] \
+                             + '_' + context[Context.REGRESSION_MODEL]
             path = os.path.join(context[Context.DIR_OUTPUT_CSV],
-                                figureBase + '_SRLite_metrics.csv')
+                                figureBase + '_SRLite_statistics.csv')
             sr_metrics_list.to_csv(path)
-            self._plot_lib.trace(f"\nCreated CSV with coefficients...\n   {path}")
+            self._plot_lib.trace(
+                f"\nCreated CSV with coefficients for batch {context[Context.BATCH_NAME]}...\n   {path}")
 
     def prepareMasks(self, context):
 
@@ -914,14 +914,6 @@ class RasterLib(object):
             sr_prediction_band_reshaped_green,
             mask=toa_ma_band_green.mask)
 
-# X = 1
-# A = 2
-# Y = 3
-#         twit = \
-#         (((maListToa[3].astype(float) * params_df.query('band == "Green"')['slope'].reset_index(drop=True)[0]) + (params_df.query('band == "Green"')['intercept'].reset_index(drop=True)[0] * 10000)) * 0.518) \
-#         + \
-#         (((maListToa[3].astype(float) * params_df.query('band == "Red"')['slope'].reset_index(drop=True)[0]) + (params_df.query('band == "Red"')['intercept'].reset_index(drop=True)[0] * 10000)) * 0.482),
-
         sr_prediction_band_yellow = \
             (((toa_ma_band_yellow.astype(float) * metrics_srlite_long['slope'][1]) + (metrics_srlite_long['intercept'][1] * 10000)) * yellowGreenCorr) + (((toa_ma_band_yellow.astype(float) * metrics_srlite_long['slope'][2]) + (metrics_srlite_long['intercept'][2] * 10000)) * yellowRedCorr)
         sr_prediction_band_reshaped_yellow = sr_prediction_band_yellow.reshape(toa_ma_band_yellow.shape)
@@ -938,10 +930,6 @@ class RasterLib(object):
 
         sr_prediction_band_rededge = \
             (((toa_ma_band_rededge.astype(float) * metrics_srlite_long['slope'][2]) + (metrics_srlite_long['intercept'][2] * 10000)) * rededgeRedCorr) + (((toa_ma_band_rededge.astype(float) * metrics_srlite_long['slope'][3]) + (metrics_srlite_long['intercept'][3] * 10000)) * rededgeNIR1Corr)
-            # (((toa_ma_band_rededge.astype(float) * metrics_srlite_long['slope'][2]) +
-            #   ((metrics_srlite_long['intercept'][2] * 10000) * rededgeRedCorr) +
-            #  (toa_ma_band_rededge.astype(float) * metrics_srlite_long['slope'][3]) +
-            #   ((metrics_srlite_long['intercept'][3] * 10000)) * rededgeNIR1Corr))
         sr_prediction_band_reshaped_rededge = sr_prediction_band_rededge.reshape(toa_ma_band_rededge.shape)
         sr_prediction_band_ma_rededge = np.ma.array(
             sr_prediction_band_reshaped_rededge,
@@ -1082,9 +1070,6 @@ class RasterLib(object):
             np.ma.array(bandNIR2.reshape(toaBandMaArrayRaw.shape), mask=toaBandMaArrayRaw.mask),
         ]
 
-        print(result_weighted_8band[0].min(), result_weighted_8band[0].max())
-        print(result_weighted_8band[3].min(), result_weighted_8band[3].max())
-
         return result_weighted_8band, sr_metrics_list
 
     def predictSurfaceReflectance(self, context, band_name, toaBandMaArrayRaw,
@@ -1183,7 +1168,6 @@ class RasterLib(object):
         y_pred = y_pred.reshape(len(y_pred), 1)
         diff = (y_true - y_pred)
         mbe = diff.mean()
-        # print('MBE = ', mbe)
         return mbe
 
     def _model_coeffs_(self, context, band_name, intercept, slope):
@@ -1326,7 +1310,6 @@ class RasterLib(object):
 
             # Return to original shape and apply original mask
             toa_sr_ma_band_reshaped = sr_prediction_band.reshape(toaBandMaArrayRaw.shape)
-            print(toa_sr_ma_band_reshaped, toaBandMaArrayRaw.shape, toaBandMaArrayRaw, toaBandMaArrayRaw.mask)
 
             toa_sr_ma_band = np.ma.array(
                 toa_sr_ma_band_reshaped,
