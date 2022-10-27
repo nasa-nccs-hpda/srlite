@@ -21,9 +21,11 @@ from srlite.model.Context import Context
 
 
 # -----------------------------------------------------------------------------
-# class Context
+# class RasterLib
 #
-# This class is a serializable context for orchestration.
+# This class contains the business logic for the SR-Lite application.  It combines
+# general-purpose raster utilities (built on top of numpy, pandas, pygeotools, and
+# sklearn) with SR-Lite specific methods.
 # -----------------------------------------------------------------------------
 class RasterLib(object):
     DIR_TOA = 'toa'
@@ -45,10 +47,12 @@ class RasterLib(object):
             sys.exit(1)
         return
 
+    # -------------------------------------------------------------------------
+    # _validateParms
+    #
+    # Verify that required parameters exist in Context()
+    # -------------------------------------------------------------------------
     def _validateParms(self, context, requiredList):
-        """
-        Verify that required parameters exist in Context()
-        """
         for parm in requiredList:
             parmExists = False
             for item in context:
@@ -59,6 +63,11 @@ class RasterLib(object):
                 print("Error: Missing required parameter: " + str(parm))
                 exit(1)
 
+    # -------------------------------------------------------------------------
+    # _representsInt
+    #
+    # Verify that the string safely represents and integer
+    # -------------------------------------------------------------------------
     def _representsInt(self, s):
         try:
             int(s)
@@ -66,64 +75,57 @@ class RasterLib(object):
         except ValueError:
             return False
 
+    # -------------------------------------------------------------------------
+    # b_getma
+    #
+    # Get masked array from input GDAL Band
+    # -------------------------------------------------------------------------
     def b_getma(self, b):
-        """Get masked array from input GDAL Band
-
-        Parameters
-        ----------
-        b : gdal.Band
-            Input GDAL Band
-
-        Returns
-        -------
-        np.ma.array
-            Masked array containing raster values
-        """
         b_ndv = iolib.get_ndv_b(b)
-        #bma = np.ma.masked_equal(b.ReadAsArray(), b_ndv)
         #This is more appropriate for float, handles precision issues
         bma = np.ma.masked_values(b.ReadAsArray(), b_ndv, shrink=False)
         return bma
 
-    #Given input dataset, return a masked array for the input band
+    # -------------------------------------------------------------------------
+    # ds_getma
+    #
+    # Given input dataset, return a masked array for the input band
+    # -------------------------------------------------------------------------
     def ds_getma(self, ds, bnum=1):
-        """Get masked array from input GDAL Dataset
-
-        Parameters
-        ----------
-        ds : gdal.Dataset
-            Input GDAL Datset
-        bnum : int, optional
-            Band number
-
-        Returns
-        -------
-        np.ma.array
-            Masked array containing raster values
-        """
         b = ds.GetRasterBand(bnum)
         return b_getma(b)
 
-    #Masked Array to 1D
+    # -------------------------------------------------------------------------
+    # ma2_1d
+    #
+    # Given a masked array, convert to 1D and return unmasked array contents
+    # -------------------------------------------------------------------------
     def ma2_1d(self, ma):
         raveled = ma.ravel()
         unmasked = raveled[raveled.mask == False]
         return np.array(unmasked)
 
-    #Masked Array to data frame
+    # -------------------------------------------------------------------------
+    # ma2df
+    #
+    # Given a masked array, convert it to a data frame
+    # -------------------------------------------------------------------------
     def ma2df(self, ma, product, band):
         raveled = ma.ravel()
         unmasked = raveled[raveled.mask == False]
         df = pd.DataFrame(unmasked)
         df.columns = [product + band]
         df[product + band] = df[product + band] * 0.0001
-        return df#Given input band, return a masked array
+        return df
 
+    # -------------------------------------------------------------------------
+    # getBandIndices
+    #
+    # Validate band name pairs and return corresponding gdal indices
+    # -------------------------------------------------------------------------
     def getBandIndices(self, context):
         self._validateParms(context, [Context.LIST_BAND_PAIRS, Context.FN_LIST])
-        """
-        Validate band name pairs and return corresponding gdal indices
-        """
+
         bandNamePairList = list(ast.literal_eval(context[Context.LIST_BAND_PAIRS]))
 
         fn_list = context[Context.FN_LIST]
@@ -195,23 +197,79 @@ class RasterLib(object):
         self._plot_lib.trace(f'Band Names: {str(bandNamePairList)} Indices: {str(bandIndices)}')
         return bandIndices
 
+    # -------------------------------------------------------------------------
+    # getBandIndices
+    #
+    # Get snapshot of attributes of EVHR, CCDC, and Cloudmask tifs and create plot
+    # -------------------------------------------------------------------------
     def getAttributeSnapshot(self, context):
         self._validateParms(context, [Context.FN_TOA, Context.FN_TARGET, Context.FN_CLOUDMASK])
 
-        # Get snapshot of attributes of EVHR, CCDC, and Cloudmask tifs and create plot")
         self.getAttributes(str(context[Context.FN_TOA]), "EVHR Combo Plot")
         self.getAttributes(str(context[Context.FN_TARGET]), "CCDC Combo Plot")
         if (eval(context[Context.CLOUD_MASK_FLAG])):
             self.getAttributes(str(context[Context.FN_CLOUDMASK]), "Cloudmask Combo Plot")
 
+    # -------------------------------------------------------------------------
+    # displayComboPlot
+    #
+    # Display combo plot
+    # -------------------------------------------------------------------------
+    def displayComboPlot(self, r_fn, title=None):
+        if (self._debug_level >= 2):
+            self._plot_lib.plot_combo(r_fn, figsize=(14, 7), title=title)
+
+    # -------------------------------------------------------------------------
+    # getAttributes
+    #
+    # Trace image geotransform diagnostics
+    # -------------------------------------------------------------------------
+    def getAttributes(self, r_fn, title=None):
+        geotransform = None
+        r_ds = iolib.fn_getds(r_fn)
+        if (self._debug_level >= 1):
+            self._plot_lib.trace("\nFile Name is {}".format(r_fn))
+            self._plot_lib.trace("Raster Count is: {},  Size is: ({} x {})".format(
+                r_ds.RasterCount, r_ds.RasterYSize, r_ds.RasterXSize))
+            self._plot_lib.trace("Projection is {}".format(r_ds.GetProjection()))
+            geotransform = r_ds.GetGeoTransform()
+            if geotransform:
+                self._plot_lib.trace(
+                    f'Origin: ({geotransform[0]}, '
+                    f'{geotransform[3]}), Resolution: ({geotransform[1]}, {geotransform[5]})  ')
+
+        self.displayComboPlot(r_fn, title)
+
+        r_ds = None
+        return geotransform
+
+    # -------------------------------------------------------------------------
+    # setTargetAttributes
+    #
+    # Trace image geotransform diagnostics
+    # -------------------------------------------------------------------------
+    def setTargetAttributes(self, context, r_fn):
+
+        r_ds = iolib.fn_getds(r_fn)
+        context[Context.TARGET_GEO_TRANSFORM] = r_ds.GetGeoTransform()
+        context[Context.TARGET_DRIVER] = r_ds.GetDriver()
+        context[Context.TARGET_PRJ] = r_ds.GetProjection()
+        context[Context.TARGET_SRS] = r_ds.GetSpatialRef()
+        context[Context.TARGET_RASTERX_SIZE] = r_ds.RasterXSize
+        context[Context.TARGET_RASTERY_SIZE] = r_ds.RasterYSize
+        context[Context.TARGET_RASTER_COUNT] = r_ds.RasterCount
+        r_ds = None
+
+    # -------------------------------------------------------------------------
+    # replaceNdv
+    #
+    # Replace no data value in gdal dataset
+    # -------------------------------------------------------------------------
     def replaceNdv(self, src_fn, new_ndv):
         ds = gdal.Open(src_fn)
         b = ds.GetRasterBand(1)
         # Extract old ndv
         old_ndv = iolib.get_ndv_b(b)
-
-        print(src_fn)
-        print("Replacing old ndv %s with new ndv %s" % (old_ndv, new_ndv))
 
         # Load masked array
         bma = iolib.ds_getma(ds)
@@ -227,40 +285,11 @@ class RasterLib(object):
         iolib.writeGTiff(bma.filled(), out_fn, ds, ndv=new_ndv)
         return out_fn
 
-    def getAttributes(self, r_fn, title=None):
-        geotransform = None
-        r_ds = iolib.fn_getds(r_fn)
-        if (self._debug_level >= 1):
-            self._plot_lib.trace("\nFile Name is {}".format(r_fn))
-            self._plot_lib.trace("Raster Count is: {},  Size is: ({} x {})".format(
-                r_ds.RasterCount, r_ds.RasterYSize, r_ds.RasterXSize))
-            self._plot_lib.trace("Projection is {}".format(r_ds.GetProjection()))
-            geotransform = r_ds.GetGeoTransform()
-            if geotransform:
-                self._plot_lib.trace(
-                    f'Origin: ({geotransform[0]}, '
-                    f'{geotransform[3]}), Resolution: ({geotransform[1]}, {geotransform[5]})  ')
-                # self._plot_lib.trace("Origin = ({}, {})".format(geotransform[0], geotransform[3])) \
-                # + "Resolution= ({}, {})".format(geotransform[1], geotransform[5])
-
-        if (self._debug_level >= 2):
-            self._plot_lib.plot_combo(r_fn, figsize=(14, 7), title=title)
-
-        r_ds = None
-        return geotransform
-
-    def setTargetAttributes(self, context, r_fn):
-
-        r_ds = iolib.fn_getds(r_fn)
-        context[Context.TARGET_GEO_TRANSFORM] = r_ds.GetGeoTransform()
-        context[Context.TARGET_DRIVER] = r_ds.GetDriver()
-        context[Context.TARGET_PRJ] = r_ds.GetProjection()
-        context[Context.TARGET_SRS] = r_ds.GetSpatialRef()
-        context[Context.TARGET_RASTERX_SIZE] = r_ds.RasterXSize
-        context[Context.TARGET_RASTERY_SIZE] = r_ds.RasterYSize
-        context[Context.TARGET_RASTER_COUNT] = r_ds.RasterCount
-        r_ds = None
-
+    # -------------------------------------------------------------------------
+    # getStatistics
+    #
+    # Get snapshot of statistics of EVHR, CCDC, and Cloudmask tifs
+    # -------------------------------------------------------------------------
     def getStatistics(self, context):
         self._validateParms(context, [Context.MA_LIST, Context.MA_WARP_LIST])
 
@@ -276,96 +305,17 @@ class RasterLib(object):
         [self._plot_lib.trace(f'warped ma min: {ma.min()}') for ma in context[Context.MA_WARP_LIST]]
         [self._plot_lib.trace(f'warped ma max: {ma.max()}') for ma in context[Context.MA_WARP_LIST]]
 
-    def getIntersectionDs(self, context):
-        self._validateParms(context, [Context.DS_INTERSECTION_LIST])
-
-        # ########################################
-        # # Align the CCDC and EVHR images, then take the intersection of the grid points
-        # ########################################
-        warp_ds_list = warplib.memwarp_multi(
-            context[Context.DS_INTERSECTION_LIST], res='first', extent='intersection', t_srs='first',
-            r=context[Context.TARGET_SAMPLING_METHOD])
-        warp_ma_list = [iolib.ds_getma(ds) for ds in warp_ds_list]
-        self._plot_lib.trace(
-            '\n TOA shape=' + str(warp_ma_list[0].shape) + ' TARGET shape=' + str(warp_ma_list[1].shape))
-        return warp_ds_list, warp_ma_list
-
-    def getCommonMask(self, context):
-        self._validateParms(context, [Context.MA_WARP_LIST])
-
-        # ########################################
-        # # Align the CCDC and EVHR images, then take the intersection of the grid points
-        # ########################################
-        # Mask negative values in input
-        context[Context.MA_WARP_VALID_LIST] = \
-            [np.ma.masked_where(ma < 0, ma) for ma in context[Context.MA_WARP_LIST]]
-
-        common_mask = malib.common_mask(context[Context.MA_WARP_VALID_LIST])
-        return common_mask
-
-    def getMaskedArrays(self, context):
-        self._validateParms(context, [Context.FN_LIST])
-
-        # ########################################
-        # # Align the CCDC and EVHR images, then take the intersection of the grid points
-        # ########################################
-        context[Context.MA_LIST] = [iolib.fn_getma(fn) for fn in context[Context.FN_LIST]]
-        return context[Context.MA_LIST]
-
-    def maskNegativeValues(self, context):
-        self._validateParms(context, [Context.MA_LIST])
-
-        warp_valid_ma_list = [np.ma.masked_where(ma < 0, ma) for ma in context[Context.MA_LIST]]
-        return warp_valid_ma_list
-
-    def getIntersection(self, context):
-        self._validateParms(context, [Context.FN_INTERSECTION_LIST])
-
-        # ########################################
-        # # Take the intersection of the scenes and return masked arrays of common pixels
-        # ########################################
-        # warp_ds_list = warplib.memwarp_multi_fn(
-        warp_ds_list = warplib.memwarp_multi_fn(
-            context[Context.FN_INTERSECTION_LIST], res='first', extent='intersection', t_srs='first',
-            r=context[Context.TARGET_SAMPLING_METHOD])
-        warp_ma_list = [iolib.ds_getma(ds) for ds in warp_ds_list]
-        return warp_ds_list, warp_ma_list
-
-    def getCcdcReprojection(self, context):
-        self._validateParms(context, [Context.FN_LIST, Context.FN_TARGET, Context.FN_TOA])
-
-        # ########################################
-        # # Align context[Context.FN_LIST[>0]] to context[Context.FN_LIST[0]] return masked arrays of reprojected pixels
-        # ########################################
-        warp_ds_list = warplib.memwarp_multi_fn(context[Context.FN_LIST],
-                                                res=str(context[Context.FN_TARGET]),
-                                                extent=str(context[Context.FN_TARGET]),
-                                                t_srs=str(context[Context.FN_TARGET]),
-                                                r='average',
-                                                dst_ndv=self.get_ndv(str(context[Context.FN_TOA]),
-                                                                     ))
-        warp_ma_list = [iolib.ds_getma(ds) for ds in warp_ds_list]
-
-        # self._plot_lib.plot_maps2(warp_ma_list, context[Context.FN_LIST], title_text='30 m warped version\n')
-        # self._plot_lib.plot_hists2(warp_ma_list, context[Context.FN_LIST], title_text='30 m warped version\n')
-
-        ndv_list = [self.get_ndv(fn) for fn in context[Context.FN_LIST]]
-
-        return warp_ds_list, warp_ma_list
-
-    def getReprojection(self, context):
-        self._validateParms(context, [Context.FN_LIST, Context.FN_REPROJECTION_LIST, Context.TARGET_FN,
-                                      Context.TARGET_SAMPLING_METHOD])
-
-        # ########################################
-        # # Align context[Context.FN_LIST[>0]] to context[Context.FN_LIST[0]] return masked arrays of reprojected pixels
-        # ########################################
-        ndv_list = [self.get_ndv(fn) for fn in context[Context.FN_REPROJECTION_LIST]]
-#        self._plot_lib.trace(f'Fill values before re-projection:  {ndv_list}')
+    # -------------------------------------------------------------------------
+    # alignNoDataValues
+    #
+    # Align NoDataValues in image list to match target
+    # -------------------------------------------------------------------------
+    def alignNoDataValues(self, context):
+        self._validateParms(context, [Context.FN_LIST, Context.FN_REPROJECTION_LIST, Context.TARGET_FN])
 
         # Ensure that all NoData values match TARGET_FN (e.g., TOA)
+        ndv_list = [self.get_ndv(fn) for fn in context[Context.FN_REPROJECTION_LIST]]
         dst_ndv = self.get_ndv(str(context[Context.TARGET_FN]))
-        #        index = 0
         for fn in context[Context.FN_REPROJECTION_LIST]:
             current_ndv = self.get_ndv(fn)
             if (current_ndv != dst_ndv):
@@ -374,9 +324,19 @@ class RasterLib(object):
                 context[Context.FN_LIST][index] = out_fn
                 index = context[Context.FN_REPROJECTION_LIST].index(fn)
                 context[Context.FN_REPROJECTION_LIST][index] = out_fn
-        #               index = index+1
+        return dst_ndv
+
+    # -------------------------------------------------------------------------
+    # getReprojection
+    #
+    # Reproject inputs to TOA attributes (res, extent, srs, nodata) and return masked arrays of reprojected pixels
+    # -------------------------------------------------------------------------
+    def getReprojection(self, context):
+        self._validateParms(context, [Context.FN_LIST, Context.FN_REPROJECTION_LIST, Context.TARGET_FN,
+                                      Context.TARGET_SAMPLING_METHOD])
 
         # Reproject inputs to TOA attributes (res, extent, srs, nodata)
+        dst_ndv = self.alignNoDataValues(context)
         warp_ds_list = warplib.memwarp_multi_fn(context[Context.FN_REPROJECTION_LIST],
                                                 res=context[Context.TARGET_XRES],
                                                 extent=str(context[Context.TARGET_FN]),
@@ -385,32 +345,14 @@ class RasterLib(object):
                                                 dst_ndv=dst_ndv)
 
         warp_ma_list = [iolib.ds_getma(ds) for ds in warp_ds_list]
-#        self._plot_lib.trace(f'Fill values after re-projection:  {[ma.get_fill_value() for ma in warp_ma_list]}')
 
         return warp_ds_list, warp_ma_list
 
-    def __getReprojection(self, context):
-        self._validateParms(context, [Context.FN_LIST])
-
-        # ########################################
-        # # Align context[Context.FN_LIST[>0]] to context[Context.FN_LIST[0]] return masked arrays of reprojected pixels
-        # ########################################
-        warp_ds_list = warplib.memwarp_multi_fn(
-            context[Context.FN_LIST], res=context[Context.TARGET_XRES], extent='first', t_srs='first')
-        warp_ma_list = [iolib.ds_getma(ds) for ds in warp_ds_list]
-        return warp_ds_list, warp_ma_list
-
-    def applyEVHRCloudmask(self, context):
-        self._validateParms(context,
-                            [Context.MA_WARP_LIST])
-
-        ccdc_warp_ma = context[Context.MA_WARP_LIST][0]
-        evhr_warp_ma = context[Context.MA_WARP_LIST][1]
-        cloudmask_warp_ma = context[Context.MA_WARP_LIST][2]
-        context[Context.MA_WARP_CLOUD_LIST] = [ccdc_warp_ma, evhr_warp_ma,
-                                               np.ma.masked_where(cloudmask_warp_ma == 1.0, cloudmask_warp_ma)]
-        return context[Context.MA_WARP_CLOUD_LIST]
-
+    # -------------------------------------------------------------------------
+    # getReprojection
+    #
+    # Reproject inputs to TOA attributes (res, extent, srs, nodata) and return masked arrays of reprojected pixels
+    # -------------------------------------------------------------------------
     def prepareEVHRCloudmask(self, context):
         self._validateParms(context,
                             [Context.MA_WARP_LIST, Context.LIST_INDEX_CLOUDMASK])
