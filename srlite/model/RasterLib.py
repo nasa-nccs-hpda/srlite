@@ -412,25 +412,6 @@ class RasterLib(object):
             context['cloudmaskQFWarpExternalBandMaArrayMasked'] = self.prepareQualityFlagMask(context)
 
     # -------------------------------------------------------------------------
-    # generateCSV
-    #
-    # Write out statistics per band to a csv file
-    # -------------------------------------------------------------------------
-    def generateCSV(self, context, sr_metrics_list):
-        if (eval(context[Context.CSV_FLAG])):
-            if (context[Context.BATCH_NAME] != 'None'):
-                figureBase = context[Context.BATCH_NAME] + '_' + context[Context.FN_PREFIX] \
-                             + '_' + context[Context.REGRESSION_MODEL]
-            else:
-                figureBase = context[Context.FN_PREFIX] \
-                             + '_' + context[Context.REGRESSION_MODEL]
-            path = os.path.join(context[Context.DIR_OUTPUT_CSV],
-                                figureBase + '_SRLite_statistics.csv')
-            sr_metrics_list.to_csv(path)
-            self._plot_lib.trace(
-                f"\nCreated CSV with coefficients for batch {context[Context.BATCH_NAME]}...\n   {path}")
-
-    # -------------------------------------------------------------------------
     # getCommonMask
     #
     # Aggregate optional masks to create a common mask that intersects the CCDC/QF, EVHR, and Cloudmasks.
@@ -465,15 +446,12 @@ class RasterLib(object):
 
         return common_mask_band_all
 
+    # -------------------------------------------------------------------------
+    # mean_bias_error
+    #
+    # Derive deltas in mean values between observed and predicted arrays
+    # -------------------------------------------------------------------------
     def mean_bias_error(self, y_true, y_pred):
-        '''
-        Parameters:
-            y_true (array): Array of observed values
-            y_pred (array): Array of prediction values
-
-        Returns:
-            mbe (float): Bias score
-        '''
         y_true = np.array(y_true)
         y_pred = np.array(y_pred)
         y_true = y_true.reshape(len(y_true),1)
@@ -482,6 +460,12 @@ class RasterLib(object):
         mbe = diff.mean()
         return mbe
 
+    # -------------------------------------------------------------------------
+    # sr_performance
+    #
+    # Calculate band metrics based on corresponding TOA and CCDC arrays.
+    # Optionally override metrics with no data value (used for synthetic bands)
+    # -------------------------------------------------------------------------
     def sr_performance(self, df, bandName, model, intercept, slope, ndv_value=None):
 
         metadata = {}
@@ -520,6 +504,11 @@ class RasterLib(object):
 
         return metadata
 
+    # -------------------------------------------------------------------------
+    # generateSynthe
+    #
+    # Appl
+    # -------------------------------------------------------------------------
     def apply_regressor_otf_8band(self, context, image_4band):
 
         # Get coefficients for standard 4-Bands
@@ -654,244 +643,32 @@ class RasterLib(object):
 
         return context[Context.FN_COG], metrics_srlite_long
 
-    def __apply_regressor_otf_8band(self, context, image_4band):
+    # -------------------------------------------------------------------------
+    # generateCSV
+    #
+    # Write out statistics per band to a csv file
+    # -------------------------------------------------------------------------
+    def generateCSV(self, context):
 
-        # Get coefficients for standard 4-Bands
-        sr_metrics_list = context[Context.METRICS_LIST]
-        model = context[Context.REGRESSION_MODEL]
+        # Generate simulated band statistics
+        if eval(context[Context.BAND8_FLAG]):
+            context[Context.FN_COG_8BAND], context[Context.METRICS_LIST] = \
+                self.apply_regressor_otf_8band(context,
+                                               context[Context.FN_COG])
 
-        # Correction coefficients for simulated bands
-        yellowGreenCorr = 0.473
-        yellowRedCorr = 0.527
-        rededgeRedCorr = 0.621
-        rededgeNIR1Corr = 0.379
+        if (eval(context[Context.CSV_FLAG])):
+            if (context[Context.BATCH_NAME] != 'None'):
+                figureBase = context[Context.BATCH_NAME] + '_' + context[Context.FN_PREFIX] \
+                             + '_' + context[Context.REGRESSION_MODEL]
+            else:
+                figureBase = context[Context.FN_PREFIX] \
+                             + '_' + context[Context.REGRESSION_MODEL]
+            path = os.path.join(context[Context.DIR_OUTPUT_CSV],
+                                figureBase + '_SRLite_statistics.csv')
+            context[Context.METRICS_LIST].to_csv(path)
+            self._plot_lib.trace(
+                f"\nCreated CSV with coefficients for batch {context[Context.BATCH_NAME]}...\n   {path}")
 
-        # Retrieve slope, intercept, and score coefficients for data-driven bands
-        blueSlope = sr_metrics_list['slope'][0]
-        blueIntercept = sr_metrics_list['intercept'][0]
-
-        greenSlope = sr_metrics_list['slope'][1]
-        greenIntercept = sr_metrics_list['intercept'][1]
-
-        redSlope = sr_metrics_list['slope'][2]
-        redIntercept = sr_metrics_list['intercept'][2]
-
-        NIR1Slope = sr_metrics_list['slope'][3]
-        NIR1Intercept = sr_metrics_list['intercept'][3]
-
-        # Read CCDC, SRLite, and Cloud images
-        ccdcImage = os.path.join(context[Context.FN_TARGET])
-        evhrSrliteImage = os.path.join(context[Context.FN_COG])
-        cloudImage = os.path.join(context[Context.FN_CLOUDMASK])
-
-        _ndv=-9999
-        fn_list = [ccdcImage, evhrSrliteImage, cloudImage]
-        warp_ds_list = warplib.memwarp_multi_fn(fn_list, res=30, extent=evhrSrliteImage,
-                                                t_srs=evhrSrliteImage, r='average', dst_ndv=_ndv)
-
-        # get similar bands across arrays
-        warp_ds_list_multiband = warp_ds_list[0:2]
-        warp_ma_list_blu = [self.ds_getma(ds, 1) for ds in warp_ds_list_multiband]
-        warp_ma_list_grn = [self.ds_getma(ds, 2) for ds in warp_ds_list_multiband]
-        warp_ma_list_red = [self.ds_getma(ds, 3) for ds in warp_ds_list_multiband]
-        warp_ma_list_nir = [self.ds_getma(ds, 4) for ds in warp_ds_list_multiband]
-        cloud_warp_ma = iolib.ds_getma(warp_ds_list[2], 1).astype(np.uint8)
-
-        # divvy up into band-specific arrays across CCDC + SRLite according to input source
-        ccdc_warp_ma_blu, evhrsr_warp_ma_blu = warp_ma_list_blu
-        ccdc_warp_ma_grn, evhrsr_warp_ma_grn = warp_ma_list_grn
-        ccdc_warp_ma_red, evhrsr_warp_ma_red = warp_ma_list_red
-        ccdc_warp_ma_nir, evhrsr_warp_ma_nir = warp_ma_list_nir
-
-        warp_ma_list = [ccdc_warp_ma_blu, ccdc_warp_ma_grn, ccdc_warp_ma_red, ccdc_warp_ma_nir,
-                        evhrsr_warp_ma_blu, evhrsr_warp_ma_grn, evhrsr_warp_ma_red, evhrsr_warp_ma_nir,
-                        cloud_warp_ma]
-
-        # Create cloudmask according to threshold that Matt suggested
-        cloudfree_warp_ma = np.ma.masked_where(cloud_warp_ma >= 0.5, cloud_warp_ma)
-        warp_ma_list_cloudfree = warp_ma_list[0:8] + [cloudfree_warp_ma]
-        common_mask = malib.common_mask(warp_ma_list_cloudfree)
-        warp_ma_masked_list = [np.ma.array(ma, mask=common_mask) for ma in warp_ma_list_cloudfree]
-
-        # Pull out flat masked arrays
-        ccdc_blu = self.ma2_1d(warp_ma_masked_list[0])
-        ccdc_grn = self.ma2_1d(warp_ma_masked_list[1])
-        ccdc_red = self.ma2_1d(warp_ma_masked_list[2])
-        ccdc_nir = self.ma2_1d(warp_ma_masked_list[3])
-
-        evhr_srlite_blu = self.ma2_1d(warp_ma_masked_list[4])
-        evhr_srlite_grn = self.ma2_1d(warp_ma_masked_list[5])
-        evhr_srlite_red = self.ma2_1d(warp_ma_masked_list[6])
-        evhr_srlite_nir = self.ma2_1d(warp_ma_masked_list[7])
-
-        # Create a dataframw with the arrays
-        reflect_df = pd.concat([
-            self.ma2df(warp_ma_masked_list[0], 'CCDC_SR', 'Blue'),
-            self.ma2df(warp_ma_masked_list[1], 'CCDC_SR', 'Green'),
-            self.ma2df(warp_ma_masked_list[2], 'CCDC_SR', 'Red'),
-            self.ma2df(warp_ma_masked_list[3], 'CCDC_SR', 'NIR'),
-            self.ma2df(warp_ma_masked_list[4], 'EVHR_SRLite', 'Blue'),
-            self.ma2df(warp_ma_masked_list[5], 'EVHR_SRLite', 'Green'),
-            self.ma2df(warp_ma_masked_list[6], 'EVHR_SRLite', 'Red'),
-            self.ma2df(warp_ma_masked_list[7], 'EVHR_SRLite', 'NIR')],
-            axis=1)
-
-        # Convert wide table to long table
-        reflectanceTypes = ['CCDC_SR','EVHR_SRLite']
-        reflect_df_long = pd.wide_to_long(reflect_df.reset_index(),
-                                          stubnames=reflectanceTypes,
-                                          i='index', j='Band', suffix='\D+') \
-            .reset_index()
-
-        from pandas.api.types import CategoricalDtype
-        #        bandsType = CategoricalDtype(categories = ['BAND-B','BAND-G','BAND-R','BAND-N'], ordered=True)
-        bandsType = CategoricalDtype(categories = ['Blue','Green','Red','NIR'], ordered=True)
-        reflect_df_long['Band'] = reflect_df_long['Band'].astype(bandsType)
-
-        # Grab the Blue band from the dataframe
-        _sr = reflect_df_long[reflect_df_long['Band'] == 'Blue']
-        debug = '0'
-        if (debug == '1'):
-            print(sr)
-            print("\nsr['CCDC_SR']\n", sr['CCDC_SR'])
-            print("\nsr['CCDC_SR'].values.reshape(-1,1)\n", sr['CCDC_SR'].values.reshape(-1,1))
-            print("\nsr['EVHR_SRLite']\n", sr['EVHR_SRLite'])
-            print("\nsr['EVHR_SRLite'].values.reshape(-1,1)\n", sr['EVHR_SRLite'].values.reshape(-1,1))
-
-        r2_score = sklearn.metrics.r2_score(_sr['CCDC_SR'].values.reshape(-1,1), _sr['EVHR_SRLite'])
-
-        # Create table of dataframes with coefficients & statistics
-        ndv_value = "NA"
-        metrics_srlite_long = pd.concat([
-            pd.DataFrame([self.sr_performance(reflect_df_long,
-                                              'Coastal', model, blueIntercept, blueSlope, ndv_value)]),
-            pd.DataFrame([self.sr_performance(reflect_df_long,
-                                              'Blue', model, blueIntercept, blueSlope)]),
-            pd.DataFrame([self.sr_performance(reflect_df_long,
-                                              'Green', model, greenIntercept, greenSlope)]),
-            pd.DataFrame([self.sr_performance(reflect_df_long,
-                                              'Yellow', model,
-                                              (greenIntercept * yellowGreenCorr) + (redIntercept * yellowRedCorr),
-                                              (greenSlope * yellowGreenCorr) + (redSlope * yellowRedCorr),
-                                              ndv_value)]),
-            pd.DataFrame([self.sr_performance(reflect_df_long,
-                                              'Red', model, redIntercept, redSlope)]),
-            pd.DataFrame([self.sr_performance(reflect_df_long,
-                                              'RedEdge', model,
-                                              (redIntercept * rededgeRedCorr) + (NIR1Intercept * rededgeNIR1Corr),
-                                              (redSlope * rededgeRedCorr) + (NIR1Slope * rededgeNIR1Corr),
-                                              ndv_value)]),
-            pd.DataFrame([self.sr_performance(reflect_df_long,
-                                              'NIR', model, NIR1Intercept, NIR1Slope)]),
-            pd.DataFrame([self.sr_performance(reflect_df_long,
-                                              'NIR2', model, NIR1Intercept, NIR1Slope, ndv_value)]),
-        ]).reset_index()
-
-        # # Now that CSV is taken care of, create/update bands
-        # evhrToa8 = [context[Context.FN_TOA]]
-        # evhrToa = gdal.Open(str(context[Context.FN_TOA]))
-        # warp_ds_list_toa8 = warplib.memwarp_multi_fn(
-        #     evhrToa8, res=evhrToa, extent=evhrToa, t_srs=evhrToa, r='average', dst_ndv=_ndv)
-
-        # warp_ma_list_toa8_ = [self.ds_getma(warp_ds_list_toa8[0],1), self.ds_getma(warp_ds_list_toa8[0],2),
-        #                      self.ds_getma(warp_ds_list_toa8[0],3), self.ds_getma(warp_ds_list_toa8[0],4),
-        #                      self.ds_getma(warp_ds_list_toa8[0],5), self.ds_getma(warp_ds_list_toa8[0],6),
-        #                      self.ds_getma(warp_ds_list_toa8[0],7), self.ds_getma(warp_ds_list_toa8[0],8)]
-        #
-        # warp_ma_list_toa8 = [iolib.fn_getma(context[Context.FN_TOA],1), iolib.fn_getma(context[Context.FN_TOA],2),
-        #                      iolib.fn_getma(context[Context.FN_TOA],3), iolib.fn_getma(context[Context.FN_TOA],4),
-        #                      iolib.fn_getma(context[Context.FN_TOA],5), iolib.fn_getma(context[Context.FN_TOA],6),
-        #                      iolib.fn_getma(context[Context.FN_TOA],7), iolib.fn_getma(context[Context.FN_TOA],8)]
-
-        toa_ma_band_coastal = iolib.fn_getma(context[Context.FN_TOA],1)
-        # _sr_prediction_band_coastal = \
-        #     ((toa_ma_band_coastal * metrics_srlite_long['slope'][0]) + (metrics_srlite_long['intercept'][0] * 10000))
-        sr_prediction_band_coastal = \
-            ((toa_ma_band_coastal * metrics_srlite_long['slope'][0]) + (metrics_srlite_long['intercept'][0]) * 10000)
-
-        sr_prediction_band_reshaped_coastal = sr_prediction_band_coastal.reshape(toa_ma_band_coastal.shape)
-        sr_prediction_band_ma_coastal = np.ma.array(
-            sr_prediction_band_reshaped_coastal,
-            mask=toa_ma_band_coastal.mask)
-        # print(toa_ma_band_coastal.average(), sr_prediction_band_coastal.average(),
-        #       sr_prediction_band_coastal2.average(), sr_prediction_band_ma_coastal.average())
-
-        toa_ma_band_blue = iolib.fn_getma(context[Context.FN_TOA],2)
-        # sr_prediction_band_blue = \
-        #     ((toa_ma_band_blue * metrics_srlite_long['slope'][0]) + (metrics_srlite_long['intercept'][0] * 10000))
-        sr_prediction_band_blue = \
-            ((toa_ma_band_blue * metrics_srlite_long['slope'][0]) + (metrics_srlite_long['intercept'][0]) * 10000)
-        sr_prediction_band_reshaped_blue = sr_prediction_band_blue.reshape(toa_ma_band_blue.shape)
-        sr_prediction_band_ma_blue = np.ma.array(
-            sr_prediction_band_reshaped_blue,
-            mask=toa_ma_band_blue.mask)
-
-        toa_ma_band_green = iolib.fn_getma(context[Context.FN_TOA],3)
-        # sr_prediction_band_green = \
-        #     ((toa_ma_band_green * metrics_srlite_long['slope'][1]) + (metrics_srlite_long['intercept'][1] * 10000))
-        sr_prediction_band_green = \
-            ((toa_ma_band_green * metrics_srlite_long['slope'][1]) + (metrics_srlite_long['intercept'][1]) * 10000)
-        sr_prediction_band_reshaped_green = sr_prediction_band_green.reshape(toa_ma_band_green.shape)
-        sr_prediction_band_ma_green = np.ma.array(
-            sr_prediction_band_reshaped_green,
-            mask=toa_ma_band_green.mask)
-
-        toa_ma_band_yellow = iolib.fn_getma(context[Context.FN_TOA],4)
-        # sr_prediction_band_yellow = \
-        #     (((toa_ma_band_yellow.astype(float) * metrics_srlite_long['slope'][1]) + (metrics_srlite_long['intercept'][1] * 10000)) * yellowGreenCorr) + (((toa_ma_band_yellow.astype(float) * metrics_srlite_long['slope'][2]) + (metrics_srlite_long['intercept'][2] * 10000)) * yellowRedCorr)
-        sr_prediction_band_yellow = \
-            (((toa_ma_band_yellow.astype(float) * metrics_srlite_long['slope'][1]) + (metrics_srlite_long['intercept'][1] * yellowGreenCorr) + ((toa_ma_band_yellow.astype(float) * metrics_srlite_long['slope'][2]) + (metrics_srlite_long['intercept'][2] * yellowRedCorr))) * 10000)
-        sr_prediction_band_reshaped_yellow = sr_prediction_band_yellow.reshape(toa_ma_band_yellow.shape)
-        sr_prediction_band_ma_yellow = np.ma.array(
-            sr_prediction_band_reshaped_yellow,
-            mask=toa_ma_band_yellow.mask)
-
-        toa_ma_band_red = iolib.fn_getma(context[Context.FN_TOA],5)
-        # sr_prediction_band_red = \
-        #     ((toa_ma_band_red * metrics_srlite_long['slope'][2]) + (metrics_srlite_long['intercept'][2] * 10000))
-        sr_prediction_band_red = \
-            ((toa_ma_band_red * metrics_srlite_long['slope'][2]) + (metrics_srlite_long['intercept'][2]) * 10000)
-        sr_prediction_band_reshaped_red = sr_prediction_band_red.reshape(toa_ma_band_red.shape)
-        sr_prediction_band_ma_red = np.ma.array(
-            sr_prediction_band_reshaped_red,
-            mask=toa_ma_band_red.mask)
-
-        toa_ma_band_rededge = iolib.fn_getma(context[Context.FN_TOA],6)
-        # sr_prediction_band_rededge = \
-        #     (((toa_ma_band_rededge.astype(float) * metrics_srlite_long['slope'][2]) + (metrics_srlite_long['intercept'][2] * 10000)) * rededgeRedCorr) + (((toa_ma_band_rededge.astype(float) * metrics_srlite_long['slope'][3]) + (metrics_srlite_long['intercept'][3] * 10000)) * rededgeNIR1Corr)
-        sr_prediction_band_rededge = \
-            (((toa_ma_band_rededge.astype(float) * metrics_srlite_long['slope'][2]) + (metrics_srlite_long['intercept'][2] * rededgeRedCorr) + ((toa_ma_band_rededge.astype(float) * metrics_srlite_long['slope'][3]) + (metrics_srlite_long['intercept'][3] * rededgeNIR1Corr))) * 10000)
-        sr_prediction_band_reshaped_rededge = sr_prediction_band_rededge.reshape(toa_ma_band_rededge.shape)
-        sr_prediction_band_ma_rededge = np.ma.array(
-            sr_prediction_band_reshaped_rededge,
-            mask=toa_ma_band_rededge.mask)
-
-        toa_ma_band_nir1 = iolib.fn_getma(context[Context.FN_TOA],7)
-        # sr_prediction_band_nir1 = \
-        #     ((toa_ma_band_nir1 * metrics_srlite_long['slope'][3]) + (metrics_srlite_long['intercept'][3] * 10000))
-        sr_prediction_band_nir1 = \
-            ((toa_ma_band_nir1 * metrics_srlite_long['slope'][3]) + (metrics_srlite_long['intercept'][3]) * 10000)
-        sr_prediction_band_reshaped_nir1 = sr_prediction_band_nir1.reshape(toa_ma_band_nir1.shape)
-        sr_prediction_band_ma_nir1 = np.ma.array(
-            sr_prediction_band_reshaped_nir1,
-            mask=toa_ma_band_nir1.mask)
-
-        toa_ma_band_nir2 = iolib.fn_getma(context[Context.FN_TOA],8)
-        # sr_prediction_band_nir2 = \
-        #     ((toa_ma_band_nir2 * metrics_srlite_long['slope'][3]) + (metrics_srlite_long['intercept'][3] * 10000))
-        sr_prediction_band_nir2 = \
-            ((toa_ma_band_nir2 * metrics_srlite_long['slope'][3]) + (metrics_srlite_long['intercept'][3]) * 10000)
-        sr_prediction_band_reshaped_nir2 = sr_prediction_band_nir2.reshape(toa_ma_band_nir2.shape)
-        sr_prediction_band_ma_nir2 = np.ma.array(
-            sr_prediction_band_reshaped_nir2,
-            mask=toa_ma_band_nir2.mask)
-
-        result_weighted_8band = [
-            sr_prediction_band_ma_coastal, sr_prediction_band_ma_blue, sr_prediction_band_ma_green, sr_prediction_band_ma_yellow,
-            sr_prediction_band_ma_red, sr_prediction_band_ma_rededge, sr_prediction_band_ma_nir1, sr_prediction_band_ma_nir2
-        ]
-
-        return context[Context.FN_COG], metrics_srlite_long, result_weighted_8band
     def _apply_regressor_otf_8band(self, context, image_4band, sr_unmasked_prediction_list,
                                   sr_metrics_list):
 
@@ -1321,7 +1098,10 @@ class RasterLib(object):
 
             print(f"Finished with {str(bandNamePairList[bandPairIndex])} Band")
 
+        # remove transient TOA arrays
+        sr_metrics_list.drop('toaBandMaArrayRaw', axis=1, inplace=True)
         sr_metrics_list.reset_index()
+
         return sr_prediction_list, sr_metrics_list, common_mask_list
 
     def createImage(self, context):

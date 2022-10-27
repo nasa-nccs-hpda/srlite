@@ -94,13 +94,9 @@ def main():
                 context[Context.BAND_DESCRIPTION_LIST] = list(context[Context.LIST_TOA_BANDS])
                 context[Context.FN_COG] = rasterLib.createImage(context)
 
-                # Generate simulated band statistics
-                if eval(context[Context.BAND8_FLAG]):
-                    context[Context.FN_COG_8BAND], context[Context.METRICS_LIST] = \
-                        rasterLib.apply_regressor_otf_8band(context,
-                                                            context[Context.FN_COG])
                 # Generate CSV
-                rasterLib.generateCSV(context, context[Context.METRICS_LIST])
+                if eval(context[Context.CSV_FLAG]):
+                    rasterLib.generateCSV(context)
 
                 # Clean up
                 rasterLib.refresh(context)
