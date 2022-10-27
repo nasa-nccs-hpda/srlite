@@ -461,30 +461,30 @@ class RasterLib(object):
         return mbe
 
     # -------------------------------------------------------------------------
-    # sr_performance
+    # band_performance
     #
     # Calculate band metrics based on corresponding TOA and CCDC arrays.
-    # Optionally override metrics with no data value (used for synthetic bands)
     # -------------------------------------------------------------------------
     def band_performance(self, metadata, target_sr_data_only_band, toa_sr_data_only_band):
-#        target_sr_data_only_band_reshaped = target_sr_data_only_band.values.reshape(-1,1)
-        metadata['r2_score'] = sklearn.metrics.r2_score(target_sr_data_only_band, toa_sr_data_only_band)
-        metadata['explained_variance'] = sklearn.metrics.explained_variance_score(target_sr_data_only_band, toa_sr_data_only_band)
-        metadata['mbe'] = self.mean_bias_error(target_sr_data_only_band, toa_sr_data_only_band)
-        metadata['mae'] = sklearn.metrics.mean_absolute_error(target_sr_data_only_band, toa_sr_data_only_band)
-        metadata['mape'] = sklearn.metrics.mean_absolute_percentage_error(target_sr_data_only_band, toa_sr_data_only_band)
-        metadata['medae'] = sklearn.metrics.median_absolute_error(target_sr_data_only_band, toa_sr_data_only_band)
-        metadata['mse'] = sklearn.metrics.mean_squared_error(target_sr_data_only_band, toa_sr_data_only_band)
+        target_sr_data_only_band_reshaped = target_sr_data_only_band.values.reshape(-1,1)
+        metadata['r2_score'] = sklearn.metrics.r2_score(target_sr_data_only_band_reshaped, toa_sr_data_only_band)
+        metadata['explained_variance'] = sklearn.metrics.explained_variance_score(target_sr_data_only_band_reshaped, toa_sr_data_only_band)
+        metadata['mbe'] = self.mean_bias_error(target_sr_data_only_band_reshaped, toa_sr_data_only_band)
+        metadata['mae'] = sklearn.metrics.mean_absolute_error(target_sr_data_only_band_reshaped, toa_sr_data_only_band)
+        metadata['mape'] = sklearn.metrics.mean_absolute_percentage_error(target_sr_data_only_band_reshaped, toa_sr_data_only_band)
+        metadata['medae'] = sklearn.metrics.median_absolute_error(target_sr_data_only_band_reshaped, toa_sr_data_only_band)
+        metadata['mse'] = sklearn.metrics.mean_squared_error(target_sr_data_only_band_reshaped, toa_sr_data_only_band)
         metadata['rmse'] = metadata['mse'] ** 0.5
         metadata['mean_ccdc_sr'] = target_sr_data_only_band.mean()
         metadata['mean_evhr_srlite'] = toa_sr_data_only_band.mean()
         metadata['mae_norm'] = metadata['mae'] / metadata['mean_ccdc_sr']
         metadata['rmse_norm'] =  metadata['rmse'] / metadata['mean_ccdc_sr']
         return metadata
+
     # -------------------------------------------------------------------------
     # sr_performance
     #
-    # Calculate band metrics based on corresponding TOA and CCDC arrays.
+    # Generate band metrics based on corresponding TOA and CCDC arrays.
     # Optionally override metrics with no data value (used for synthetic bands)
     # -------------------------------------------------------------------------
     def sr_performance(self, df, bandName, model, intercept, slope, ndv_value=None):
@@ -498,19 +498,8 @@ class RasterLib(object):
         if (ndv_value == None):
             sr = df[df['Band'] == bandName]
             toa_sr_data_only_band = sr['EVHR_SRLite']
-            target_sr_data_only_band = sr['CCDC_SR'].values.reshape(-1,1)
-            metadata['r2_score'] = sklearn.metrics.r2_score(target_sr_data_only_band, toa_sr_data_only_band)
-            metadata['explained_variance'] = sklearn.metrics.explained_variance_score(target_sr_data_only_band, toa_sr_data_only_band)
-            metadata['mbe'] = self.mean_bias_error(target_sr_data_only_band, toa_sr_data_only_band)
-            metadata['mae'] = sklearn.metrics.mean_absolute_error(target_sr_data_only_band, toa_sr_data_only_band)
-            metadata['mape'] = sklearn.metrics.mean_absolute_percentage_error(target_sr_data_only_band, toa_sr_data_only_band)
-            metadata['medae'] = sklearn.metrics.median_absolute_error(target_sr_data_only_band, toa_sr_data_only_band)
-            metadata['mse'] = sklearn.metrics.mean_squared_error(target_sr_data_only_band, toa_sr_data_only_band)
-            metadata['rmse'] = metadata['mse'] ** 0.5
-            metadata['mean_ccdc_sr'] = sr['CCDC_SR'].mean()
-            metadata['mean_evhr_srlite'] = toa_sr_data_only_band.mean()
-            metadata['mae_norm'] = metadata['mae'] / metadata['mean_ccdc_sr']
-            metadata['rmse_norm'] =  metadata['rmse'] / metadata['mean_ccdc_sr']
+            target_sr_data_only_band = sr['CCDC_SR']
+            metadata = self.band_performance(metadata, target_sr_data_only_band, toa_sr_data_only_band)
         else:
             metadata['r2_score'] = ndv_value
             metadata['explained_variance'] = ndv_value
@@ -568,14 +557,6 @@ class RasterLib(object):
         fn_list = [ccdcImage, evhrSrliteImage, cloudImage]
         warp_ds_list = warplib.memwarp_multi_fn(fn_list, res=30, extent=evhrSrliteImage,
                                                 t_srs=evhrSrliteImage, r='average', dst_ndv=_ndv)
-
-        # get similar bands across arrays
-#        warp_ds_list_multiband = context[Context.MA_WARP_LIST]
-#         warp_ma_list_blu = context[Context.MA_WARP_LIST][0] # Blue
-#         warp_ma_list_grn = context[Context.MA_WARP_LIST][1] # Green
-#         warp_ma_list_red = context[Context.MA_WARP_LIST][2] # Red
-#         warp_ma_list_nir = context[Context.MA_WARP_LIST][3] # NIR
-#         cloud_warp_ma = context[Context.MA_WARP_CLOUD_LIST][0]
 
         warp_ds_list_multiband = warp_ds_list[0:2]
         warp_ma_list_blu = [self.ds_getma(ds, 1) for ds in warp_ds_list_multiband]
@@ -701,6 +682,11 @@ class RasterLib(object):
                 f"\nCreated CSV with coefficients for batch {context[Context.BATCH_NAME]}...\n   {path}")
 
 
+    # -------------------------------------------------------------------------
+    # predictSurfaceReflectance
+    #
+    # Perform regression fit based on model type (TARGET against TOA)
+    # -------------------------------------------------------------------------
     def predictSurfaceReflectance(self, context, band_name, toaBandMaArrayRaw,
                                   target_warp_ma_masked_band, toa_warp_ma_masked_band, sr_metrics_list):
 
@@ -757,8 +743,6 @@ class RasterLib(object):
         ####################
         elif (context[Context.REGRESSION_MODEL] == Context.REGRESSOR_MODEL_RMA):
 
-            r2_score = sklearn.metrics.r2_score(target_sr_data_only_band, toa_sr_data_only_band)
-
             reflect_df = pd.concat([
                 self.ma2df(toa_sr_data_only_band, 'EVHR_TOA', 'Band'),
                 self.ma2df(target_sr_data_only_band, 'CCDC_SR', 'Band')],
@@ -773,9 +757,7 @@ class RasterLib(object):
                                            model_data_only_band['intercept'],
                                            model_data_only_band['slope'])
 
-#            metadata = self.band_performance(metadata, target_sr_data_only_band, toa_sr_data_only_band)
-
-            # Calculate SR-Lite band using original TOA 2m band
+           # Calculate SR-Lite band using original TOA 2m band
             sr_prediction_band_2m = self.calculate_prediction_band(context,
                                                               band_name,
                                                               metadata,
@@ -786,27 +768,31 @@ class RasterLib(object):
 
         self._plot_lib.trace(f"\nRegressor=[{context[Context.REGRESSION_MODEL]}] "
           f"slope={metadata['slope']} intercept={metadata['intercept']} ]")
-#        f"slope={metadata['slope']} intercept={metadata['intercept']} score=[{metadata['score']}]")
 
         return sr_prediction_band_2m, metadata
 
-    def mean_bias_error(self, y_true, y_pred):
-        '''
-        Parameters:
-            y_true (array): Array of observed values
-            y_pred (array): Array of prediction values
+    # def mean_bias_error(self, y_true, y_pred):
+    #     '''
+    #     Parameters:
+    #         y_true (array): Array of observed values
+    #         y_pred (array): Array of prediction values
+    #
+    #     Returns:
+    #         mbe (float): Bias score
+    #     '''
+    #     y_true = np.array(y_true)
+    #     y_pred = np.array(y_pred)
+    #     y_true = y_true.reshape(len(y_true), 1)
+    #     y_pred = y_pred.reshape(len(y_pred), 1)
+    #     diff = (y_true - y_pred)
+    #     mbe = diff.mean()
+    #     return mbe
 
-        Returns:
-            mbe (float): Bias score
-        '''
-        y_true = np.array(y_true)
-        y_pred = np.array(y_pred)
-        y_true = y_true.reshape(len(y_true), 1)
-        y_pred = y_pred.reshape(len(y_pred), 1)
-        diff = (y_true - y_pred)
-        mbe = diff.mean()
-        return mbe
-
+    # -------------------------------------------------------------------------
+    # calculate_prediction_band
+    #
+    # Perform regression fit based on model type (TARGET against TOA)
+    # -------------------------------------------------------------------------
     def calculate_prediction_band(self, context,
                                   band_name, metadata, sr_metrics_list):
         sr_prediction_band_2m = None
@@ -861,6 +847,11 @@ class RasterLib(object):
             sr_prediction_band_2m = (toaBandMaArrayRaw * slope) + (intercept * 10000)
         return sr_prediction_band_2m
 
+    # -------------------------------------------------------------------------
+    # _model_coeffs_
+    #
+    # Populate dictionary of coefficients
+    # -------------------------------------------------------------------------
     def _model_coeffs_(self, context, band_name, toaBandMaArrayRaw, intercept, slope):
 
         metadata = {}
@@ -872,61 +863,18 @@ class RasterLib(object):
 
         return metadata
 
-    def _model_metrics_(self, context, band_name, intercept, slope, sr_prediction_band_2m, target_sr_data_only_band,
-                       ndv_value=None):
-
-        metadata = {}
-        metadata['band_name'] = band_name
-        metadata['model'] = context[Context.REGRESSION_MODEL]
-        metadata['intercept'] = intercept
-        metadata['slope'] = slope
-
-        if (ndv_value == None):
-            #            sr_model = LinearRegression().fit(sr_prediction_band_30m.reshape(-1, 1), target_sr_data_only_band)
-            #            metadata['score'] = sr_model.score(sr_prediction_band_30m.reshape(-1, 1), target_sr_data_only_band)
-            metadata['r2_score'] = sklearn.metrics.r2_score(target_sr_data_only_band.reshape(-1, 1),
-                                                            sr_prediction_band_30m)
-            metadata['explained_variance'] = sklearn.metrics.explained_variance_score(
-                target_sr_data_only_band.reshape(-1, 1),
-                sr_prediction_band_30m)
-            metadata['mbe'] = self.mean_bias_error(target_sr_data_only_band.reshape(-1, 1), sr_prediction_band_30m)
-            metadata['mae'] = sklearn.metrics.mean_absolute_error(target_sr_data_only_band.reshape(-1, 1),
-                                                                  sr_prediction_band_30m)
-            metadata['mape'] = sklearn.metrics.mean_absolute_percentage_error(target_sr_data_only_band.reshape(-1, 1),
-                                                                              sr_prediction_band_30m)
-            metadata['medae'] = sklearn.metrics.median_absolute_error(target_sr_data_only_band.reshape(-1, 1),
-                                                                      sr_prediction_band_30m)
-            metadata['mse'] = sklearn.metrics.mean_squared_error(target_sr_data_only_band.reshape(-1, 1),
-                                                                 sr_prediction_band_30m)
-            metadata['rmse'] = metadata['mse'] ** 0.5
-            metadata['mean_ccdc_sr'] = target_sr_data_only_band.mean()
-            metadata['mean_evhr_srlite'] = sr_prediction_band_30m.mean()
-            metadata['mae_norm'] = metadata['mae'] / metadata['mean_ccdc_sr']
-            metadata['rmse_norm'] = metadata['rmse'] / metadata['mean_ccdc_sr']
-        else:
-            #            metadata['score'] = ndv_value
-            metadata['r2_score'] = ndv_value
-            metadata['explained_variance'] = ndv_value
-            metadata['mbe'] = ndv_value
-            metadata['mae'] = ndv_value
-            metadata['mape'] = ndv_value
-            metadata['medae'] = ndv_value
-            metadata['mse'] = ndv_value
-            metadata['rmse'] = ndv_value
-            metadata['mean_ccdc_sr'] = ndv_value
-            metadata['mean_evhr_srlite'] = ndv_value
-            metadata['mae_norm'] = ndv_value
-            metadata['rmse_norm'] = ndv_value
-
-        return metadata
-
+    # -------------------------------------------------------------------------
+    # simulateSurfaceReflectance
+    #
+    # Perform workflow to create simulated surface reflectance for each band (SR-Lite)
+    # This method hosts the primary orchestration logic for the SR-Lite application.
+    # -------------------------------------------------------------------------
     def simulateSurfaceReflectance(self, context):
         self._validateParms(context,
                             [Context.MA_WARP_LIST, Context.LIST_BAND_PAIRS, Context.LIST_BAND_PAIR_INDICES,
                              Context.REGRESSION_MODEL, Context.FN_LIST])
 
         bandPairIndicesList = context[Context.LIST_BAND_PAIR_INDICES]
-        #        numBandPairs = len(bandPairIndicesList)
 
         sr_prediction_list = []
         sr_unmasked_prediction_list = []
@@ -936,6 +884,7 @@ class RasterLib(object):
         bandNamePairList = list(ast.literal_eval(context[Context.LIST_BAND_PAIRS]))
         minWarning = 0
 
+        # Aggregate the requested masks (e.g., clouds, quality mask)
         self.prepareMasks(context)
 
         ########################################
@@ -1024,6 +973,12 @@ class RasterLib(object):
 
         return sr_prediction_list, sr_metrics_list, common_mask_list
 
+    # -------------------------------------------------------------------------
+    # createImage
+    #
+    # Convert list of prediction arrays to TIF image.  Optionally create a
+    # Cloud-Optimized GeoTIF (COG).
+    # -------------------------------------------------------------------------
     def createImage(self, context):
         self._validateParms(context, [Context.DIR_OUTPUT, Context.FN_PREFIX,
                                       Context.CLEAN_FLAG,
@@ -1092,12 +1047,22 @@ class RasterLib(object):
         self._plot_lib.trace(f"\nCreated COG from stack of regressed bands...\n   {cog_name}")
         return cog_name
 
+    # -------------------------------------------------------------------------
+    # removeFile
+    #
+    # Optionally remove file from file system
+    # -------------------------------------------------------------------------
     def removeFile(self, fileName, cleanFlag):
 
         if eval(cleanFlag):
             if os.path.exists(fileName):
                 os.remove(fileName)
 
+    # -------------------------------------------------------------------------
+    # createCOG
+    #
+    # Manage lifecycle of a Cloud-Optimized GeoTIF (COG)
+    # -------------------------------------------------------------------------
     def createCOG(self, context):
         self._validateParms(context, [Context.FN_SRC, Context.CLEAN_FLAG,
                                       Context.FN_DEST])
@@ -1109,19 +1074,11 @@ class RasterLib(object):
 
         return context[Context.FN_DEST]
 
-    def _getProjSrs(self, in_raster):
-        # Get projection from raster
-        ds = gdal.Open(in_raster)
-        prj = ds.GetProjection()
-        self._plot_lib.trace("[ PRJ ] = {}".format(prj))
-
-        srs = osr.SpatialReference(wkt=prj)
-        self._plot_lib.trace("[ SRS ] = {}".format(srs))
-        if srs.IsProjected:
-            self._plot_lib.trace("[ SRS.GetAttrValue('projcs') ] = {}".format(srs.GetAttrValue('projcs')))
-        self._plot_lib.trace("[ SRS.GetAttrValue('geogcs') ] = {}".format(srs.GetAttrValue('geogcs')))
-        return prj, srs
-
+    # -------------------------------------------------------------------------
+    # _getExtents
+    #
+    # Get extents from raster file
+    # -------------------------------------------------------------------------
     def _getExtents(self, in_raster):
         # Get extents from raster
         data = gdal.Open(in_raster, gdal.GA_ReadOnly)
@@ -1135,82 +1092,11 @@ class RasterLib(object):
         self._plot_lib.trace("[ EXTENT ] = {}".format(extent))
         return extent
 
-    def _getMetadata(self, band_num, input_file):
-        src_ds = gdal.Open(input_file)
-        if src_ds is None:
-            print('Unable to open %s' % input_file)
-            sys.exit(1)
-
-        try:
-            srcband = src_ds.GetRasterBand(band_num)
-        except BaseException as err:
-            print('No band %i found' % band_num)
-            print(err)
-            sys.exit(1)
-
-        self._plot_lib.trace("[ METADATA] = {}".format(src_ds.GetMetadata()))
-
-        stats = srcband.GetStatistics(True, True)
-        self._plot_lib.trace(
-            "[ STATS ] = Minimum={}, Maximum={}, Mean={}, StdDev={}".format(stats[0], stats[1], stats[2], stats[3]))
-
-        self._plot_lib.trace("[ NO DATA VALUE ] = {}".format(srcband.GetNoDataValue()))
-        self._plot_lib.trace("[ MIN ] = {}".format(srcband.GetMinimum()))
-        self._plot_lib.trace("[ MAX ] = {}".format(srcband.GetMaximum()))
-        self._plot_lib.trace("[ SCALE ] = {}".format(srcband.GetScale()))
-        self._plot_lib.trace("[ UNIT TYPE ] = {}".format(srcband.GetUnitType()))
-        ctable = srcband.GetColorTable()
-
-        if ctable is None:
-            self._plot_lib.trace('No ColorTable found')
-            # sys.exit(1)
-        else:
-            self._plot_lib.trace("[ COLOR TABLE COUNT ] = ", ctable.GetCount())
-            for i in range(0, ctable.GetCount()):
-                entry = ctable.GetColorEntry(i)
-                if not entry:
-                    continue
-                self._plot_lib.trace("[ COLOR ENTRY RGB ] = ", ctable.GetColorEntryAsRGB(i, entry))
-
-        outputType = gdal.GetDataTypeName(srcband.DataType)
-
-        self._plot_lib.trace(outputType)
-
-        return srcband.DataType
-
-    def warp(self, context):
-        self._validateParms(context, [Context.CLEAN_FLAG, Context.FN_DEST,
-                                      Context.TARGET_ATTR, Context.FN_DEST,
-                                      Context.FN_SRC,
-                                      Context.TARGET_SRS, Context.TARGET_OUTPUT_TYPE,
-                                      Context.TARGET_XRES, Context.TARGET_YRES])
-
-        self.removeFile(context[Context.FN_DEST], context[Context.CLEAN_FLAG])
-        extent = self._getExtents(context[Context.TARGET_ATTR])
-        ds = gdal.Warp(context[Context.FN_DEST], context[Context.FN_SRC],
-                       dstSRS=context[Context.TARGET_SRS], outputType=context[Context.TARGET_OUTPUT_TYPE],
-                       xRes=context[Context.TARGET_XRES], yRes=context[Context.TARGET_YRES], outputBounds=extent)
-        ds = None
-
-    def downscale(self, context):
-        self._validateParms(context, [Context.CLEAN_FLAG, Context.FN_DEST,
-                                      Context.FN_SRC])
-
-        self.removeFile(context[Context.FN_DEST], context[Context.CLEAN_FLAG])
-        if not (os.path.exists(context[Context.FN_DEST])):
-            self.translate(context)
-        self.getAttributes(str(context[Context.FN_DEST]), "Downscale Combo Plot")
-
-    def translate(self, context):
-        self._validateParms(context, [Context.CLEAN_FLAG, Context.FN_DEST,
-                                      Context.FN_SRC,
-                                      Context.TARGET_XRES, Context.TARGET_YRES])
-
-        self.removeFile(context[Context.FN_DEST], context[Context.CLEAN_FLAG])
-        ds = gdal.Translate(context[Context.FN_DEST], context[Context.FN_SRC],
-                            xRes=context[Context.TARGET_XRES], yRes=context[Context.TARGET_YRES])
-        ds = None
-
+    # -------------------------------------------------------------------------
+    # cog
+    #
+    # Create a Cloud-Optimized GeoTIF (COG) from a TIF file
+    # -------------------------------------------------------------------------
     def cog(self, context):
         self._validateParms(context, [Context.CLEAN_FLAG, Context.FN_DEST,
                                       Context.FN_SRC,
@@ -1220,6 +1106,11 @@ class RasterLib(object):
         ds = gdal.Translate(context[Context.FN_DEST], context[Context.FN_SRC], format="COG")
         ds = None
 
+    # -------------------------------------------------------------------------
+    # _applyThreshold
+    #
+    # Eliminate pixel values in band that lie outside of min/max threshold
+    # -------------------------------------------------------------------------
     def _applyThreshold(self, min, max, bandMaArray):
         ########################################
         # Mask threshold values (e.g., (median - threshold) < range < (median + threshold)
