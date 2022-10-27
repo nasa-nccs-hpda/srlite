@@ -93,7 +93,7 @@ class RasterLib(object):
     # -------------------------------------------------------------------------
     def ds_getma(self, ds, bnum=1):
         b = ds.GetRasterBand(bnum)
-        return b_getma(b)
+        return self.b_getma(b)
 
     # -------------------------------------------------------------------------
     # ma2_1d
@@ -349,9 +349,10 @@ class RasterLib(object):
         return warp_ds_list, warp_ma_list
 
     # -------------------------------------------------------------------------
-    # getReprojection
+    # prepareEVHRCloudmask
     #
-    # Reproject inputs to TOA attributes (res, extent, srs, nodata) and return masked arrays of reprojected pixels
+    # Mask out clouds.  We are expecting cloud pixel values equal to 0 or 1.
+    # We are filtering values > 0.5 because it is faster than values == 1.0
     # -------------------------------------------------------------------------
     def prepareEVHRCloudmask(self, context):
         self._validateParms(context,
@@ -365,62 +366,12 @@ class RasterLib(object):
 
         return cloudmaskWarpExternalBandMaArrayMasked
 
-    def _prepareEVHRCloudmask(self, context):
-        self._validateParms(context,
-                            [Context.MA_CLOUDMASK_DOWNSCALE])
-
-        cloudmaskWarpExternalBandMaArray = context[Context.MA_CLOUDMASK_DOWNSCALE]
-        cloudmaskWarpExternalBandMaArraycloudmaskWarpExternalBandMaArrayMasked = np.ma.masked_where(
-            cloudmaskWarpExternalBandMaArray == 1.0,
-            cloudmaskWarpExternalBandMaArray)
-        return cloudmaskWarpExternalBandMaArraycloudmaskWarpExternalBandMaArrayMasked
-
-    def __prepareEVHRCloudmask(self, context):
-        self._validateParms(context,
-                            [Context.DS_LIST, Context.LIST_BAND_PAIRS, Context.LIST_BAND_PAIR_INDICES,
-                             Context.REGRESSION_MODEL, Context.FN_LIST])
-
-        #  Get Masked array from warped Cloudmask - assumes only 1 band in mask to be applied to all
-        cloudmaskWarpExternalBandMaArray = iolib.fn_getma(context[Context.FN_CLOUDMASK_DOWNSCALE], 1)
-        self._plot_lib.trace(f'\nBefore Mask -> cloudmaskWarpExternalBandMaArray')
-        self._plot_lib.trace(f'cloudmaskWarpExternalBandMaArray hist: {np.histogram(cloudmaskWarpExternalBandMaArray)}')
-        self._plot_lib.trace(f'cloudmaskWarpExternalBandMaArray shape: {cloudmaskWarpExternalBandMaArray.shape}')
-        count_non_masked = np.ma.count(cloudmaskWarpExternalBandMaArray)
-        count_masked = np.ma.count_masked(cloudmaskWarpExternalBandMaArray)
-        self._plot_lib.trace(f'cloudmaskWarpExternalBandMaArraynp.ma.count (non-masked)=' + str(count_non_masked))
-        self._plot_lib.trace(f'cloudmaskWarpExternalBandMaArraynp.ma.count_masked (masked)=' + str(count_masked))
-        self._plot_lib.trace(
-            f'cloudmaskWarpExternalBandMaArray total count (masked + non-masked)=' + str(
-                count_masked + count_non_masked))
-        self._plot_lib.trace(f'cloudmaskWarpExternalBandMaArray max=' + str(cloudmaskWarpExternalBandMaArray.max()))
-        self._plot_lib.plot_combo_array(cloudmaskWarpExternalBandMaArray, figsize=(14, 7),
-                                        title='cloudmaskWarpExternalBandMaArray')
-
-        # Create a mask where the pixel values equal to 'one' are suppressed because these correspond to clouds
-        self._plot_lib.trace(
-            f'\nAfter Mask == 1.0 (sum should be 0 since all ones are masked -> cloudmaskWarpExternalBandMaArray')
-        cloudmaskWarpExternalBandMaArrayMasked = np.ma.masked_where(cloudmaskWarpExternalBandMaArray == 1.0,
-                                                                    cloudmaskWarpExternalBandMaArray)
-        self._plot_lib.trace(
-            f'cloudmaskWarpExternalBandMaArrayMasked hist: {np.histogram(cloudmaskWarpExternalBandMaArrayMasked)}')
-        self._plot_lib.trace(
-            f'cloudmaskWarpExternalBandMaArrayMasked shape: {cloudmaskWarpExternalBandMaArrayMasked.shape}')
-        count_non_masked = np.ma.count(cloudmaskWarpExternalBandMaArrayMasked)
-        count_masked = np.ma.count_masked(cloudmaskWarpExternalBandMaArrayMasked)
-        self._plot_lib.trace(f'cloudmaskWarpExternalBandMaArrayMaskednp.ma.count (masked)=' + str(count_non_masked))
-        self._plot_lib.trace(
-            f'cloudmaskWarpExternalBandMaArrayMaskednp.ma.count_masked (non-masked)=' + str(count_masked))
-        self._plot_lib.trace(f'cloudmaskWarpExternalBandMaArrayMasked total count (masked + non-masked)=' + str(
-            count_masked + count_non_masked))
-        self._plot_lib.trace(
-            f'cloudmaskWarpExternalBandMaArrayMasked max=' + str(cloudmaskWarpExternalBandMaArrayMasked.max()))
-        self._plot_lib.plot_combo_array(cloudmaskWarpExternalBandMaArrayMasked, figsize=(14, 7),
-                                        title='cloudmaskWarpExternalBandMaArrayMasked')
-
-        self.removeFile(context[Context.FN_CLOUDMASK_DOWNSCALE], str('True'))
-
-        return cloudmaskWarpExternalBandMaArrayMasked
-
+    # -------------------------------------------------------------------------
+    # prepareQualityFlagMask
+    #
+    # Suppress values=[0, 3, 4] according to Band #8 because they correspond to NoData,
+    # Clouds and Cloud Shadows
+    # -------------------------------------------------------------------------
     def prepareQualityFlagMask(self, context):
         self._validateParms(context,
                             [Context.MA_WARP_LIST, Context.LIST_INDEX_CLOUDMASK])
@@ -428,12 +379,6 @@ class RasterLib(object):
         # Mask out clouds
         cloudmask_warp_ds_target = context[Context.DS_WARP_LIST][context[Context.LIST_INDEX_TARGET]]
         cloudmask_warp_ma = iolib.ds_getma(cloudmask_warp_ds_target, 8)
-        # cloudmaskWarpExternalBandMaArray = iolib.fn_getma(context[Context.FN_TARGET_DOWNSCALE], 8)
-        # cloudmaskWarpExternalBandMaArrayMasked = \
-        #     np.ma.masked_where(cloudmask_warp_ma == 1.0, cloudmask_warp_ma)
-
-        # Create a mask where the pixel values equal to '0, 3, 4' are suppressed because these correspond to NoData,
-        # Clouds, and Cloud Shadows
         self._plot_lib.trace(
             f'\nSuppress values=[0, 3, 4] according to Band #8 because they correspond to NoData, Clouds, '
             f'and Cloud Shadows')
@@ -451,68 +396,26 @@ class RasterLib(object):
             cloudmaskWarpExternalBandArrayDataQfNdvFiltered)
         return cloudmaskWarpExternalBandMaArrayMasked
 
-    def _prepareQualityFlagMask(self, context):
-        self._validateParms(context,
-                            [Context.DS_LIST, Context.LIST_BAND_PAIRS, Context.LIST_BAND_PAIR_INDICES,
-                             Context.REGRESSION_MODEL, Context.FN_LIST])
+    # -------------------------------------------------------------------------
+    # prepareMasks
+    #
+    # Prepare optional masks
+    # -------------------------------------------------------------------------
+    def prepareMasks(self, context):
 
-        #  Get Masked array from warped Cloudmask - get Band 8 (https://glad.umd.edu/Potapov/ARD/ARD_manual_v1.1.pdf)
-        cloudmaskWarpExternalBandMaArray = iolib.fn_getma(context[Context.FN_TARGET_DOWNSCALE], 8)
-        self._plot_lib.trace(f'\nBefore Mask -> cloudmaskWarpExternalBandMaArray')
-        self._plot_lib.trace(f'cloudmaskWarpExternalBandMaArray hist: {np.histogram(cloudmaskWarpExternalBandMaArray)}')
-        self._plot_lib.trace(f'cloudmaskWarpExternalBandMaArray shape: {cloudmaskWarpExternalBandMaArray.shape}')
-        count_non_masked = np.ma.count(cloudmaskWarpExternalBandMaArray)
-        count_masked = np.ma.count_masked(cloudmaskWarpExternalBandMaArray)
-        self._plot_lib.trace(f'cloudmaskWarpExternalBandMaArraynp.ma.count (masked)=' + str(count_non_masked))
-        self._plot_lib.trace(f'cloudmaskWarpExternalBandMaArraynp.ma.count_masked (non-masked)=' + str(count_masked))
-        self._plot_lib.trace(
-            f'cloudmaskWarpExternalBandMaArray total count (masked + non-masked)=' + str(
-                count_masked + count_non_masked))
-        self._plot_lib.trace(f'cloudmaskWarpExternalBandMaArray max=' + str(cloudmaskWarpExternalBandMaArray.max()))
-        self._plot_lib.plot_combo_array(cloudmaskWarpExternalBandMaArray, figsize=(14, 7),
-                                        title='cloudmaskWarpExternalBandMaArray')
+        # Get optional Cloudmask
+        if (eval(context[Context.CLOUD_MASK_FLAG])):
+            context['cloudmaskEVHRWarpExternalBandMaArrayMasked'] = self.prepareEVHRCloudmask(context)
 
-        # Create a mask where the pixel values equal to '0, 3, 4' are suppressed because these
-        # correspond to NoData, Clouds, and Cloud Shadows
-        self._plot_lib.trace(
-            f'\nSuppress values=[0, 3, 4] according to Band #8 because they correspond to NoData, Clouds, '
-            f'and Cloud Shadows')
+        # Get optional Quality flag mask
+        if (eval(context[Context.QUALITY_MASK_FLAG])):
+            context['cloudmaskQFWarpExternalBandMaArrayMasked'] = self.prepareQualityFlagMask(context)
 
-        ndv = int(Context.DEFAULT_NODATA_VALUE)
-        cloudmaskWarpExternalBandMaArrayData = np.ma.getdata(cloudmaskWarpExternalBandMaArray)
-        cloudmaskWarpExternalBandMaArrayData = np.select(
-            [cloudmaskWarpExternalBandMaArrayData == 0, cloudmaskWarpExternalBandMaArrayData == 3,
-             cloudmaskWarpExternalBandMaArrayData == 4], [ndv, ndv, ndv], cloudmaskWarpExternalBandMaArrayData)
-        cloudmaskWarpExternalBandMaArrayData = np.select([cloudmaskWarpExternalBandMaArrayData != ndv], [0.0],
-                                                         cloudmaskWarpExternalBandMaArrayData)
-        cloudmaskWarpExternalBandMaArrayMasked = np.ma.masked_where(cloudmaskWarpExternalBandMaArrayData == ndv,
-                                                                    cloudmaskWarpExternalBandMaArrayData)
-
-        self._plot_lib.trace(
-            f'cloudmaskWarpExternalBandMaArrayMasked hist: {np.histogram(cloudmaskWarpExternalBandMaArrayMasked)}')
-        self._plot_lib.trace(
-            f'cloudmaskWarpExternalBandMaArrayMasked shape: {cloudmaskWarpExternalBandMaArrayMasked.shape}')
-        count_non_masked = np.ma.count(cloudmaskWarpExternalBandMaArrayMasked)
-        count_masked = np.ma.count_masked(cloudmaskWarpExternalBandMaArrayMasked)
-        self._plot_lib.trace(f'cloudmaskWarpExternalBandMaArrayMaskednp.ma.count (masked)=' + str(count_non_masked))
-        self._plot_lib.trace(
-            f'cloudmaskWarpExternalBandMaArrayMaskednp.ma.count_masked (non-masked)=' + str(count_masked))
-        self._plot_lib.trace(f'cloudmaskWarpExternalBandMaArrayMasked total count (masked + non-masked)=' + str(
-            count_masked + count_non_masked))
-        self._plot_lib.trace(
-            f'cloudmaskWarpExternalBandMaArrayMasked max=' + str(cloudmaskWarpExternalBandMaArrayMasked.max()))
-        self._plot_lib.plot_combo_array(cloudmaskWarpExternalBandMaArrayMasked, figsize=(14, 7),
-                                        title='cloudmaskWarpExternalBandMaArrayMasked')
-        return cloudmaskWarpExternalBandMaArrayMasked
-
-    def ma2df(self, ma, product, band):
-        raveled = ma.ravel()
-        unmasked = raveled[raveled.mask == False]
-        df = pd.DataFrame(unmasked)
-        df.columns = [product + band]
-        df[product + band] = df[product + band] * 0.0001
-        return df
-
+    # -------------------------------------------------------------------------
+    # generateCSV
+    #
+    # Write out statistics per band to a csv file
+    # -------------------------------------------------------------------------
     def generateCSV(self, context, sr_metrics_list):
         if (eval(context[Context.CSV_FLAG])):
             if (context[Context.BATCH_NAME] != 'None'):
@@ -527,21 +430,15 @@ class RasterLib(object):
             self._plot_lib.trace(
                 f"\nCreated CSV with coefficients for batch {context[Context.BATCH_NAME]}...\n   {path}")
 
-    def prepareMasks(self, context):
-
-        # Get optional Cloudmask
-        if (eval(context[Context.CLOUD_MASK_FLAG])):
-            context['cloudmaskEVHRWarpExternalBandMaArrayMasked'] = self.prepareEVHRCloudmask(context)
-
-        # Get optional Quality flag mask
-        if (eval(context[Context.QUALITY_MASK_FLAG])):
-            context['cloudmaskQFWarpExternalBandMaArrayMasked'] = self.prepareQualityFlagMask(context)
-
-    def _getCommonMask(self, context, targetBandArray, toaBandArray):
+    # -------------------------------------------------------------------------
+    # getCommonMask
+    #
+    # Aggregate optional masks to create a common mask that intersects the CCDC/QF, EVHR, and Cloudmasks.
+    # Mask out ALL negative values in input if requested.
+    # -------------------------------------------------------------------------
+    def getCommonMask(self, context, targetBandArray, toaBandArray):
 
         context['evhrBandMaThresholdArray'] = None
-        #  Create a common mask that intersects the CCDC/QF, EVHR, and Cloudmasks
-        #  - this will then be used to correct the input EVHR & CCDC/QF
         warp_ma_band_list_all = [targetBandArray, toaBandArray]
         if (eval(context[Context.CLOUD_MASK_FLAG])):
             warp_ma_band_list_all.append(context['cloudmaskEVHRWarpExternalBandMaArrayMasked'])
@@ -567,60 +464,6 @@ class RasterLib(object):
         common_mask_band_all = malib.common_mask(warp_valid_ma_band_list_all)
 
         return common_mask_band_all
-
-    #Masked Array to 1D
-    def ma2_1d(self, ma):
-        raveled = ma.ravel()
-        unmasked = raveled[raveled.mask == False]
-        return np.array(unmasked)
-
-    #Masked Array to data frame
-    def ma2df(self, ma, product, band):
-        raveled = ma.ravel()
-        unmasked = raveled[raveled.mask == False]
-        df = pd.DataFrame(unmasked)
-        df.columns = [product + band]
-        df[product + band] = df[product + band] * 0.0001
-        return df
-
-    #Given input dataset, return a masked array for the input band
-    def ds_getma(self, ds, bnum=1):
-        """Get masked array from input GDAL Dataset
-
-        Parameters
-        ----------
-        ds : gdal.Dataset
-            Input GDAL Datset
-        bnum : int, optional
-            Band number
-
-        Returns
-        -------
-        np.ma.array
-            Masked array containing raster values
-        """
-        b = ds.GetRasterBand(bnum)
-        return self.b_getma(b)
-
-    #Given input band, return a masked array
-    def b_getma(self, b):
-        """Get masked array from input GDAL Band
-
-        Parameters
-        ----------
-        b : gdal.Band
-            Input GDAL Band
-
-        Returns
-        -------
-        np.ma.array
-            Masked array containing raster values
-        """
-        b_ndv = iolib.get_ndv_b(b)
-        #bma = np.ma.masked_equal(b.ReadAsArray(), b_ndv)
-        #This is more appropriate for float, handles precision issues
-        bma = np.ma.masked_values(b.ReadAsArray(), b_ndv, shrink=False)
-        return bma
 
     def mean_bias_error(self, y_true, y_pred):
         '''
@@ -1418,7 +1261,7 @@ class RasterLib(object):
             toaBandMaArray = iolib.ds_getma(warp_ds_list[1], bandPairIndices[1])
 
             # Create common mask based on user-specified list (e.g., cloudmask, threshold, QF)
-            context[Context.COMMON_MASK] = self._getCommonMask(context, targetBandMaArray, toaBandMaArray)
+            context[Context.COMMON_MASK] = self.getCommonMask(context, targetBandMaArray, toaBandMaArray)
             common_mask_list.append(context[Context.COMMON_MASK])
 
             # Apply the 3-way common mask to the CCDC and EVHR bands
