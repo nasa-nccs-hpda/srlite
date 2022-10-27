@@ -96,20 +96,20 @@ def main():
 
                 # Generate simulated bands
                 if eval(context[Context.BAND8_FLAG]):
-                    context[Context.FN_COG_8BAND], context[Context.METRICS_LIST], result_weighted_8band = \
+                    context[Context.FN_COG_8BAND], context[Context.METRICS_LIST] = \
                         rasterLib.apply_regressor_otf_8band(context,
                                                             context[Context.FN_COG])
 
-                    # Create 8-band COG image from stack of processed bands
-                    context[Context.PRED_LIST] = result_weighted_8band
-                    context[Context.FN_DEST] = str(context[Context.FN_COG])
-                    context[Context.FN_SRC] = context[Context.FN_TOA]
-                    # GT - fix hard-coded 8-band handling
-                    context[Context.BAND_NUM] = int(8)
-                    context[Context.BAND_DESCRIPTION_LIST] = \
-                        ['BAND-C', 'BAND-B', 'BAND-G', 'BAND-Y', 'BAND-R',
-                         'BAND-RE', 'BAND-N', 'BAND-N2']
-                    context[Context.FN_COG] = rasterLib.createImage(context)
+#                     # Create 8-band COG image from stack of processed bands
+# #                    context[Context.PRED_LIST] = result_weighted_8band
+#                     context[Context.FN_DEST] = str(context[Context.FN_COG])
+#                     context[Context.FN_SRC] = context[Context.FN_TOA]
+#                     # GT - fix hard-coded 8-band handling
+#                     context[Context.BAND_NUM] = int(8)
+#                     context[Context.BAND_DESCRIPTION_LIST] = \
+#                         ['BAND-B', 'BAND-G', 'BAND-R', 'BAND-N', 'BAND-C',
+#                          'BAND-Y', 'BAND-RE', 'BAND-N2']
+#                     context[Context.FN_COG] = rasterLib.createImage(context)
 
                 # Generate CSV
                 rasterLib.generateCSV(context, context[Context.METRICS_LIST])
