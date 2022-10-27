@@ -466,6 +466,27 @@ class RasterLib(object):
     # Calculate band metrics based on corresponding TOA and CCDC arrays.
     # Optionally override metrics with no data value (used for synthetic bands)
     # -------------------------------------------------------------------------
+    def band_performance(self, metadata, target_sr_data_only_band, toa_sr_data_only_band):
+#        target_sr_data_only_band_reshaped = target_sr_data_only_band.values.reshape(-1,1)
+        metadata['r2_score'] = sklearn.metrics.r2_score(target_sr_data_only_band, toa_sr_data_only_band)
+        metadata['explained_variance'] = sklearn.metrics.explained_variance_score(target_sr_data_only_band, toa_sr_data_only_band)
+        metadata['mbe'] = self.mean_bias_error(target_sr_data_only_band, toa_sr_data_only_band)
+        metadata['mae'] = sklearn.metrics.mean_absolute_error(target_sr_data_only_band, toa_sr_data_only_band)
+        metadata['mape'] = sklearn.metrics.mean_absolute_percentage_error(target_sr_data_only_band, toa_sr_data_only_band)
+        metadata['medae'] = sklearn.metrics.median_absolute_error(target_sr_data_only_band, toa_sr_data_only_band)
+        metadata['mse'] = sklearn.metrics.mean_squared_error(target_sr_data_only_band, toa_sr_data_only_band)
+        metadata['rmse'] = metadata['mse'] ** 0.5
+        metadata['mean_ccdc_sr'] = target_sr_data_only_band.mean()
+        metadata['mean_evhr_srlite'] = toa_sr_data_only_band.mean()
+        metadata['mae_norm'] = metadata['mae'] / metadata['mean_ccdc_sr']
+        metadata['rmse_norm'] =  metadata['rmse'] / metadata['mean_ccdc_sr']
+        return metadata
+    # -------------------------------------------------------------------------
+    # sr_performance
+    #
+    # Calculate band metrics based on corresponding TOA and CCDC arrays.
+    # Optionally override metrics with no data value (used for synthetic bands)
+    # -------------------------------------------------------------------------
     def sr_performance(self, df, bandName, model, intercept, slope, ndv_value=None):
 
         metadata = {}
@@ -476,16 +497,18 @@ class RasterLib(object):
 
         if (ndv_value == None):
             sr = df[df['Band'] == bandName]
-            metadata['r2_score'] = sklearn.metrics.r2_score(sr['CCDC_SR'].values.reshape(-1,1), sr['EVHR_SRLite'])
-            metadata['explained_variance'] = sklearn.metrics.explained_variance_score(sr['CCDC_SR'].values.reshape(-1,1), sr['EVHR_SRLite'])
-            metadata['mbe'] = self.mean_bias_error(sr['CCDC_SR'].values.reshape(-1,1), sr['EVHR_SRLite'])
-            metadata['mae'] = sklearn.metrics.mean_absolute_error(sr['CCDC_SR'].values.reshape(-1,1), sr['EVHR_SRLite'])
-            metadata['mape'] = sklearn.metrics.mean_absolute_percentage_error(sr['CCDC_SR'].values.reshape(-1,1), sr['EVHR_SRLite'])
-            metadata['medae'] = sklearn.metrics.median_absolute_error(sr['CCDC_SR'].values.reshape(-1,1), sr['EVHR_SRLite'])
-            metadata['mse'] = sklearn.metrics.mean_squared_error(sr['CCDC_SR'].values.reshape(-1,1), sr['EVHR_SRLite'])
+            toa_sr_data_only_band = sr['EVHR_SRLite']
+            target_sr_data_only_band = sr['CCDC_SR'].values.reshape(-1,1)
+            metadata['r2_score'] = sklearn.metrics.r2_score(target_sr_data_only_band, toa_sr_data_only_band)
+            metadata['explained_variance'] = sklearn.metrics.explained_variance_score(target_sr_data_only_band, toa_sr_data_only_band)
+            metadata['mbe'] = self.mean_bias_error(target_sr_data_only_band, toa_sr_data_only_band)
+            metadata['mae'] = sklearn.metrics.mean_absolute_error(target_sr_data_only_band, toa_sr_data_only_band)
+            metadata['mape'] = sklearn.metrics.mean_absolute_percentage_error(target_sr_data_only_band, toa_sr_data_only_band)
+            metadata['medae'] = sklearn.metrics.median_absolute_error(target_sr_data_only_band, toa_sr_data_only_band)
+            metadata['mse'] = sklearn.metrics.mean_squared_error(target_sr_data_only_band, toa_sr_data_only_band)
             metadata['rmse'] = metadata['mse'] ** 0.5
             metadata['mean_ccdc_sr'] = sr['CCDC_SR'].mean()
-            metadata['mean_evhr_srlite'] = sr['EVHR_SRLite'].mean()
+            metadata['mean_evhr_srlite'] = toa_sr_data_only_band.mean()
             metadata['mae_norm'] = metadata['mae'] / metadata['mean_ccdc_sr']
             metadata['rmse_norm'] =  metadata['rmse'] / metadata['mean_ccdc_sr']
         else:
@@ -505,11 +528,13 @@ class RasterLib(object):
         return metadata
 
     # -------------------------------------------------------------------------
-    # generateSynthe
+    # calculateStatistics
     #
-    # Appl
+    # Calculate statistics for each band, assuming a specific band ordering.
+    # First four bands are constant [B,G,R,N].  When 8Band processing in effect, four
+    # synthetic bands are appended to the list [C,Y,RE,N2]
     # -------------------------------------------------------------------------
-    def apply_regressor_otf_8band(self, context, image_4band):
+    def calculateStatistics(self, context):
 
         # Get coefficients for standard 4-Bands
         sr_metrics_list = context[Context.METRICS_LIST]
@@ -545,6 +570,13 @@ class RasterLib(object):
                                                 t_srs=evhrSrliteImage, r='average', dst_ndv=_ndv)
 
         # get similar bands across arrays
+#        warp_ds_list_multiband = context[Context.MA_WARP_LIST]
+#         warp_ma_list_blu = context[Context.MA_WARP_LIST][0] # Blue
+#         warp_ma_list_grn = context[Context.MA_WARP_LIST][1] # Green
+#         warp_ma_list_red = context[Context.MA_WARP_LIST][2] # Red
+#         warp_ma_list_nir = context[Context.MA_WARP_LIST][3] # NIR
+#         cloud_warp_ma = context[Context.MA_WARP_CLOUD_LIST][0]
+
         warp_ds_list_multiband = warp_ds_list[0:2]
         warp_ma_list_blu = [self.ds_getma(ds, 1) for ds in warp_ds_list_multiband]
         warp_ma_list_grn = [self.ds_getma(ds, 2) for ds in warp_ds_list_multiband]
@@ -602,44 +634,45 @@ class RasterLib(object):
         bandsType = CategoricalDtype(categories = ['Blue','Green','Red','NIR'], ordered=True)
         reflect_df_long['Band'] = reflect_df_long['Band'].astype(bandsType)
 
-        # Grab the Blue band from the dataframe
-        _sr = reflect_df_long[reflect_df_long['Band'] == 'Blue']
-        debug = '0'
-        if (debug == '1'):
-            print(sr)
-            print("\nsr['CCDC_SR']\n", sr['CCDC_SR'])
-            print("\nsr['CCDC_SR'].values.reshape(-1,1)\n", sr['CCDC_SR'].values.reshape(-1,1))
-            print("\nsr['EVHR_SRLite']\n", sr['EVHR_SRLite'])
-            print("\nsr['EVHR_SRLite'].values.reshape(-1,1)\n", sr['EVHR_SRLite'].values.reshape(-1,1))
-
-        r2_score = sklearn.metrics.r2_score(_sr['CCDC_SR'].values.reshape(-1,1), _sr['EVHR_SRLite'])
-
         # Create table of dataframes with coefficients & statistics
-        ndv_value = "NA"
-        metrics_srlite_long = pd.concat([
-            pd.DataFrame([self.sr_performance(reflect_df_long,
-                                              'Blue', model, blueIntercept, blueSlope)]),
-            pd.DataFrame([self.sr_performance(reflect_df_long,
-                                              'Green', model, greenIntercept, greenSlope)]),
-            pd.DataFrame([self.sr_performance(reflect_df_long,
-                                              'Red', model, redIntercept, redSlope)]),
-            pd.DataFrame([self.sr_performance(reflect_df_long,
-                                              'NIR', model, NIR1Intercept, NIR1Slope)]),
-            pd.DataFrame([self.sr_performance(reflect_df_long,
-                                              'Coastal', model, blueIntercept, blueSlope, ndv_value)]),
-            pd.DataFrame([self.sr_performance(reflect_df_long,
-                                              'Yellow', model,
-                                              (greenIntercept * yellowGreenCorr) + (redIntercept * yellowRedCorr),
-                                              (greenSlope * yellowGreenCorr) + (redSlope * yellowRedCorr),
-                                              ndv_value)]),
-            pd.DataFrame([self.sr_performance(reflect_df_long,
-                                              'RedEdge', model,
-                                              (redIntercept * rededgeRedCorr) + (NIR1Intercept * rededgeNIR1Corr),
-                                              (redSlope * rededgeRedCorr) + (NIR1Slope * rededgeNIR1Corr),
-                                              ndv_value)]),
-            pd.DataFrame([self.sr_performance(reflect_df_long,
-                                              'NIR2', model, NIR1Intercept, NIR1Slope, ndv_value)]),
-        ]).reset_index()
+        metrics_srlite_long = None
+        if eval(context[Context.BAND8_FLAG]):
+            ndv_value = "NA"
+            metrics_srlite_long = pd.concat([
+                pd.DataFrame([self.sr_performance(reflect_df_long,
+                                                  'Blue', model, blueIntercept, blueSlope)]),
+                pd.DataFrame([self.sr_performance(reflect_df_long,
+                                                  'Green', model, greenIntercept, greenSlope)]),
+                pd.DataFrame([self.sr_performance(reflect_df_long,
+                                                  'Red', model, redIntercept, redSlope)]),
+                pd.DataFrame([self.sr_performance(reflect_df_long,
+                                                  'NIR', model, NIR1Intercept, NIR1Slope)]),
+                pd.DataFrame([self.sr_performance(reflect_df_long,
+                                                  'Coastal', model, blueIntercept, blueSlope, ndv_value)]),
+                pd.DataFrame([self.sr_performance(reflect_df_long,
+                                                  'Yellow', model,
+                                                  (greenIntercept * yellowGreenCorr) + (redIntercept * yellowRedCorr),
+                                                  (greenSlope * yellowGreenCorr) + (redSlope * yellowRedCorr),
+                                                  ndv_value)]),
+                pd.DataFrame([self.sr_performance(reflect_df_long,
+                                                  'RedEdge', model,
+                                                  (redIntercept * rededgeRedCorr) + (NIR1Intercept * rededgeNIR1Corr),
+                                                  (redSlope * rededgeRedCorr) + (NIR1Slope * rededgeNIR1Corr),
+                                                  ndv_value)]),
+                pd.DataFrame([self.sr_performance(reflect_df_long,
+                                                  'NIR2', model, NIR1Intercept, NIR1Slope, ndv_value)])
+            ]).reset_index()
+        else:
+            metrics_srlite_long = pd.concat([
+                pd.DataFrame([self.sr_performance(reflect_df_long,
+                                                  'Blue', model, blueIntercept, blueSlope)]),
+                pd.DataFrame([self.sr_performance(reflect_df_long,
+                                                  'Green', model, greenIntercept, greenSlope)]),
+                pd.DataFrame([self.sr_performance(reflect_df_long,
+                                                  'Red', model, redIntercept, redSlope)]),
+                pd.DataFrame([self.sr_performance(reflect_df_long,
+                                                  'NIR', model, NIR1Intercept, NIR1Slope)])
+            ]).reset_index()
 
         return context[Context.FN_COG], metrics_srlite_long
 
@@ -651,10 +684,8 @@ class RasterLib(object):
     def generateCSV(self, context):
 
         # Generate simulated band statistics
-        if eval(context[Context.BAND8_FLAG]):
-            context[Context.FN_COG_8BAND], context[Context.METRICS_LIST] = \
-                self.apply_regressor_otf_8band(context,
-                                               context[Context.FN_COG])
+        context[Context.FN_COG_8BAND], context[Context.METRICS_LIST] = \
+                self.calculateStatistics(context)
 
         if (eval(context[Context.CSV_FLAG])):
             if (context[Context.BATCH_NAME] != 'None'):
@@ -669,121 +700,6 @@ class RasterLib(object):
             self._plot_lib.trace(
                 f"\nCreated CSV with coefficients for batch {context[Context.BATCH_NAME]}...\n   {path}")
 
-    def _apply_regressor_otf_8band(self, context, image_4band, sr_unmasked_prediction_list,
-                                  sr_metrics_list):
-
-         # Retrieve slope, intercept, and score coefficients for data-driven bands
-        blueSlope = sr_metrics_list['slope'][0]
-        blueIntercept = sr_metrics_list['intercept'][0]
-        blueTargetBandMaArrayRaw = iolib.fn_getma(context[Context.FN_TARGET],1)
-        blueSrliteBandMaArrayRaw = iolib.fn_getma(context[Context.FN_COG],1)
-
-        greenSlope = sr_metrics_list['slope'][1]
-        greenIntercept = sr_metrics_list['intercept'][1]
-        greenTargetBandMaArrayRaw = iolib.fn_getma(context[Context.FN_TARGET],2)
-        greenSrliteBandMaArrayRaw = iolib.fn_getma(context[Context.FN_COG],2)
-
-        redSlope = sr_metrics_list['slope'][2]
-        redIntercept = sr_metrics_list['intercept'][2]
-        redTargetBandMaArrayRaw = iolib.fn_getma(context[Context.FN_TARGET],3)
-        redSrliteBandMaArrayRaw = iolib.fn_getma(context[Context.FN_COG],3)
-
-        NIR1Slope = sr_metrics_list['slope'][3]
-        NIR1Intercept = sr_metrics_list['intercept'][3]
-        NIR1TargetBandMaArrayRaw = iolib.fn_getma(context[Context.FN_TARGET],3)
-        NIR1SrliteBandMaArrayRaw = iolib.fn_getma(context[Context.FN_COG],3)
-
-        # Simulated bands - coefficients provided via Matt
-        #    docs.google.com/presentation/d/1zqnpiIADrUttMnWsr4M3lA8XChQWUygEQLlgp1GW9vQ/edit#slide=id.gfde680b449_0_0
-
-        # Correction coefficients for simulated bands
-        yellowGreenCorr = 0.473
-        yellowRedCorr = 0.527
-        rededgeRedCorr = 0.621
-        RededgeNIR1Corr = 0.379
-
-        # Generate diagnostics for simulated bands - use fill value to indicate bogus data
-        bandAerosolMetadata = self._model_coeffs_(
-            context,
-            'BAND-C',
-            context[Context.REGRESSION_MODEL],
-            blueIntercept,
-            blueSlope,
-            None,
-            None,
-            ndv_value='NA'
-        )
-        bandYellowMetadata = self._model_coeffs_(
-            context,
-            'BAND-Y',
-            context[Context.REGRESSION_MODEL],
-            # (((maListToa[3].astype(float) * params_df.query('band == "Green"')['slope'].reset_index(drop=True)[0])
-            # + (params_df.query('band == "Green"')['intercept'].reset_index(drop=True)[0] * 10000)) * 0.518) +
-            # (((maListToa[3].astype(float) * params_df.query('band == "Red"')['slope'].reset_index(drop=True)[0])
-            # + (params_df.query('band == "Red"')['intercept'].reset_index(drop=True)[0] * 10000)) * 0.482),
-            (greenIntercept * yellowGreenCorr) + (redIntercept * yellowRedCorr),
-            (greenSlope * yellowGreenCorr) + (redSlope * yellowRedCorr),
-            None,
-            None,
-            ndv_value='NA'
-        )
-        bandRededgeMetadata = self._model_coeffs_(
-            # (((maListToa[5].astype(float) * params_df.query('band == "Red"')['slope'].reset_index(drop=True)[0])
-            # +(params_df.query('band == "Red"')['intercept'].reset_index(drop=True)[0] * 10000)) * 0.379) +
-            # (((maListToa[5].astype(float) * params_df.query('band == "NIR"')['slope'].reset_index(drop=True)[0])
-            # + (params_df.query('band == "NIR"')['intercept'].reset_index(drop=True)[0] * 10000)) * 0.621),
-            context,
-            'BAND-RE',
-            context[Context.REGRESSION_MODEL],
-            (redIntercept * rededgeRedCorr) + (NIR1Intercept * RededgeNIR1Corr),
-            (redSlope * rededgeRedCorr) + (NIR1Slope * RededgeNIR1Corr),
-            None,
-            None,
-            ndv_value='NA'
-        )
-        bandNIR2Metadata = self._model_coeffs_(
-            context,
-            'BAND-N2',
-            context[Context.REGRESSION_MODEL],
-            NIR1Intercept,
-            NIR1Slope,
-            None,
-            None,
-            ndv_value='NA'
-        )
-        sr_metrics_list = pd.concat([sr_metrics_list, pd.DataFrame([bandAerosolMetadata], index=[4])])
-        sr_metrics_list = pd.concat([sr_metrics_list, pd.DataFrame([bandYellowMetadata], index=[5])])
-        sr_metrics_list = pd.concat([sr_metrics_list, pd.DataFrame([bandRededgeMetadata], index=[6])])
-        sr_metrics_list = pd.concat([sr_metrics_list, pd.DataFrame([bandNIR2Metadata], index=[7])])
-        sr_metrics_list.reset_index()
-
-        # Generate weighted bands
-        bandAerosol = bandBlue
-        bandYellow = (bandGreen * yellowGreenCorr) + (bandRed * yellowRedCorr)
-        bandRededge = (bandRed * rededgeRedCorr) + (bandNIR1 * RededgeNIR1Corr)
-        bandNIR2 = bandNIR1
-
-#        sr_prediction_band = (toa_hr_band * metadata['slope']) + (metadata['intercept'] * 10000)
-        result_weighted_8band = [
-            # Aerosol
-            np.ma.array(bandAerosol.reshape(toaBandMaArrayRaw.shape), mask=toaBandMaArrayRaw.mask),
-            # Blue
-            np.ma.array(bandBlue.reshape(toaBandMaArrayRaw.shape), mask=toaBandMaArrayRaw.mask),
-            # Green
-            np.ma.array(bandGreen.reshape(toaBandMaArrayRaw.shape), mask=toaBandMaArrayRaw.mask),
-            # Yellow
-            np.ma.array(bandYellow.reshape(toaBandMaArrayRaw.shape), mask=toaBandMaArrayRaw.mask),
-            # Red
-            np.ma.array(bandRed.reshape(toaBandMaArrayRaw.shape), mask=toaBandMaArrayRaw.mask),
-            # Rededge
-            np.ma.array(bandRededge.reshape(toaBandMaArrayRaw.shape), mask=toaBandMaArrayRaw.mask),
-            # NIR1
-            np.ma.array(bandNIR1.reshape(toaBandMaArrayRaw.shape), mask=toaBandMaArrayRaw.mask),
-            # NIR2
-            np.ma.array(bandNIR2.reshape(toaBandMaArrayRaw.shape), mask=toaBandMaArrayRaw.mask),
-        ]
-
-        return result_weighted_8band, sr_metrics_list
 
     def predictSurfaceReflectance(self, context, band_name, toaBandMaArrayRaw,
                                   target_warp_ma_masked_band, toa_warp_ma_masked_band, sr_metrics_list):
@@ -841,6 +757,8 @@ class RasterLib(object):
         ####################
         elif (context[Context.REGRESSION_MODEL] == Context.REGRESSOR_MODEL_RMA):
 
+            r2_score = sklearn.metrics.r2_score(target_sr_data_only_band, toa_sr_data_only_band)
+
             reflect_df = pd.concat([
                 self.ma2df(toa_sr_data_only_band, 'EVHR_TOA', 'Band'),
                 self.ma2df(target_sr_data_only_band, 'CCDC_SR', 'Band')],
@@ -854,6 +772,8 @@ class RasterLib(object):
                                            toaBandMaArrayRaw,
                                            model_data_only_band['intercept'],
                                            model_data_only_band['slope'])
+
+#            metadata = self.band_performance(metadata, target_sr_data_only_band, toa_sr_data_only_band)
 
             # Calculate SR-Lite band using original TOA 2m band
             sr_prediction_band_2m = self.calculate_prediction_band(context,
