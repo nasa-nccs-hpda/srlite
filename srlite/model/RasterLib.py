@@ -13,12 +13,10 @@ import rasterio
 import sklearn
 from osgeo import gdal, osr
 from pygeotools.lib import iolib, warplib, malib
-# Not in current ilab kernel (or introduced from diagnostics
 from pylr2 import regress2
 from sklearn.linear_model import HuberRegressor, LinearRegression
 from pathlib import Path
 from srlite.model.Context import Context
-
 
 # -----------------------------------------------------------------------------
 # class RasterLib
@@ -771,23 +769,6 @@ class RasterLib(object):
 
         return sr_prediction_band_2m, metadata
 
-    # def mean_bias_error(self, y_true, y_pred):
-    #     '''
-    #     Parameters:
-    #         y_true (array): Array of observed values
-    #         y_pred (array): Array of prediction values
-    #
-    #     Returns:
-    #         mbe (float): Bias score
-    #     '''
-    #     y_true = np.array(y_true)
-    #     y_pred = np.array(y_pred)
-    #     y_true = y_true.reshape(len(y_true), 1)
-    #     y_pred = y_pred.reshape(len(y_pred), 1)
-    #     diff = (y_true - y_pred)
-    #     mbe = diff.mean()
-    #     return mbe
-
     # -------------------------------------------------------------------------
     # calculate_prediction_band
     #
@@ -1123,10 +1104,20 @@ class RasterLib(object):
         self._plot_lib.trace(' threshold range median =' + str(np.ma.median(bandMaThresholdRangeArray)))
         return bandMaThresholdRangeArray
 
+    # -------------------------------------------------------------------------
+    # get_ndv
+    #
+    # Get NoDataValue from TIF file
+    # -------------------------------------------------------------------------
     def get_ndv(self, r_fn):
         with rasterio.open(r_fn) as src:
             return src.profile['nodata']
 
+    # -------------------------------------------------------------------------
+    # refresh
+    #
+    # Release memory
+    # -------------------------------------------------------------------------
     def refresh(self, context):
 
         # Restore handles to file pool and reset internal flags

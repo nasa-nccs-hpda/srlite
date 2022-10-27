@@ -412,13 +412,13 @@ class Context(object):
     def getPlotLib(self):
         return self.plot_lib
 
-    # -------------------------------------------------------------------------
-    # getDebugLevel()
-    #
-    # Get debug_level
-    # -------------------------------------------------------------------------
-    def getDebugLevel(self):
-        return self.debug_level
+    # # -------------------------------------------------------------------------
+    # # getDebugLevel()
+    # #
+    # # Get debug_level
+    # # -------------------------------------------------------------------------
+    # def getDebugLevel(self):
+    #     return self.debug_level
 
     # -------------------------------------------------------------------------
     # getFileNames()
@@ -473,7 +473,7 @@ class Context(object):
         return context
 
     # -------------------------------------------------------------------------
-    # create_logfile()
+    # _create_logfile()
     #
     # Print trace debug (cus
     # -------------------------------------------------------------------------

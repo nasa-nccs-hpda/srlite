@@ -168,7 +168,7 @@ class PlotLib(object):
     # Generate and display histograms for 2-dimensional list of masked arrays
     # -------------------------------------------------------------------------
     def plot_combo(self, fname, figsize=(10, 3),
-                        title="WARPED MASKED ARRAY"):
+                   title="WARPED MASKED ARRAY"):
         """
 
         :param masked_array_list:
@@ -183,7 +183,7 @@ class PlotLib(object):
             self.plot_combo_array(imageSrc, figsize, title)
 
     def plot_combo_array(self, imageSrc, figsize=(10, 3),
-                        title="WARPED MASKED ARRAY"):
+                         title="WARPED MASKED ARRAY"):
         """
 
         :param masked_array_list:
@@ -196,9 +196,9 @@ class PlotLib(object):
         if (self._debug_level >= 2):
             fig, (axrgb, axhist) = pyplot.subplots(1, 2, figsize=figsize)
             show(imageSrc, ax=axrgb)
-            show_hist(imageSrc, bins=50, histtype='stepfilled',lw=0.0, stacked=False, alpha=0.3, ax=axhist, title=title)
+            show_hist(imageSrc, bins=50, histtype='stepfilled', lw=0.0, stacked=False, alpha=0.3, ax=axhist,
+                      title=title)
             pyplot.show()
-
 
     def plot_maps2(self, masked_array_list, names_list, figsize=None, cmap_list=None, clim_list=None, title_text=""):
         if figsize is None:
@@ -228,7 +228,6 @@ class PlotLib(object):
             cb.set_label('Reflectance (%)')
 
             plt.tight_layout()
-
 
     def plot_hists2(self, masked_array_list, names_list, figsize=None, title_text=""):
         if figsize is None:
