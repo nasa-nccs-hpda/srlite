@@ -46,7 +46,7 @@ class RasterLib(object):
         return
 
     # -------------------------------------------------------------------------
-    # _validateParms
+    # _validateParms()
     #
     # Verify that required parameters exist in Context()
     # -------------------------------------------------------------------------
@@ -62,7 +62,7 @@ class RasterLib(object):
                 exit(1)
 
     # -------------------------------------------------------------------------
-    # _representsInt
+    # _representsInt()
     #
     # Verify that the string safely represents and integer
     # -------------------------------------------------------------------------
@@ -74,7 +74,7 @@ class RasterLib(object):
             return False
 
     # -------------------------------------------------------------------------
-    # b_getma
+    # b_getma()
     #
     # Get masked array from input GDAL Band
     # -------------------------------------------------------------------------
@@ -85,7 +85,7 @@ class RasterLib(object):
         return bma
 
     # -------------------------------------------------------------------------
-    # ds_getma
+    # ds_getma()
     #
     # Given input dataset, return a masked array for the input band
     # -------------------------------------------------------------------------
@@ -104,7 +104,7 @@ class RasterLib(object):
         return np.array(unmasked)
 
     # -------------------------------------------------------------------------
-    # ma2df
+    # ma2df()
     #
     # Given a masked array, convert it to a data frame
     # -------------------------------------------------------------------------
@@ -117,7 +117,7 @@ class RasterLib(object):
         return df
 
     # -------------------------------------------------------------------------
-    # getBandIndices
+    # getBandIndices()
     #
     # Validate band name pairs and return corresponding gdal indices
     # -------------------------------------------------------------------------
@@ -196,7 +196,7 @@ class RasterLib(object):
         return bandIndices
 
     # -------------------------------------------------------------------------
-    # getBandIndices
+    # getAttributeSnapshot()
     #
     # Get snapshot of attributes of EVHR, CCDC, and Cloudmask tifs and create plot
     # -------------------------------------------------------------------------
@@ -209,7 +209,7 @@ class RasterLib(object):
             self.getAttributes(str(context[Context.FN_CLOUDMASK]), "Cloudmask Combo Plot")
 
     # -------------------------------------------------------------------------
-    # displayComboPlot
+    # displayComboPlot()
     #
     # Display combo plot
     # -------------------------------------------------------------------------
@@ -218,7 +218,7 @@ class RasterLib(object):
             self._plot_lib.plot_combo(r_fn, figsize=(14, 7), title=title)
 
     # -------------------------------------------------------------------------
-    # getAttributes
+    # getAttributes()
     #
     # Trace image geotransform diagnostics
     # -------------------------------------------------------------------------
@@ -242,7 +242,7 @@ class RasterLib(object):
         return geotransform
 
     # -------------------------------------------------------------------------
-    # setTargetAttributes
+    # setTargetAttributes()
     #
     # Trace image geotransform diagnostics
     # -------------------------------------------------------------------------
@@ -259,7 +259,7 @@ class RasterLib(object):
         r_ds = None
 
     # -------------------------------------------------------------------------
-    # replaceNdv
+    # replaceNdv()
     #
     # Replace no data value in gdal dataset
     # -------------------------------------------------------------------------
@@ -284,7 +284,7 @@ class RasterLib(object):
         return out_fn
 
     # -------------------------------------------------------------------------
-    # getStatistics
+    # getStatistics()
     #
     # Get snapshot of statistics of EVHR, CCDC, and Cloudmask tifs
     # -------------------------------------------------------------------------
@@ -304,7 +304,7 @@ class RasterLib(object):
         [self._plot_lib.trace(f'warped ma max: {ma.max()}') for ma in context[Context.MA_WARP_LIST]]
 
     # -------------------------------------------------------------------------
-    # alignNoDataValues
+    # alignNoDataValues()
     #
     # Align NoDataValues in image list to match target
     # -------------------------------------------------------------------------
@@ -325,7 +325,7 @@ class RasterLib(object):
         return dst_ndv
 
     # -------------------------------------------------------------------------
-    # getReprojection
+    # getReprojection()
     #
     # Reproject inputs to TOA attributes (res, extent, srs, nodata) and return masked arrays of reprojected pixels
     # -------------------------------------------------------------------------
@@ -347,7 +347,7 @@ class RasterLib(object):
         return warp_ds_list, warp_ma_list
 
     # -------------------------------------------------------------------------
-    # prepareEVHRCloudmask
+    # prepareEVHRCloudmask()
     #
     # Mask out clouds.  We are expecting cloud pixel values equal to 0 or 1.
     # We are filtering values > 0.5 because it is faster than values == 1.0
@@ -365,7 +365,7 @@ class RasterLib(object):
         return cloudmaskWarpExternalBandMaArrayMasked
 
     # -------------------------------------------------------------------------
-    # prepareQualityFlagMask
+    # prepareQualityFlagMask()
     #
     # Suppress values=[0, 3, 4] according to Band #8 because they correspond to NoData,
     # Clouds and Cloud Shadows
@@ -395,7 +395,7 @@ class RasterLib(object):
         return cloudmaskWarpExternalBandMaArrayMasked
 
     # -------------------------------------------------------------------------
-    # prepareMasks
+    # prepareMasks()
     #
     # Prepare optional masks
     # -------------------------------------------------------------------------
@@ -410,7 +410,7 @@ class RasterLib(object):
             context['cloudmaskQFWarpExternalBandMaArrayMasked'] = self.prepareQualityFlagMask(context)
 
     # -------------------------------------------------------------------------
-    # getCommonMask
+    # getCommonMask()
     #
     # Aggregate optional masks to create a common mask that intersects the CCDC/QF, EVHR, and Cloudmasks.
     # Mask out ALL negative values in input if requested.
@@ -445,7 +445,7 @@ class RasterLib(object):
         return common_mask_band_all
 
     # -------------------------------------------------------------------------
-    # mean_bias_error
+    # mean_bias_error()
     #
     # Derive deltas in mean values between observed and predicted arrays
     # -------------------------------------------------------------------------
@@ -459,7 +459,7 @@ class RasterLib(object):
         return mbe
 
     # -------------------------------------------------------------------------
-    # band_performance
+    # band_performance()
     #
     # Calculate band metrics based on corresponding TOA and CCDC arrays.
     # -------------------------------------------------------------------------
@@ -480,7 +480,7 @@ class RasterLib(object):
         return metadata
 
     # -------------------------------------------------------------------------
-    # sr_performance
+    # sr_performance()
     #
     # Generate band metrics based on corresponding TOA and CCDC arrays.
     # Optionally override metrics with no data value (used for synthetic bands)
@@ -515,7 +515,7 @@ class RasterLib(object):
         return metadata
 
     # -------------------------------------------------------------------------
-    # calculateStatistics
+    # calculateStatistics()
     #
     # Calculate statistics for each band, assuming a specific band ordering.
     # First four bands are constant [B,G,R,N].  When 8Band processing in effect, four
@@ -656,7 +656,7 @@ class RasterLib(object):
         return context[Context.FN_COG], metrics_srlite_long
 
     # -------------------------------------------------------------------------
-    # generateCSV
+    # generateCSV()
     #
     # Write out statistics per band to a csv file
     # -------------------------------------------------------------------------
@@ -681,7 +681,7 @@ class RasterLib(object):
 
 
     # -------------------------------------------------------------------------
-    # predictSurfaceReflectance
+    # predictSurfaceReflectance()
     #
     # Perform regression fit based on model type (TARGET against TOA)
     # -------------------------------------------------------------------------
@@ -770,7 +770,7 @@ class RasterLib(object):
         return sr_prediction_band_2m, metadata
 
     # -------------------------------------------------------------------------
-    # calculate_prediction_band
+    # calculate_prediction_band()
     #
     # Perform regression fit based on model type (TARGET against TOA)
     # -------------------------------------------------------------------------
@@ -829,7 +829,7 @@ class RasterLib(object):
         return sr_prediction_band_2m
 
     # -------------------------------------------------------------------------
-    # _model_coeffs_
+    # _model_coeffs_()
     #
     # Populate dictionary of coefficients
     # -------------------------------------------------------------------------
@@ -845,7 +845,7 @@ class RasterLib(object):
         return metadata
 
     # -------------------------------------------------------------------------
-    # simulateSurfaceReflectance
+    # simulateSurfaceReflectance()
     #
     # Perform workflow to create simulated surface reflectance for each band (SR-Lite)
     # This method hosts the primary orchestration logic for the SR-Lite application.
@@ -955,7 +955,7 @@ class RasterLib(object):
         return sr_prediction_list, sr_metrics_list, common_mask_list
 
     # -------------------------------------------------------------------------
-    # createImage
+    # createImage()
     #
     # Convert list of prediction arrays to TIF image.  Optionally create a
     # Cloud-Optimized GeoTIF (COG).
@@ -1029,7 +1029,7 @@ class RasterLib(object):
         return cog_name
 
     # -------------------------------------------------------------------------
-    # removeFile
+    # removeFile()
     #
     # Optionally remove file from file system
     # -------------------------------------------------------------------------
@@ -1040,7 +1040,7 @@ class RasterLib(object):
                 os.remove(fileName)
 
     # -------------------------------------------------------------------------
-    # createCOG
+    # createCOG()
     #
     # Manage lifecycle of a Cloud-Optimized GeoTIF (COG)
     # -------------------------------------------------------------------------
@@ -1056,7 +1056,7 @@ class RasterLib(object):
         return context[Context.FN_DEST]
 
     # -------------------------------------------------------------------------
-    # _getExtents
+    # _getExtents()
     #
     # Get extents from raster file
     # -------------------------------------------------------------------------
@@ -1074,7 +1074,7 @@ class RasterLib(object):
         return extent
 
     # -------------------------------------------------------------------------
-    # cog
+    # cog()
     #
     # Create a Cloud-Optimized GeoTIF (COG) from a TIF file
     # -------------------------------------------------------------------------
@@ -1088,7 +1088,7 @@ class RasterLib(object):
         ds = None
 
     # -------------------------------------------------------------------------
-    # _applyThreshold
+    # _applyThreshold()
     #
     # Eliminate pixel values in band that lie outside of min/max threshold
     # -------------------------------------------------------------------------
@@ -1105,7 +1105,7 @@ class RasterLib(object):
         return bandMaThresholdRangeArray
 
     # -------------------------------------------------------------------------
-    # get_ndv
+    # get_ndv()
     #
     # Get NoDataValue from TIF file
     # -------------------------------------------------------------------------
@@ -1114,7 +1114,7 @@ class RasterLib(object):
             return src.profile['nodata']
 
     # -------------------------------------------------------------------------
-    # refresh
+    # refresh()
     #
     # Release memory
     # -------------------------------------------------------------------------
