@@ -76,6 +76,7 @@ def main():
 
                 #  Reproject cloudmask to attributes of EVHR TOA Downscale  - use 'mode' for resampling method
                 if eval(context[Context.CLOUD_MASK_FLAG]):
+                    context[Context.FN_LIST].append(str(context[Context.FN_CLOUDMASK]))
                     context[Context.FN_REPROJECTION_LIST] = [str(context[Context.FN_CLOUDMASK])]
                     context[Context.TARGET_FN] = str(context[Context.FN_TOA])
                     context[Context.TARGET_SAMPLING_METHOD] = 'mode'
