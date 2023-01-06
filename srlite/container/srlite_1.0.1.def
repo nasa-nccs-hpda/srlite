@@ -3,7 +3,7 @@
 # Source: https://github.com/nasa-nccs-hpda/srlite.git
 #-----------------------------------------------------------------------------------------
 Bootstrap: localimage
-FROM: ./ilab-base_gdal-3.3.3-v5.sif
+FROM: ./srlite_1.0.0.sif
 
 %labels
     cisto_author gtamkin
@@ -36,13 +36,10 @@ FROM: ./ilab-base_gdal-3.3.3-v5.sif
     #-------------------------------------------------------------------------------
     # SRLITE Git Dependencies
     #-------------------------------------------------------------------------------
-    pip3 install --upgrade pygeotools
-    pip3 install --upgrade plotnine
-    pip3 install --upgrade pylr2
 
     mkdir -p ${PROJECT_PATH}
     # RECOMMENDED LOCATION - CURRENTLY INCLUDED IN CORE
-    git clone --single-branch --branch srlite-1.0.0 https://github.com/nasa-nccs-hpda/srlite.git \
+    git clone --single-branch --branch srlite-1.0.1 https://github.com/nasa-nccs-hpda/srlite.git \
 		${PROJECT_PATH}/srlite
     chmod a+rwx -R ${PROJECT_PATH}/*
 
