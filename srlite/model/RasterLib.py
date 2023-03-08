@@ -1084,7 +1084,9 @@ class RasterLib(object):
                                       Context.TARGET_XRES, Context.TARGET_YRES])
 
         self.removeFile(context[Context.FN_DEST], context[Context.CLEAN_FLAG])
-        ds = gdal.Translate(context[Context.FN_DEST], context[Context.FN_SRC], format="COG")
+        translateoptions = gdal.TranslateOptions( format="COG",
+                                       creationOptions=['BIGTIFF=YES'])
+        ds = gdal.Translate(context[Context.FN_DEST], context[Context.FN_SRC], options=translateoptions)
         ds = None
 
     # -------------------------------------------------------------------------
