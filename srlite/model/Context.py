@@ -24,6 +24,8 @@ class Context(object):
     DIR_CLOUDMASK = 'dir_cloudmask'
     DIR_OUTPUT = 'dir_out'
     DIR_OUTPUT_CSV = 'dir_out_cvs'
+    DIR_OUTPUT_ERROR = 'dir_out_err'
+    DIR_OUTPUT_WARP = 'dir_out_warp'
 
     # File names
     FN_DEST = 'fn_dest'
@@ -41,6 +43,7 @@ class Context(object):
     MA_WARP_MASKED_LIST = 'ma_warp_masked_list'
     PRED_LIST = 'pred_list'
     METRICS_LIST = 'metrics_list'
+    ERROR_LIST = 'error_list'
     COMMON_MASK_LIST = 'common_mask_list'
     COMMON_MASK = 'common_mask'
 
@@ -132,6 +135,7 @@ class Context(object):
     CLEAN_FLAG = 'clean_flag'
     COG_FLAG = 'cog_flag'
     CSV_FLAG = 'csv_flag'
+    ERROR_REPORT_FLAG = 'error_report_flag'
     BAND8_FLAG = 'band8_flag'
     CSV_WRITER = 'csv_writer'
 
@@ -191,6 +195,7 @@ class Context(object):
             self.context_dict[Context.CLOUD_MASK_FLAG] = str(args.cmaskbool)
             self.context_dict[Context.POSITIVE_MASK_FLAG] = str(args.pmaskbool)
             self.context_dict[Context.CSV_FLAG] = str(args.csvbool)
+            self.context_dict[Context.ERROR_REPORT_FLAG] = str(args.errorreportbool)
             self.context_dict[Context.BAND8_FLAG] = str(args.band8bool)
             self.context_dict[Context.QUALITY_MASK_FLAG] = str(args.qfmaskbool)
             self.context_dict[Context.LIST_QUALITY_MASK] = str(args.qfmask_list)
@@ -221,6 +226,7 @@ class Context(object):
         plotLib.trace(f'Debug Level: {self.context_dict[Context.DEBUG_LEVEL]}')
         plotLib.trace(f'Clean Flag: {self.context_dict[Context.CLEAN_FLAG]}')
         plotLib.trace(f'CSV Flag: {self.context_dict[Context.CSV_FLAG]}')
+        plotLib.trace(f'Error Report Flag: {self.context_dict[Context.ERROR_REPORT_FLAG]}')
         plotLib.trace(f'Band8 Flag: {self.context_dict[Context.BAND8_FLAG]}')
         plotLib.trace(f'Log: {self.context_dict[Context.LOG_FLAG]}')
         #       plotLib.trace(f'Storage:    {self.context_dict[Context.STORAGE_TYPE]}')
@@ -235,6 +241,28 @@ class Context(object):
                 os.makedirs(self.context_dict[Context.DIR_OUTPUT_CSV], exist_ok=True)
             except OSError as error:
                 print("Directory '%s' can not be created" % self.context_dict[Context.DIR_OUTPUT_CSV])
+
+        if (eval(self.context_dict[Context.CSV_FLAG])):
+            plotLib.trace(f'CSV Flag:    {self.context_dict[Context.CSV_FLAG]}')
+            self.context_dict[Context.DIR_OUTPUT_CSV] = os.path.join(self.context_dict[Context.DIR_OUTPUT], 'csv')
+            try:
+                os.makedirs(self.context_dict[Context.DIR_OUTPUT_CSV], exist_ok=True)
+            except OSError as error:
+                print("Directory '%s' can not be created" % self.context_dict[Context.DIR_OUTPUT_CSV])
+
+        if (eval(self.context_dict[Context.ERROR_REPORT_FLAG])):
+            plotLib.trace(f'ERROR Flag:    {self.context_dict[Context.ERROR_REPORT_FLAG]}')
+            self.context_dict[Context.DIR_OUTPUT_ERROR] = os.path.join(self.context_dict[Context.DIR_OUTPUT], 'err')
+            try:
+                os.makedirs(self.context_dict[Context.DIR_OUTPUT_ERROR], exist_ok=True)
+            except OSError as error:
+                print("Directory '%s' can not be created" % self.context_dict[Context.DIR_OUTPUT_ERROR])
+
+        self.context_dict[Context.DIR_OUTPUT_WARP] = os.path.join(self.context_dict[Context.DIR_OUTPUT], 'warp')
+        try:
+            os.makedirs(self.context_dict[Context.DIR_OUTPUT_WARP], exist_ok=True)
+        except OSError as error:
+            print("Directory '%s' can not be created" % self.context_dict[Context.DIR_OUTPUT_WARP])
 
         if (eval(self.context_dict[Context.QUALITY_MASK_FLAG])):
             plotLib.trace(f'Quality Mask:    {self.context_dict[Context.QUALITY_MASK_FLAG]}')
@@ -344,6 +372,13 @@ class Context(object):
                             action='store_true',
                             help='Generate CSV file with runtime history')
 
+        parser.add_argument('--err',
+                            required=False,
+                            dest='errorreportbool',
+                            default=True,
+                            action='store_true',
+                            help='Generate error report')
+
         parser.add_argument('--band8',
                             required=False,
                             dest='band8bool',
@@ -431,19 +466,24 @@ class Context(object):
         :param context: input context object dictionary
         :return: updated context
         """
-        #       context[Context.FN_PREFIX] = "WV02_20200812_M1BS_10300100AB21A400"
-
         context[Context.FN_PREFIX] = str((prefix[1]).split("-toa.tif", 1)[0])
-        # If TOA is a file instead of directory, assume all inputs are files also
+
+        # Provide the fully-qualified file name (if provided).  Otherwise assume, list of files
         if os.path.isfile(Path(context[Context.DIR_TOA])):
             context[Context.FN_TOA] = context[Context.DIR_TOA]
-            context[Context.FN_TARGET] = context[Context.DIR_TARGET]
-            context[Context.FN_CLOUDMASK] = context[Context.DIR_CLOUDMASK]
         else:
             context[Context.FN_TOA] = os.path.join(context[Context.DIR_TOA] + '/' +
                                                    context[Context.FN_PREFIX] + context[Context.FN_TOA_SUFFIX])
+
+        if os.path.isfile(Path(context[Context.DIR_TARGET])):
+            context[Context.FN_TARGET] = context[Context.DIR_TARGET]
+        else:
             context[Context.FN_TARGET] = os.path.join(context[Context.DIR_TARGET] + '/' +
                                                       context[Context.FN_PREFIX] + context[Context.FN_TARGET_SUFFIX])
+
+        if os.path.isfile(Path(context[Context.DIR_CLOUDMASK])):
+            context[Context.FN_CLOUDMASK] = context[Context.DIR_CLOUDMASK]
+        else:
             context[Context.FN_CLOUDMASK] = os.path.join(context[Context.DIR_CLOUDMASK] + '/' +
                                                          context[Context.FN_PREFIX] + context[
                                                              Context.FN_CLOUDMASK_SUFFIX])

@@ -17,6 +17,7 @@ from pylr2 import regress2
 from sklearn.linear_model import HuberRegressor, LinearRegression
 from pathlib import Path
 from srlite.model.Context import Context
+import numpy.ma as ma
 
 # -----------------------------------------------------------------------------
 # class RasterLib
@@ -263,24 +264,26 @@ class RasterLib(object):
     #
     # Replace no data value in gdal dataset
     # -------------------------------------------------------------------------
-    def replaceNdv(self, src_fn, new_ndv):
-        ds = gdal.Open(src_fn)
-        b = ds.GetRasterBand(1)
-        # Extract old ndv
-        old_ndv = iolib.get_ndv_b(b)
-
-        # Load masked array
-        bma = iolib.ds_getma(ds)
-
-        # Handle cases with input ndv of nan
-        # if old_ndv == np.nan:
-        bma = np.ma.fix_invalid(bma)
-
-        # Set new fill value
-        bma.set_fill_value(new_ndv)
-        # Fill ma with new value and write out
+    def replaceNdv(self, context, src_fn, new_ndv):
         out_fn = os.path.splitext(src_fn)[0] + '_ndv.tif'
-        iolib.writeGTiff(bma.filled(), out_fn, ds, ndv=new_ndv)
+        self.removeFile(out_fn, context[Context.CLEAN_FLAG])
+        if (not os.path.exists(out_fn)):
+            ds = gdal.Open(src_fn)
+            b = ds.GetRasterBand(1)
+            # Extract old ndv
+            old_ndv = iolib.get_ndv_b(b)
+
+            # Load masked array
+            bma = iolib.ds_getma(ds)
+
+            # Handle cases with input ndv of nan
+            # if old_ndv == np.nan:
+            bma = np.ma.fix_invalid(bma)
+
+            # Set new fill value
+            bma.set_fill_value(new_ndv)
+            # Fill ma with new value and write out
+            iolib.writeGTiff(bma.filled(), out_fn, ds, ndv=new_ndv)
         return out_fn
 
     # -------------------------------------------------------------------------
@@ -312,12 +315,12 @@ class RasterLib(object):
         self._validateParms(context, [Context.FN_LIST, Context.FN_REPROJECTION_LIST, Context.TARGET_FN])
 
         # Ensure that all NoData values match TARGET_FN (e.g., TOA)
-        ndv_list = [self.get_ndv(fn) for fn in context[Context.FN_REPROJECTION_LIST]]
-        dst_ndv = self.get_ndv(str(context[Context.TARGET_FN]))
+        # Retrieve No Data Value from TOA as guiding attribute for all inputs (as per MC)
+        context[Context.TARGET_NODATA_VALUE] = dst_ndv = self.get_ndv(str(context[Context.FN_TOA]))
         for fn in context[Context.FN_REPROJECTION_LIST]:
             current_ndv = self.get_ndv(fn)
-            if (current_ndv != dst_ndv):
-                out_fn = self.replaceNdv(fn, dst_ndv)
+            if (current_ndv != context[Context.TARGET_NODATA_VALUE]):
+                out_fn = self.replaceNdv(context, fn, context[Context.TARGET_NODATA_VALUE])
                 index = context[Context.FN_LIST].index(fn)
                 context[Context.FN_LIST][index] = out_fn
                 index = context[Context.FN_REPROJECTION_LIST].index(fn)
@@ -335,12 +338,32 @@ class RasterLib(object):
 
         # Reproject inputs to TOA attributes (res, extent, srs, nodata)
         dst_ndv = self.alignNoDataValues(context)
-        warp_ds_list = warplib.memwarp_multi_fn(context[Context.FN_REPROJECTION_LIST],
+ 
+
+        src_fn = context[Context.FN_REPROJECTION_LIST]
+        warp_ds_list = []
+        for fn in src_fn:
+            
+            # Derive reprojected file name
+            out_fn = os.path.splitext(fn)[0]
+            out_fn = os.path.basename(out_fn)
+            out_fn_warp = context[Context.DIR_OUTPUT_WARP] + '/' + out_fn + '_warp.tif'
+
+             # Remove existing SR-Lite output if clean_flag is activated
+            self.removeFile(out_fn_warp, context[Context.CLEAN_FLAG])
+
+            if (os.path.exists(out_fn_warp)):
+                ds_warp = gdal.Open(out_fn_warp)  
+                warp_ds_list.append(ds_warp)
+            else:
+                ds_warp = warplib.diskwarp_multi_fn([fn],
                                                 res=context[Context.TARGET_XRES],
                                                 extent=str(context[Context.TARGET_FN]),
                                                 t_srs=str(context[Context.TARGET_FN]),
                                                 r=context[Context.TARGET_SAMPLING_METHOD],
-                                                dst_ndv=dst_ndv)
+                                                dst_ndv=dst_ndv,
+                                                outdir=context[Context.DIR_OUTPUT_WARP])
+                warp_ds_list.append(ds_warp[0])
 
         warp_ma_list = [iolib.ds_getma(ds) for ds in warp_ds_list]
 
@@ -533,127 +556,160 @@ class RasterLib(object):
         rededgeRedCorr = 0.621
         rededgeNIR1Corr = 0.379
 
+        try:
         # Retrieve slope, intercept, and score coefficients for data-driven bands
-        blueSlope = sr_metrics_list['slope'][0]
-        blueIntercept = sr_metrics_list['intercept'][0]
+            blueSlope = sr_metrics_list['slope'][0]
+            blueIntercept = sr_metrics_list['intercept'][0]
 
-        greenSlope = sr_metrics_list['slope'][1]
-        greenIntercept = sr_metrics_list['intercept'][1]
+            greenSlope = sr_metrics_list['slope'][1]
+            greenIntercept = sr_metrics_list['intercept'][1]
 
-        redSlope = sr_metrics_list['slope'][2]
-        redIntercept = sr_metrics_list['intercept'][2]
+            redSlope = sr_metrics_list['slope'][2]
+            redIntercept = sr_metrics_list['intercept'][2]
 
-        NIR1Slope = sr_metrics_list['slope'][3]
-        NIR1Intercept = sr_metrics_list['intercept'][3]
+            NIR1Slope = sr_metrics_list['slope'][3]
+            NIR1Intercept = sr_metrics_list['intercept'][3]
 
-        # Read CCDC, SRLite, and Cloud images
-        ccdcImage = os.path.join(context[Context.FN_TARGET])
-        evhrSrliteImage = os.path.join(context[Context.FN_COG])
-        cloudImage = os.path.join(context[Context.FN_CLOUDMASK])
+            # Read CCDC, SRLite, and Cloud images
+            ccdcImage = os.path.join(context[Context.FN_TARGET])
+            evhrSrliteImage = os.path.join(context[Context.FN_COG])
+            cloudImage = os.path.join(context[Context.FN_CLOUDMASK])
 
-        _ndv=-9999
-        fn_list = [ccdcImage, evhrSrliteImage, cloudImage]
-        warp_ds_list = warplib.memwarp_multi_fn(fn_list, res=30, extent=evhrSrliteImage,
-                                                t_srs=evhrSrliteImage, r='average', dst_ndv=_ndv)
+    #        _ndv=-9999
+            _ndv= context[Context.TARGET_NODATA_VALUE]
+            fn_list = [ccdcImage, evhrSrliteImage, cloudImage]
+            warp_ds_list = warplib.memwarp_multi_fn(fn_list, res=30, extent=evhrSrliteImage,
+                                                    t_srs=evhrSrliteImage, r='average', dst_ndv=_ndv)
 
-        warp_ds_list_multiband = warp_ds_list[0:2]
-        warp_ma_list_blu = [self.ds_getma(ds, 1) for ds in warp_ds_list_multiband]
-        warp_ma_list_grn = [self.ds_getma(ds, 2) for ds in warp_ds_list_multiband]
-        warp_ma_list_red = [self.ds_getma(ds, 3) for ds in warp_ds_list_multiband]
-        warp_ma_list_nir = [self.ds_getma(ds, 4) for ds in warp_ds_list_multiband]
-        cloud_warp_ma = iolib.ds_getma(warp_ds_list[2], 1).astype(np.uint8)
+            warp_ds_list_multiband = warp_ds_list[0:2]
+            warp_ma_list_blu = [self.ds_getma(ds, 1) for ds in warp_ds_list_multiband]
+            warp_ma_list_grn = [self.ds_getma(ds, 2) for ds in warp_ds_list_multiband]
+            warp_ma_list_red = [self.ds_getma(ds, 3) for ds in warp_ds_list_multiband]
+            warp_ma_list_nir = [self.ds_getma(ds, 4) for ds in warp_ds_list_multiband]
+            cloud_warp_ma = iolib.ds_getma(warp_ds_list[2], 1).astype(np.uint8)
 
-        # divvy up into band-specific arrays across CCDC + SRLite according to input source
-        ccdc_warp_ma_blu, evhrsr_warp_ma_blu = warp_ma_list_blu
-        ccdc_warp_ma_grn, evhrsr_warp_ma_grn = warp_ma_list_grn
-        ccdc_warp_ma_red, evhrsr_warp_ma_red = warp_ma_list_red
-        ccdc_warp_ma_nir, evhrsr_warp_ma_nir = warp_ma_list_nir
+            # divvy up into band-specific arrays across CCDC + SRLite according to input source
+            ccdc_warp_ma_blu, evhrsr_warp_ma_blu = warp_ma_list_blu
+            ccdc_warp_ma_grn, evhrsr_warp_ma_grn = warp_ma_list_grn
+            ccdc_warp_ma_red, evhrsr_warp_ma_red = warp_ma_list_red
+            ccdc_warp_ma_nir, evhrsr_warp_ma_nir = warp_ma_list_nir
 
-        warp_ma_list = [ccdc_warp_ma_blu, ccdc_warp_ma_grn, ccdc_warp_ma_red, ccdc_warp_ma_nir,
-                        evhrsr_warp_ma_blu, evhrsr_warp_ma_grn, evhrsr_warp_ma_red, evhrsr_warp_ma_nir,
-                        cloud_warp_ma]
+            warp_ma_list = [ccdc_warp_ma_blu, ccdc_warp_ma_grn, ccdc_warp_ma_red, ccdc_warp_ma_nir,
+                            evhrsr_warp_ma_blu, evhrsr_warp_ma_grn, evhrsr_warp_ma_red, evhrsr_warp_ma_nir,
+                            cloud_warp_ma]
 
-        # Create cloudmask according to threshold that Matt suggested
-        cloudfree_warp_ma = np.ma.masked_where(cloud_warp_ma >= 0.5, cloud_warp_ma)
-        warp_ma_list_cloudfree = warp_ma_list[0:8] + [cloudfree_warp_ma]
-        common_mask = malib.common_mask(warp_ma_list_cloudfree)
-        warp_ma_masked_list = [np.ma.array(ma, mask=common_mask) for ma in warp_ma_list_cloudfree]
+            # Create cloudmask according to threshold that Matt suggested
+            cloudfree_warp_ma = np.ma.masked_where(cloud_warp_ma >= 0.5, cloud_warp_ma)
+            warp_ma_list_cloudfree = warp_ma_list[0:8] + [cloudfree_warp_ma]
+            common_mask = malib.common_mask(warp_ma_list_cloudfree)
+            warp_ma_masked_list = [np.ma.array(ma, mask=common_mask) for ma in warp_ma_list_cloudfree]
 
-        # Pull out flat masked arrays
-        ccdc_blu = self.ma2_1d(warp_ma_masked_list[0])
-        ccdc_grn = self.ma2_1d(warp_ma_masked_list[1])
-        ccdc_red = self.ma2_1d(warp_ma_masked_list[2])
-        ccdc_nir = self.ma2_1d(warp_ma_masked_list[3])
+            # Pull out flat masked arrays
+            ccdc_blu = self.ma2_1d(warp_ma_masked_list[0])
+            ccdc_grn = self.ma2_1d(warp_ma_masked_list[1])
+            ccdc_red = self.ma2_1d(warp_ma_masked_list[2])
+            ccdc_nir = self.ma2_1d(warp_ma_masked_list[3])
 
-        evhr_srlite_blu = self.ma2_1d(warp_ma_masked_list[4])
-        evhr_srlite_grn = self.ma2_1d(warp_ma_masked_list[5])
-        evhr_srlite_red = self.ma2_1d(warp_ma_masked_list[6])
-        evhr_srlite_nir = self.ma2_1d(warp_ma_masked_list[7])
+            evhr_srlite_blu = self.ma2_1d(warp_ma_masked_list[4])
+            evhr_srlite_grn = self.ma2_1d(warp_ma_masked_list[5])
+            evhr_srlite_red = self.ma2_1d(warp_ma_masked_list[6])
+            evhr_srlite_nir = self.ma2_1d(warp_ma_masked_list[7])
 
-        # Create a dataframe with the arrays
-        reflect_df = pd.concat([
-            self.ma2df(warp_ma_masked_list[0], 'CCDC_SR', 'Blue'),
-            self.ma2df(warp_ma_masked_list[1], 'CCDC_SR', 'Green'),
-            self.ma2df(warp_ma_masked_list[2], 'CCDC_SR', 'Red'),
-            self.ma2df(warp_ma_masked_list[3], 'CCDC_SR', 'NIR'),
-            self.ma2df(warp_ma_masked_list[4], 'EVHR_SRLite', 'Blue'),
-            self.ma2df(warp_ma_masked_list[5], 'EVHR_SRLite', 'Green'),
-            self.ma2df(warp_ma_masked_list[6], 'EVHR_SRLite', 'Red'),
-            self.ma2df(warp_ma_masked_list[7], 'EVHR_SRLite', 'NIR')],
-            axis=1)
+            # Create a dataframe with the arrays
+            reflect_df = pd.concat([
+                self.ma2df(warp_ma_masked_list[0], 'CCDC_SR', 'Blue'),
+                self.ma2df(warp_ma_masked_list[1], 'CCDC_SR', 'Green'),
+                self.ma2df(warp_ma_masked_list[2], 'CCDC_SR', 'Red'),
+                self.ma2df(warp_ma_masked_list[3], 'CCDC_SR', 'NIR'),
+                self.ma2df(warp_ma_masked_list[4], 'EVHR_SRLite', 'Blue'),
+                self.ma2df(warp_ma_masked_list[5], 'EVHR_SRLite', 'Green'),
+                self.ma2df(warp_ma_masked_list[6], 'EVHR_SRLite', 'Red'),
+                self.ma2df(warp_ma_masked_list[7], 'EVHR_SRLite', 'NIR')],
+                axis=1)
 
-        # Convert wide table to long table
-        reflectanceTypes = ['CCDC_SR','EVHR_SRLite']
-        reflect_df_long = pd.wide_to_long(reflect_df.reset_index(),
-                                          stubnames=reflectanceTypes,
-                                          i='index', j='Band', suffix='\D+') \
-            .reset_index()
+            # Convert wide table to long table
+            reflectanceTypes = ['CCDC_SR','EVHR_SRLite']
+            reflect_df_long = pd.wide_to_long(reflect_df.reset_index(),
+                                            stubnames=reflectanceTypes,
+                                            i='index', j='Band', suffix='\D+') \
+                .reset_index()
 
-        from pandas.api.types import CategoricalDtype
-        bandsType = CategoricalDtype(categories = ['Blue','Green','Red','NIR'], ordered=True)
-        reflect_df_long['Band'] = reflect_df_long['Band'].astype(bandsType)
+            from pandas.api.types import CategoricalDtype
+            bandsType = CategoricalDtype(categories = ['Blue','Green','Red','NIR'], ordered=True)
+            reflect_df_long['Band'] = reflect_df_long['Band'].astype(bandsType)
 
-        # Create table of dataframes with coefficients & statistics
-        metrics_srlite_long = None
-        if eval(context[Context.BAND8_FLAG]):
-            ndv_value = "NA"
-            metrics_srlite_long = pd.concat([
-                pd.DataFrame([self.sr_performance(reflect_df_long,
-                                                  'Blue', model, blueIntercept, blueSlope)]),
-                pd.DataFrame([self.sr_performance(reflect_df_long,
-                                                  'Green', model, greenIntercept, greenSlope)]),
-                pd.DataFrame([self.sr_performance(reflect_df_long,
-                                                  'Red', model, redIntercept, redSlope)]),
-                pd.DataFrame([self.sr_performance(reflect_df_long,
-                                                  'NIR', model, NIR1Intercept, NIR1Slope)]),
-                pd.DataFrame([self.sr_performance(reflect_df_long,
-                                                  'Coastal', model, blueIntercept, blueSlope, ndv_value)]),
-                pd.DataFrame([self.sr_performance(reflect_df_long,
-                                                  'Yellow', model,
-                                                  (greenIntercept * yellowGreenCorr) + (redIntercept * yellowRedCorr),
-                                                  (greenSlope * yellowGreenCorr) + (redSlope * yellowRedCorr),
-                                                  ndv_value)]),
-                pd.DataFrame([self.sr_performance(reflect_df_long,
-                                                  'RedEdge', model,
-                                                  (redIntercept * rededgeRedCorr) + (NIR1Intercept * rededgeNIR1Corr),
-                                                  (redSlope * rededgeRedCorr) + (NIR1Slope * rededgeNIR1Corr),
-                                                  ndv_value)]),
-                pd.DataFrame([self.sr_performance(reflect_df_long,
-                                                  'NIR2', model, NIR1Intercept, NIR1Slope, ndv_value)])
-            ]).reset_index()
-        else:
-            metrics_srlite_long = pd.concat([
-                pd.DataFrame([self.sr_performance(reflect_df_long,
-                                                  'Blue', model, blueIntercept, blueSlope)]),
-                pd.DataFrame([self.sr_performance(reflect_df_long,
-                                                  'Green', model, greenIntercept, greenSlope)]),
-                pd.DataFrame([self.sr_performance(reflect_df_long,
-                                                  'Red', model, redIntercept, redSlope)]),
-                pd.DataFrame([self.sr_performance(reflect_df_long,
-                                                  'NIR', model, NIR1Intercept, NIR1Slope)])
-            ]).reset_index()
+            # Create table of dataframes with coefficients & statistics
+            metrics_srlite_long = None
+            if eval(context[Context.BAND8_FLAG]):
+                ndv_value = "NA"
+                metrics_srlite_long = pd.concat([
+                    pd.DataFrame([self.sr_performance(reflect_df_long,
+                                                    'Blue', model, blueIntercept, blueSlope)]),
+                    pd.DataFrame([self.sr_performance(reflect_df_long,
+                                                    'Green', model, greenIntercept, greenSlope)]),
+                    pd.DataFrame([self.sr_performance(reflect_df_long,
+                                                    'Red', model, redIntercept, redSlope)]),
+                    pd.DataFrame([self.sr_performance(reflect_df_long,
+                                                    'NIR', model, NIR1Intercept, NIR1Slope)]),
+                    pd.DataFrame([self.sr_performance(reflect_df_long,
+                                                    'Coastal', model, blueIntercept, blueSlope, ndv_value)]),
+                    pd.DataFrame([self.sr_performance(reflect_df_long,
+                                                    'Yellow', model,
+                                                    (greenIntercept * yellowGreenCorr) + (redIntercept * yellowRedCorr),
+                                                    (greenSlope * yellowGreenCorr) + (redSlope * yellowRedCorr),
+                                                    ndv_value)]),
+                    pd.DataFrame([self.sr_performance(reflect_df_long,
+                                                    'RedEdge', model,
+                                                    (redIntercept * rededgeRedCorr) + (NIR1Intercept * rededgeNIR1Corr),
+                                                    (redSlope * rededgeRedCorr) + (NIR1Slope * rededgeNIR1Corr),
+                                                    ndv_value)]),
+                    pd.DataFrame([self.sr_performance(reflect_df_long,
+                                                    'NIR2', model, NIR1Intercept, NIR1Slope, ndv_value)])
+                ]).reset_index()
+            else:
+                metrics_srlite_long = pd.concat([
+                    pd.DataFrame([self.sr_performance(reflect_df_long,
+                                                    'Blue', model, blueIntercept, blueSlope)]),
+                    pd.DataFrame([self.sr_performance(reflect_df_long,
+                                                    'Green', model, greenIntercept, greenSlope)]),
+                    pd.DataFrame([self.sr_performance(reflect_df_long,
+                                                    'Red', model, redIntercept, redSlope)]),
+                    pd.DataFrame([self.sr_performance(reflect_df_long,
+                                                    'NIR', model, NIR1Intercept, NIR1Slope)])
+                ]).reset_index()
 
+        except BaseException as err:
+            issue = "CSV file creation failed, likely due to conflicts with the following expected band ordering: " \
+                "First four bands must be constant [B,G,R,N].  If 8-Band processing is requested, four synthetic bands are " \
+                    "then appended to the list [C,Y,RE,N2]"
+
+            raise Exception(issue)
         return context[Context.FN_COG], metrics_srlite_long
+
+    # -------------------------------------------------------------------------
+    # generateCSV()
+    #
+    # Write out statistics per band to a csv file
+    # -------------------------------------------------------------------------
+
+    def generateErrorReport(self, context):
+
+       if (eval(context[Context.ERROR_REPORT_FLAG])):
+ 
+            if not (len(context[Context.ERROR_LIST]) == 0):
+                df = pd.DataFrame(context[Context.ERROR_LIST])
+                
+                path = os.path.join(context[Context.DIR_OUTPUT_ERROR],
+                                    'SRLite_errors.csv')
+                
+                # Remove existing error report if clean_flag is activated
+                self.removeFile(path, context[Context.CLEAN_FLAG])
+
+                df.to_csv(path)
+                self._plot_lib.trace(
+                    f"\nGenerated error report: {path}")
+            else:
+               self._plot_lib.trace("No errors reported.")
 
     # -------------------------------------------------------------------------
     # generateCSV()
@@ -791,7 +847,7 @@ class RasterLib(object):
             # Apply BAND-B coefficients to Coastal band since we have no corresponding CCDC (as per Matt)
             slope = sr_metrics_list.loc[sr_metrics_list.band_name=='BAND-B','slope'].values[0]
             intercept = sr_metrics_list.loc[sr_metrics_list.band_name=='BAND-B','intercept'].values[0]
-            sr_prediction_band_2m = (toaBandMaArrayRaw * slope) + (intercept * 10000)
+            sr_prediction_band_2m = (toaBandMaArrayRaw.astype(float) * slope) + (intercept * 10000)
 
         elif (band_name == 'BAND-Y'):
             # Apply BAND-G and BAND-R coefficients to RedEdge band since we have no corresponding CCDC (as per Matt)
@@ -821,11 +877,12 @@ class RasterLib(object):
             # Apply BAND-N coefficients to NIR2 band since we have no corresponding CCDC (as per Matt)
             slope = sr_metrics_list.loc[sr_metrics_list.band_name=='BAND-N','slope'].values[0]
             intercept = sr_metrics_list.loc[sr_metrics_list.band_name=='BAND-N','intercept'].values[0]
-            sr_prediction_band_2m = (toaBandMaArrayRaw * slope) + (intercept * 10000)
+            sr_prediction_band_2m = (toaBandMaArrayRaw.astype(float)  * slope) + (intercept * 10000)
 
         else:
             # Calculate SR-Lite band using original TOA 2m band
-            sr_prediction_band_2m = (toaBandMaArrayRaw * slope) + (intercept * 10000)
+            sr_prediction_band_2m = (toaBandMaArrayRaw  * slope) + (intercept * 10000)
+
         return sr_prediction_band_2m
 
     # -------------------------------------------------------------------------
@@ -971,7 +1028,7 @@ class RasterLib(object):
         ########################################
         # Create .tif image from band-based prediction layers
         ########################################
-        self._plot_lib.trace(f"\nAppy coefficients to "
+        self._plot_lib.trace(f"\nApply coefficients to "
                              f"{context[Context.BAND_NUM]}-Band High Res File...\n   "
                              f"{str(context[Context.FN_SRC])}")
 
@@ -979,7 +1036,6 @@ class RasterLib(object):
 
         context[Context.FN_SUFFIX] = str(Context.FN_SRLITE_NONCOG_SUFFIX)
         context[Context.COG_FLAG] = True
-        context[Context.TARGET_NODATA_VALUE] = int(Context.DEFAULT_NODATA_VALUE)
 
         #  Derive file names for intermediate files
         output_name = "{}/{}".format(
@@ -1051,6 +1107,7 @@ class RasterLib(object):
         # Clean pre-COG image
         self.removeFile(context[Context.FN_DEST], context[Context.CLEAN_FLAG])
         self.cog(context)
+        # TBD - This is where noncog.tif gets cleaned, so droppings occur if processing has an error - fix this
         self.removeFile(context[Context.FN_SRC], context[Context.CLEAN_FLAG])
 
         return context[Context.FN_DEST]
