@@ -110,6 +110,8 @@ class Context(object):
     DEFAULT_TOA_SUFFIX = 'toa.tif'
     DEFAULT_TARGET_SUFFIX = 'ccdc.tif'
     DEFAULT_CLOUDMASK_SUFFIX = 'toa.cloudmask.v1.2.tif'
+    DEFAULT_ERROR_REPORT_SUFFIX = 'SRLite_errors.csv'
+    DEFAULT_STATISTICS_REPORT_SUFFIX = 'SRLite_statistics.csv'
     DEFAULT_XRES = 30
     DEFAULT_YRES = 30
     DEFAULT_NODATA_VALUE = -9999
@@ -241,15 +243,6 @@ class Context(object):
                 os.makedirs(self.context_dict[Context.DIR_OUTPUT_CSV], exist_ok=True)
             except OSError as error:
                 print("Directory '%s' can not be created" % self.context_dict[Context.DIR_OUTPUT_CSV])
-
-        if (eval(self.context_dict[Context.CSV_FLAG])):
-            plotLib.trace(f'CSV Flag:    {self.context_dict[Context.CSV_FLAG]}')
-            self.context_dict[Context.DIR_OUTPUT_CSV] = os.path.join(self.context_dict[Context.DIR_OUTPUT], 'csv')
-            try:
-                os.makedirs(self.context_dict[Context.DIR_OUTPUT_CSV], exist_ok=True)
-            except OSError as error:
-                print("Directory '%s' can not be created" % self.context_dict[Context.DIR_OUTPUT_CSV])
-
         if (eval(self.context_dict[Context.ERROR_REPORT_FLAG])):
             plotLib.trace(f'ERROR Flag:    {self.context_dict[Context.ERROR_REPORT_FLAG]}')
             self.context_dict[Context.DIR_OUTPUT_ERROR] = os.path.join(self.context_dict[Context.DIR_OUTPUT], 'err')
@@ -271,6 +264,18 @@ class Context(object):
             plotLib.trace(f'Threshold Mask:    {self.context_dict[Context.THRESHOLD_MASK_FLAG]}')
             plotLib.trace(f'Threshold Min:    {self.context_dict[Context.THRESHOLD_MIN]}')
             plotLib.trace(f'Threshold Max:    {self.context_dict[Context.THRESHOLD_MAX]}')
+            
+        if (eval(self.context_dict[Context.CLEAN_FLAG])):
+            path = os.path.join(self.context_dict[Context.DIR_OUTPUT_ERROR],
+                                    Context.DEFAULT_ERROR_REPORT_SUFFIX)
+            if os.path.exists(path):
+                os.remove(path)
+
+            path = os.path.join(self.context_dict[Context.DIR_OUTPUT_CSV],
+                                    Context.DEFAULT_STATISTICS_REPORT_SUFFIX)
+            if os.path.exists(path):
+                os.remove(path)
+ 
 
         return
 

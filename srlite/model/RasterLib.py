@@ -496,10 +496,10 @@ class RasterLib(object):
         metadata['medae'] = sklearn.metrics.median_absolute_error(target_sr_data_only_band_reshaped, toa_sr_data_only_band)
         metadata['mse'] = sklearn.metrics.mean_squared_error(target_sr_data_only_band_reshaped, toa_sr_data_only_band)
         metadata['rmse'] = metadata['mse'] ** 0.5
-        metadata['mean_ccdc_sr'] = target_sr_data_only_band.mean()
-        metadata['mean_evhr_srlite'] = toa_sr_data_only_band.mean()
-        metadata['mae_norm'] = metadata['mae'] / metadata['mean_ccdc_sr']
-        metadata['rmse_norm'] =  metadata['rmse'] / metadata['mean_ccdc_sr']
+        metadata['mean_ref_sr'] = target_sr_data_only_band.mean()
+        metadata['mean_toa_sr'] = toa_sr_data_only_band.mean()
+        metadata['mae_norm'] = metadata['mae'] / metadata['mean_ref_sr']
+        metadata['rmse_norm'] =  metadata['rmse'] / metadata['mean_ref_sr']
         return metadata
 
     # -------------------------------------------------------------------------
@@ -530,8 +530,8 @@ class RasterLib(object):
             metadata['medae'] = ndv_value
             metadata['mse'] = ndv_value
             metadata['rmse'] = ndv_value
-            metadata['mean_ccdc_sr'] = ndv_value
-            metadata['mean_evhr_srlite'] = ndv_value
+            metadata['mean_ref_sr'] = ndv_value
+            metadata['mean_toa_sr'] = ndv_value
             metadata['mae_norm'] = ndv_value
             metadata['rmse_norm'] = ndv_value
 
@@ -700,7 +700,7 @@ class RasterLib(object):
                 df = pd.DataFrame(context[Context.ERROR_LIST])
                 
                 path = os.path.join(context[Context.DIR_OUTPUT_ERROR],
-                                    'SRLite_errors.csv')
+                                    Context.DEFAULT_ERROR_REPORT_SUFFIX)
                 
                 # Remove existing error report if clean_flag is activated
                 self.removeFile(path, context[Context.CLEAN_FLAG])
@@ -730,7 +730,7 @@ class RasterLib(object):
                 figureBase = context[Context.FN_PREFIX] \
                              + '_' + context[Context.REGRESSION_MODEL]
             path = os.path.join(context[Context.DIR_OUTPUT_CSV],
-                                figureBase + '_SRLite_statistics.csv')
+                                figureBase + Context.DEFAULT_STATISTICS_REPORT_SUFFIX)
             context[Context.METRICS_LIST].to_csv(path)
             self._plot_lib.trace(
                 f"\nCreated CSV with coefficients for batch {context[Context.BATCH_NAME]}...\n   {path}")
