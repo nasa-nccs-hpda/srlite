@@ -484,7 +484,7 @@ class RasterLib(object):
     # -------------------------------------------------------------------------
     # band_performance()
     #
-    # Calculate band metrics based on corresponding TOA and CCDC arrays.
+    # Calculate band metrics based on corresponding TOA (i.e., EVHR) and REF (i.e., CCDC) arrays.
     # -------------------------------------------------------------------------
     def band_performance(self, metadata, target_sr_data_only_band, toa_sr_data_only_band):
         target_sr_data_only_band_reshaped = target_sr_data_only_band.values.reshape(-1,1)
