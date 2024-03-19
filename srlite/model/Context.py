@@ -23,7 +23,7 @@ class Context(object):
     DIR_TARGET = 'dir_target'
     DIR_CLOUDMASK = 'dir_cloudmask'
     DIR_OUTPUT = 'dir_out'
-    DIR_OUTPUT_CSV = 'dir_out_cvs'
+    DIR_OUTPUT_CSV = 'dir_out_csv'
     DIR_OUTPUT_ERROR = 'dir_out_err'
     DIR_OUTPUT_WARP = 'dir_out_warp'
 
@@ -135,7 +135,7 @@ class Context(object):
     DEBUG_LEVEL = 'debug_level'
     LOG_FLAG = 'log_flag'
     CLEAN_FLAG = 'clean_flag'
-    COG_FLAG = 'cog_flag'
+    NONCOG_FLAG = 'noncog_flag'
     CSV_FLAG = 'csv_flag'
     ERROR_REPORT_FLAG = 'error_report_flag'
     BAND8_FLAG = 'band8_flag'
@@ -186,6 +186,7 @@ class Context(object):
             self.context_dict[Context.REGRESSION_MODEL] = str(args.regressor)
             self.context_dict[Context.DEBUG_LEVEL] = int(args.debug_level)
             self.context_dict[Context.CLEAN_FLAG] = str(args.cleanbool)
+            self.context_dict[Context.NONCOG_FLAG] = str(args.noncogbool)
             self.context_dict[Context.LOG_FLAG] = str(args.logbool)
             if eval(self.context_dict[Context.LOG_FLAG]):
                 self._create_logfile(self.context_dict[Context.REGRESSION_MODEL],
@@ -227,6 +228,7 @@ class Context(object):
         plotLib.trace(f'Regression Model:    {self.context_dict[Context.REGRESSION_MODEL]}')
         plotLib.trace(f'Debug Level: {self.context_dict[Context.DEBUG_LEVEL]}')
         plotLib.trace(f'Clean Flag: {self.context_dict[Context.CLEAN_FLAG]}')
+        plotLib.trace(f'NonCog Flag: {self.context_dict[Context.NONCOG_FLAG]}')
         plotLib.trace(f'CSV Flag: {self.context_dict[Context.CSV_FLAG]}')
         plotLib.trace(f'Error Report Flag: {self.context_dict[Context.ERROR_REPORT_FLAG]}')
         plotLib.trace(f'Band8 Flag: {self.context_dict[Context.BAND8_FLAG]}')
@@ -236,22 +238,27 @@ class Context(object):
             plotLib.trace(f'Cloud Mask:    {self.context_dict[Context.CLOUD_MASK_FLAG]}')
         if (eval(self.context_dict[Context.POSITIVE_MASK_FLAG])):
             plotLib.trace(f'Positive Pixels Only Flag:    {self.context_dict[Context.POSITIVE_MASK_FLAG]}')
+        
+        self.context_dict[Context.DIR_OUTPUT_CSV] = \
+            os.path.join(self.context_dict[Context.DIR_OUTPUT], 'csv')
         if (eval(self.context_dict[Context.CSV_FLAG])):
             plotLib.trace(f'CSV Flag:    {self.context_dict[Context.CSV_FLAG]}')
-            self.context_dict[Context.DIR_OUTPUT_CSV] = os.path.join(self.context_dict[Context.DIR_OUTPUT], 'csv')
             try:
-                os.makedirs(self.context_dict[Context.DIR_OUTPUT_CSV], exist_ok=True)
+                    os.makedirs(self.context_dict[Context.DIR_OUTPUT_CSV], exist_ok=True)
             except OSError as error:
-                print("Directory '%s' can not be created" % self.context_dict[Context.DIR_OUTPUT_CSV])
+                    print("Directory '%s' can not be created" % self.context_dict[Context.DIR_OUTPUT_CSV])
+
+        self.context_dict[Context.DIR_OUTPUT_ERROR] = \
+                os.path.join(self.context_dict[Context.DIR_OUTPUT], 'err')
         if (eval(self.context_dict[Context.ERROR_REPORT_FLAG])):
             plotLib.trace(f'ERROR Flag:    {self.context_dict[Context.ERROR_REPORT_FLAG]}')
-            self.context_dict[Context.DIR_OUTPUT_ERROR] = os.path.join(self.context_dict[Context.DIR_OUTPUT], 'err')
             try:
                 os.makedirs(self.context_dict[Context.DIR_OUTPUT_ERROR], exist_ok=True)
             except OSError as error:
                 print("Directory '%s' can not be created" % self.context_dict[Context.DIR_OUTPUT_ERROR])
 
-        self.context_dict[Context.DIR_OUTPUT_WARP] = os.path.join(self.context_dict[Context.DIR_OUTPUT], 'warp')
+        self.context_dict[Context.DIR_OUTPUT_WARP] = \
+            os.path.join(self.context_dict[Context.DIR_OUTPUT], 'warp')
         try:
             os.makedirs(self.context_dict[Context.DIR_OUTPUT_WARP], exist_ok=True)
         except OSError as error:
@@ -351,6 +358,13 @@ class Context(object):
         parser.add_argument(
             "--clean", "--clean", required=False, dest='cleanbool',
             action='store_true', help="Force cleaning of generated artifacts prior to run (e.g, warp files)."
+        )
+        #NOTE:  As per MC (3/19/24) regarding noncog flag: "Given your previous testing results that showed no real down side to COG,
+        # I don’t see any reason to give the user the choice.  I would rather not offer options that may be confusing unless the 
+        # users start to request them."  Functionality exists but should not be advertised to users in documntation.
+        parser.add_argument(
+            "--noncog", "--noncog", required=False, dest='noncogbool',
+            action='store_true', help="Disable Cloud-optimized Geotiff format."
         )
         parser.add_argument(
             "--log", "--log", required=False, dest='logbool',
@@ -502,8 +516,15 @@ class Context(object):
         context[Context.FN_CLOUDMASK_DOWNSCALE] = os.path.join(context[Context.DIR_OUTPUT] + '/' +
                                                                context[
                                                                    Context.FN_PREFIX] + self.FN_CLOUDMASK_DOWNSCALE_SUFFIX)
-        context[Context.FN_COG] = os.path.join(context[Context.DIR_OUTPUT] + '/' +
+
+                                                    
+        if (eval(self.context_dict[Context.NONCOG_FLAG])):
+            context[Context.FN_COG] = os.path.join(context[Context.DIR_OUTPUT] + '/' +
+                                               context[Context.FN_PREFIX] + self.FN_SRLITE_NONCOG_SUFFIX)
+        else:
+            context[Context.FN_COG] = os.path.join(context[Context.DIR_OUTPUT] + '/' +
                                                context[Context.FN_PREFIX] + self.FN_SRLITE_SUFFIX)
+
 
         if not (os.path.exists(context[Context.FN_TOA])):
             raise FileNotFoundError("TOA File not found: {}".format(context[Context.FN_TOA]))

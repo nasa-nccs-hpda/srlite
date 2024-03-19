@@ -707,9 +707,9 @@ class RasterLib(object):
 
                 df.to_csv(path)
                 self._plot_lib.trace(
-                    f"\nGenerated error report: {path}")
+                    f"\n\nGenerated error report: {path}")
             else:
-               self._plot_lib.trace("No errors reported.")
+               self._plot_lib.trace("\nNo errors reported.")
 
     # -------------------------------------------------------------------------
     # generateCSV()
@@ -1035,7 +1035,6 @@ class RasterLib(object):
         now = datetime.now()  # current date and time
 
         context[Context.FN_SUFFIX] = str(Context.FN_SRLITE_NONCOG_SUFFIX)
-        context[Context.COG_FLAG] = True
 
         #  Derive file names for intermediate files
         output_name = "{}/{}".format(
@@ -1073,16 +1072,16 @@ class RasterLib(object):
                 bandPrediction1 = np.ma.masked_values(bandPrediction, context[Context.TARGET_NODATA_VALUE])
                 dst.write_band(id + 1, bandPrediction1)
 
-        if (context[Context.COG_FLAG]):
+        if (not (eval(context[Context.NONCOG_FLAG]))):
             # Create Cloud-optimized Geotiff (COG)
             context[Context.FN_SRC] = str(output_name)
             context[Context.FN_DEST] = "{}/{}".format(
                 context[Context.DIR_OUTPUT], str(context[Context.FN_PREFIX])
             ) + str(Context.FN_SRLITE_SUFFIX)
-            cog_name = self.createCOG(context)
-
-        self._plot_lib.trace(f"\nCreated COG from stack of regressed bands...\n   {cog_name}")
-        return cog_name
+            output_name = self.createCOG(context)
+            self._plot_lib.trace(f"\nCreated COG from stack of regressed bands...\n   {output_name}")
+            
+        return output_name
 
     # -------------------------------------------------------------------------
     # removeFile()
@@ -1108,7 +1107,7 @@ class RasterLib(object):
         self.removeFile(context[Context.FN_DEST], context[Context.CLEAN_FLAG])
         self.cog(context)
         # TBD - This is where noncog.tif gets cleaned, so droppings occur if processing has an error - fix this
-        self.removeFile(context[Context.FN_SRC], context[Context.CLEAN_FLAG])
+        self.removeFile(context[Context.FN_SRC], 'True')
 
         return context[Context.FN_DEST]
 
