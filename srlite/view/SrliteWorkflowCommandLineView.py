@@ -75,7 +75,7 @@ def main():
                     context[Context.LIST_BAND_PAIR_INDICES] = rasterLib.getBandIndices(context)
 
                     #  Reproject (downscale) TOA to CCDC resolution (30m)  - use 'average' for resampling method
-                    #  Reproject TARGET (CCDC) to remaining attributes of EVHR TOA Downscale (extent, srs, etc.) - use 'average' for resampling method
+                    #  Reproject TARGET (CCDC) to remaining attributes of EVHR TOA Downscale (extent, srs, etc.) 
                     context[Context.FN_REPROJECTION_LIST] = [str(context[Context.FN_TARGET]), str(context[Context.FN_TOA])]
                     context[Context.TARGET_FN] = str(context[Context.FN_TOA])
                     context[Context.TARGET_SAMPLING_METHOD] = 'average'
@@ -86,6 +86,8 @@ def main():
                         context[Context.FN_LIST].append(str(context[Context.FN_CLOUDMASK]))
                         context[Context.FN_REPROJECTION_LIST] = [str(context[Context.FN_CLOUDMASK])]
                         context[Context.TARGET_FN] = str(context[Context.FN_TOA])
+                            
+                        # Reproject to 'mode' sampling for regression
                         context[Context.TARGET_SAMPLING_METHOD] = 'mode'
                         context[Context.DS_WARP_CLOUD_LIST], context[
                             Context.MA_WARP_CLOUD_LIST] = rasterLib.getReprojection(context)
