@@ -336,10 +336,10 @@ class RasterLib(object):
         self._validateParms(context, [Context.FN_LIST, Context.FN_REPROJECTION_LIST, Context.TARGET_FN,
                                       Context.TARGET_SAMPLING_METHOD])
 
-        # Reproject inputs to TOA attributes (res, extent, srs, nodata)
+        # Ensure equivalent NoDataValues
         dst_ndv = self.alignNoDataValues(context)
- 
 
+        # Reproject inputs to TOA attributes (res, extent, srs, nodata)
         src_fn = context[Context.FN_REPROJECTION_LIST]
         warp_ds_list = []
         for fn in src_fn:
@@ -570,17 +570,21 @@ class RasterLib(object):
             NIR1Slope = sr_metrics_list['slope'][3]
             NIR1Intercept = sr_metrics_list['intercept'][3]
 
-            # Read CCDC, SRLite, and Cloud images
-            ccdcImage = os.path.join(context[Context.FN_TARGET])
+            # Reproject newly minted sr-lite output for status calculations
             evhrSrliteImage = os.path.join(context[Context.FN_COG])
-            cloudImage = os.path.join(context[Context.FN_CLOUDMASK])
+            fn_list = [evhrSrliteImage]
+            warp_sr_ds_list = warplib.memwarp_multi_fn(fn_list, 
+                                                        res=30, 
+                                                        extent=evhrSrliteImage,
+                                                        t_srs=evhrSrliteImage,
+                                                        r='average', 
+                                                        dst_ndv=context[Context.TARGET_NODATA_VALUE])
 
-    #        _ndv=-9999
-            _ndv= context[Context.TARGET_NODATA_VALUE]
-            fn_list = [ccdcImage, evhrSrliteImage, cloudImage]
-            warp_ds_list = warplib.memwarp_multi_fn(fn_list, res=30, extent=evhrSrliteImage,
-                                                    t_srs=evhrSrliteImage, r='average', dst_ndv=_ndv)
-
+            # Aggregate warped CCDC and Cloudmask from initialization with reprojected SR sandwiched between
+            warp_ds_list = [context[Context.DS_WARP_LIST][0], warp_sr_ds_list[0], 
+                            context[Context.DS_WARP_CLOUD_LIST][0]]
+            
+            # Generate masked arrays for calculations
             warp_ds_list_multiband = warp_ds_list[0:2]
             warp_ma_list_blu = [self.ds_getma(ds, 1) for ds in warp_ds_list_multiband]
             warp_ma_list_grn = [self.ds_getma(ds, 2) for ds in warp_ds_list_multiband]
@@ -603,17 +607,6 @@ class RasterLib(object):
             warp_ma_list_cloudfree = warp_ma_list[0:8] + [cloudfree_warp_ma]
             common_mask = malib.common_mask(warp_ma_list_cloudfree)
             warp_ma_masked_list = [np.ma.array(ma, mask=common_mask) for ma in warp_ma_list_cloudfree]
-
-            # Pull out flat masked arrays
-            ccdc_blu = self.ma2_1d(warp_ma_masked_list[0])
-            ccdc_grn = self.ma2_1d(warp_ma_masked_list[1])
-            ccdc_red = self.ma2_1d(warp_ma_masked_list[2])
-            ccdc_nir = self.ma2_1d(warp_ma_masked_list[3])
-
-            evhr_srlite_blu = self.ma2_1d(warp_ma_masked_list[4])
-            evhr_srlite_grn = self.ma2_1d(warp_ma_masked_list[5])
-            evhr_srlite_red = self.ma2_1d(warp_ma_masked_list[6])
-            evhr_srlite_nir = self.ma2_1d(warp_ma_masked_list[7])
 
             # Create a dataframe with the arrays
             reflect_df = pd.concat([
