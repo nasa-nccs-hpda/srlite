@@ -19,6 +19,8 @@ from pathlib import Path
 from srlite.model.Context import Context
 import numpy.ma as ma
 
+import multiprocessing as multiprocessing
+
 # -----------------------------------------------------------------------------
 # class RasterLib
 #
@@ -894,6 +896,142 @@ class RasterLib(object):
 
         return metadata
 
+
+    # -------------------------------------------------------------------------
+    # _model_coeffs_()
+    #
+    # Populate dictionary of coefficients
+    # -------------------------------------------------------------------------
+    def processBandPairIndex(self, context, bandPairIndicesList, bandPairIndex, warp_ds_list, 
+                       bandNamePairList, common_mask_list, minWarning, sr_unmasked_prediction_list, sr_prediction_list):
+            
+            self._plot_lib.trace('=>')
+            self._plot_lib.trace('====================================================================================')
+            self._plot_lib.trace('== Start Processing Band #' + str(bandPairIndex + 1) + ' ' + 
+                                 str(bandPairIndicesList[bandPairIndex + 1]) + ' ===============')
+            self._plot_lib.trace('====================================================================================')
+
+            # Retrieve band pair
+            bandPairIndices = bandPairIndicesList[bandPairIndex + 1]
+
+            # Get 30m EVHR/CCDC Masked Arrays
+            targetBandMaArray = iolib.ds_getma(warp_ds_list[0], bandPairIndices[0])
+            toaBandMaArray = iolib.ds_getma(warp_ds_list[1], bandPairIndices[1])
+
+            # Create common mask based on user-specified list (e.g., cloudmask, threshold, QF)
+            context[Context.COMMON_MASK] = self.getCommonMask(context, targetBandMaArray, toaBandMaArray)
+            common_mask_list.append(context[Context.COMMON_MASK])
+
+            # Apply the 3-way common mask to the CCDC and EVHR bands
+            warp_ma_masked_band_list = [np.ma.array(targetBandMaArray, mask=context[Context.COMMON_MASK]),
+                                        np.ma.array(toaBandMaArray, mask=context[Context.COMMON_MASK])]
+
+            # Check the mins of each ma - they should be greater than 0
+            for j, ma in enumerate(warp_ma_masked_band_list):
+                j = j + 1
+                if (ma.min() < minWarning):
+                    self._plot_lib.trace("Warning: Masked array values should be larger than " + str(minWarning))
+            #                    exit(1)
+
+            ########################################
+            # ### WARPED MASKED ARRAY WITH COMMON MASK, DATA VALUES ONLY
+            # CCDC SR is first element in list, which needs to be the y-var:
+            # b/c we are predicting SR from TOA ++++++++++[as per PM - 01/05/2022]
+            ########################################
+
+            # Get 2m TOA Masked Array
+            toaIndexArray = bandPairIndicesList[bandPairIndex+1]
+            toaIndex = toaIndexArray[1]
+            toaBandMaArrayRaw = iolib.fn_getma(context[Context.FN_TOA], toaIndex)
+            sr_prediction_band, metadata = self.predictSurfaceReflectance(context,
+                                                                          bandNamePairList[bandPairIndex][1],
+                                                                          toaBandMaArrayRaw,
+                                                                          warp_ma_masked_band_list[
+                                                                              context[Context.LIST_INDEX_TARGET]],
+                                                                          warp_ma_masked_band_list[
+                                                                              context[Context.LIST_INDEX_TOA]],
+                                                                          sr_metrics_list)
+
+            ########################################
+            # #### Apply the model to the original EVHR (2m) to predict surface reflectance
+            ########################################
+            self._plot_lib.trace(
+                f'Applying model to {str(bandNamePairList[bandPairIndex])} in file '
+                f'{os.path.basename(context[Context.FN_LIST][context[Context.LIST_INDEX_TOA]])}')
+            self._plot_lib.trace(f'Metrics: {metadata}')
+
+            ########### save predictions for each band #############
+            sr_unmasked_prediction_list.append(sr_prediction_band)
+
+            # Return to original shape and apply original mask
+            toa_sr_ma_band_reshaped = sr_prediction_band.reshape(toaBandMaArrayRaw.shape)
+
+            toa_sr_ma_band = np.ma.array(
+                toa_sr_ma_band_reshaped,
+                mask=toaBandMaArrayRaw.mask)
+            sr_prediction_list.append(toa_sr_ma_band)
+
+            ########### save metadata for each band #############
+            if (bandPairIndex == 0):
+                sr_metrics_list = pd.concat([pd.DataFrame([metadata], index=[bandPairIndex])])
+            else:
+                sr_metrics_list = pd.concat([sr_metrics_list, pd.DataFrame([metadata], index=[bandPairIndex])])
+
+            print(f"Finished with {str(bandNamePairList[bandPairIndex])} Band")
+
+            return "SccopSnatch"
+    
+    # -------------------------------------------------------------------------
+    # simulateSurfaceReflectance()
+    #
+    # Perform workflow to create simulated surface reflectance for each band (SR-Lite)
+    # This method hosts the primary orchestration logic for the SR-Lite application.
+    # -------------------------------------------------------------------------
+    def _simulateSurfaceReflectance(self, context):
+        self._validateParms(context,
+                            [Context.MA_WARP_LIST, Context.LIST_BAND_PAIRS, Context.LIST_BAND_PAIR_INDICES,
+                             Context.REGRESSION_MODEL, Context.FN_LIST])
+
+        bandPairIndicesList = context[Context.LIST_BAND_PAIR_INDICES]
+
+        sr_prediction_list = []
+        sr_unmasked_prediction_list = []
+        sr_metrics_list = []
+        common_mask_list = []
+        warp_ds_list = context[Context.DS_WARP_LIST]
+        bandNamePairList = list(ast.literal_eval(context[Context.LIST_BAND_PAIRS]))
+        minWarning = 0
+
+        # Aggregate the requested masks (e.g., clouds, quality mask)
+        self.prepareMasks(context)
+
+        ########################################
+        # ### FOR EACH BAND PAIR,
+        # now, each input should have same exact dimensions, grid, projection.
+        # They ony differ in their values (CCDC is surface reflectance, EVHR is TOA reflectance)
+        ########################################
+        #for bandPairIndex in range(0, len(bandPairIndicesList) - 1):
+        num_workers = len(bandPairIndicesList)   
+        items = [(context, bandPairIndicesList, bandPairIndex, warp_ds_list, 
+                bandNamePairList, common_mask_list, minWarning, 
+                sr_unmasked_prediction_list, sr_prediction_list) for bandPairIndex in range(0, num_workers)]
+
+        from multiprocessing.pool import Pool
+        print('max processes: ', multiprocessing.cpu_count(), ' processes requested from pool: ', num_workers)
+        print(f'Starting pool.starmap_async() for toas: {str(bandPairIndicesList)}', flush=True)
+        with Pool(num_workers) as pool:
+            # issue tasks to process pool
+            result = pool.starmap_async(self.processBandPairIndex, items)
+            # iterate results
+            for result in result.get():
+                print(f'Got result: {result}', flush=True)
+
+        # remove transient TOA arrays
+        sr_metrics_list.drop('toaBandMaArrayRaw', axis=1, inplace=True)
+        sr_metrics_list.reset_index()
+
+        return sr_prediction_list, sr_metrics_list, common_mask_list
+
     # -------------------------------------------------------------------------
     # simulateSurfaceReflectance()
     #
@@ -1004,13 +1142,13 @@ class RasterLib(object):
 
         return sr_prediction_list, sr_metrics_list, common_mask_list
 
-    # -------------------------------------------------------------------------
+   # -------------------------------------------------------------------------
     # createImage()
     #
     # Convert list of prediction arrays to TIF image.  Optionally create a
     # Cloud-Optimized GeoTIF (COG).
     # -------------------------------------------------------------------------
-    def createImage(self, context):
+    def _createImage(self, context):
         self._validateParms(context, [Context.DIR_OUTPUT, Context.FN_PREFIX,
                                       Context.CLEAN_FLAG,
                                       Context.FN_SRC,
@@ -1076,6 +1214,83 @@ class RasterLib(object):
             
         return output_name
 
+  # -------------------------------------------------------------------------
+    # createImage()
+    #
+    # Convert list of prediction arrays to TIF image.  Optionally create a
+    # Cloud-Optimized GeoTIF (COG).
+    # -------------------------------------------------------------------------
+    def createImage(self, context):
+        self._validateParms(context, [Context.DIR_OUTPUT, Context.FN_PREFIX,
+                                      Context.CLEAN_FLAG,
+                                      Context.FN_SRC,
+                                      Context.FN_DEST,
+                                      Context.LIST_BAND_PAIRS, Context.PRED_LIST,
+                                      Context.LIST_TOA_BANDS])
+
+        ########################################
+        # Create .tif image from band-based prediction layers
+        ########################################
+        self._plot_lib.trace(f"\nApply coefficients to "
+                             f"{context[Context.BAND_NUM]}-Band High Res File...\n   "
+                             f"{str(context[Context.FN_SRC])}")
+
+        now = datetime.now()  # current date and time
+
+        context[Context.FN_SUFFIX] = str(Context.FN_SRLITE_NONCOG_SUFFIX)
+
+        #  Derive file names for intermediate files
+        output_name = "{}/{}".format(
+            context[Context.DIR_OUTPUT], str(context[Context.FN_PREFIX])
+        ) + str(context[Context.FN_SUFFIX])
+
+        # Remove pre-COG image
+        fileExists = (os.path.exists(output_name))
+        if fileExists and (eval(context[Context.CLEAN_FLAG])):
+            self.removeFile(output_name, context[Context.CLEAN_FLAG])
+
+        numBandPairs = int(context[Context.BAND_NUM])
+        band_data_list = context[Context.PRED_LIST]
+        band_description_list = list(context[Context.BAND_DESCRIPTION_LIST])
+    
+
+        # Create new GeoTIFF raster - Can't use COG driver unless we use CreateCopy, which causes issues when we have less bands in SR than TOA
+        ds_toa = gdal.Open(context[Context.FN_SRC])
+        driver_GTiff = gdal.GetDriverByName('GTiff')
+        ds_toa_copy_GTiff = driver_GTiff.Create(output_name, xsize=ds_toa.RasterXSize, ysize=ds_toa.RasterYSize, bands=numBandPairs, eType=3, options=['COMPRESS=LZW'])
+
+        # Set metadata to match TOA
+        ds_toa_copy_GTiff.SetGeoTransform(ds_toa.GetGeoTransform())
+        ds_toa_copy_GTiff.SetProjection(ds_toa.GetProjection())
+        toa_ndv = ds_toa.GetRasterBand(1).GetNoDataValue()
+
+        band_index_list = []
+        for id in range(0, numBandPairs):
+            band_index_list.append(int(id+1))
+            band = ds_toa_copy_GTiff.GetRasterBand(id+1)
+            band.SetDescription(str(band_description_list[id]))
+            band.SetNoDataValue(toa_ndv)
+            bandPrediction1 = np.ma.masked_values(band_data_list[id], context[Context.TARGET_NODATA_VALUE])
+            band.WriteArray(bandPrediction1)
+
+        if (not (eval(context[Context.NONCOG_FLAG]))):
+            # Create Cloud-optimized Geotiff (COG)
+            context[Context.FN_SRC] = str(output_name)
+            context[Context.FN_DEST] = "{}/{}".format(
+                context[Context.DIR_OUTPUT], str(context[Context.FN_PREFIX])
+            ) + str(Context.FN_SRLITE_SUFFIX)
+
+            translateoptions = gdal.TranslateOptions( format="COG", bandList=band_index_list,
+                                                creationOptions=['BIGTIFF=YES'])
+            dsCog = gdal.Translate(context[Context.FN_DEST], ds_toa_copy_GTiff, options=translateoptions)
+            dsCog = None
+
+            self._plot_lib.trace(f"\nCreated COG from stack of regressed bands...\n   {output_name}")
+
+        ds_toa_copy_GTiff = None
+        ds_toa = None
+
+        return output_name
     # -------------------------------------------------------------------------
     # removeFile()
     #
