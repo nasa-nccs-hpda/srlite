@@ -1256,14 +1256,15 @@ class RasterLib(object):
 
         # Create new GeoTIFF raster - Can't use COG driver unless we use CreateCopy, which causes issues when we have less bands in SR than TOA
         ds_toa = gdal.Open(context[Context.FN_SRC])
-        driver_GTiff = gdal.GetDriverByName('GTiff')
-        ds_toa_copy_GTiff = driver_GTiff.Create(output_name, xsize=ds_toa.RasterXSize, ysize=ds_toa.RasterYSize, bands=numBandPairs, eType=3, options=['COMPRESS=LZW'])
+        toa_ndv = ds_toa.GetRasterBand(1).GetNoDataValue()
+        toa_datatype = ds_toa.GetRasterBand(1).DataType
 
         # Set metadata to match TOA
+        driver_GTiff = gdal.GetDriverByName('GTiff')
+        ds_toa_copy_GTiff = driver_GTiff.Create(output_name, xsize=ds_toa.RasterXSize, ysize=ds_toa.RasterYSize, bands=numBandPairs, eType=toa_datatype, options=['COMPRESS=LZW'])
         ds_toa_copy_GTiff.SetGeoTransform(ds_toa.GetGeoTransform())
         ds_toa_copy_GTiff.SetProjection(ds_toa.GetProjection())
-        toa_ndv = ds_toa.GetRasterBand(1).GetNoDataValue()
-
+ 
         band_index_list = []
         for id in range(0, numBandPairs):
             band_index_list.append(int(id+1))
