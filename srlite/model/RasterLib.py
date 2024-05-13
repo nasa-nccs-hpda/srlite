@@ -1234,64 +1234,80 @@ class RasterLib(object):
         self._plot_lib.trace(f"\nApply coefficients to "
                              f"{context[Context.BAND_NUM]}-Band High Res File...\n   "
                              f"{str(context[Context.FN_SRC])}")
-
-        now = datetime.now()  # current date and time
-
-        context[Context.FN_SUFFIX] = str(Context.FN_SRLITE_NONCOG_SUFFIX)
-
+        
         #  Derive file names for intermediate files
-        output_name = "{}/{}".format(
+        intermediate_output_name = "{}/{}".format(
             context[Context.DIR_OUTPUT], str(context[Context.FN_PREFIX])
-        ) + str(context[Context.FN_SUFFIX])
+        ) + str(Context.FN_SRLITE_NONCOG_SUFFIX)
 
-        # Remove pre-COG image
-        fileExists = (os.path.exists(output_name))
-        if fileExists and (eval(context[Context.CLEAN_FLAG])):
-            self.removeFile(output_name, context[Context.CLEAN_FLAG])
-
-        numBandPairs = int(context[Context.BAND_NUM])
-        band_data_list = context[Context.PRED_LIST]
-        band_description_list = list(context[Context.BAND_DESCRIPTION_LIST])
-    
-
-        # Create new GeoTIFF raster - Can't use COG driver unless we use CreateCopy, which causes issues when we have less bands in SR than TOA
-        ds_toa = gdal.Open(context[Context.FN_SRC])
-        toa_ndv = ds_toa.GetRasterBand(1).GetNoDataValue()
-        toa_datatype = ds_toa.GetRasterBand(1).DataType
-
-        # Set metadata to match TOA
-        driver_GTiff = gdal.GetDriverByName('GTiff')
-        ds_toa_copy_GTiff = driver_GTiff.Create(output_name, xsize=ds_toa.RasterXSize, ysize=ds_toa.RasterYSize, bands=numBandPairs, eType=toa_datatype, options=['COMPRESS=LZW'])
-        ds_toa_copy_GTiff.SetGeoTransform(ds_toa.GetGeoTransform())
-        ds_toa_copy_GTiff.SetProjection(ds_toa.GetProjection())
- 
-        band_index_list = []
-        for id in range(0, numBandPairs):
-            band_index_list.append(int(id+1))
-            band = ds_toa_copy_GTiff.GetRasterBand(id+1)
-            band.SetDescription(str(band_description_list[id]))
-            band.SetNoDataValue(toa_ndv)
-            bandPrediction1 = np.ma.masked_values(band_data_list[id], context[Context.TARGET_NODATA_VALUE])
-            band.WriteArray(bandPrediction1)
-
-        if (not (eval(context[Context.NONCOG_FLAG]))):
-            # Create Cloud-optimized Geotiff (COG)
-            context[Context.FN_SRC] = str(output_name)
-            context[Context.FN_DEST] = "{}/{}".format(
-                context[Context.DIR_OUTPUT], str(context[Context.FN_PREFIX])
-            ) + str(Context.FN_SRLITE_SUFFIX)
-
-            translateoptions = gdal.TranslateOptions( format="COG", bandList=band_index_list,
-                                                creationOptions=['BIGTIFF=YES'])
-            dsCog = gdal.Translate(context[Context.FN_DEST], ds_toa_copy_GTiff, options=translateoptions)
-            dsCog = None
-
-            self._plot_lib.trace(f"\nCreated COG from stack of regressed bands...\n   {output_name}")
-
-        ds_toa_copy_GTiff = None
+        # Define pointers to datasets
         ds_toa = None
+        ds_toa_copy_GTiff = None
 
-        return output_name
+        try:
+
+            # Remove pre-COG image
+            fileExists = (os.path.exists(intermediate_output_name))
+            if fileExists and (eval(context[Context.CLEAN_FLAG])):
+                self.removeFile(intermediate_output_name, context[Context.CLEAN_FLAG])
+
+            # Get metadata
+            numBandPairs = int(context[Context.BAND_NUM])
+            band_data_list = context[Context.PRED_LIST]
+            band_description_list = list(context[Context.BAND_DESCRIPTION_LIST])
+
+            # Create new GeoTIFF raster - Can't use COG driver unless we use CreateCopy, which causes issues when we have less bands in SR than TOA
+            ds_toa = gdal.Open(context[Context.FN_SRC])
+            toa_ndv = ds_toa.GetRasterBand(1).GetNoDataValue()
+            toa_datatype = ds_toa.GetRasterBand(1).DataType
+
+            # Create new GeoTIFF raster - Can't use COG driver unless we use CreateCopy, which causes issues when we have less bands in SR than TOA
+            driver_GTiff = gdal.GetDriverByName('GTiff')
+            ds_toa_copy_GTiff = driver_GTiff.Create(intermediate_output_name, xsize=ds_toa.RasterXSize, ysize=ds_toa.RasterYSize, 
+                                                    bands=numBandPairs, eType=toa_datatype, options=['COMPRESS=LZW'])
+            
+            # Set metadata to match TOA. 
+            ds_toa_copy_GTiff.SetGeoTransform(ds_toa.GetGeoTransform())
+            ds_toa_copy_GTiff.SetProjection(ds_toa.GetProjection())
+    
+            # Populate each output band with simulated prediction arrays
+            band_index_list = []
+            for id in range(0, numBandPairs):
+                band_index_list.append(int(id+1))
+                band = ds_toa_copy_GTiff.GetRasterBand(id+1)
+                band.SetDescription(str(band_description_list[id]))
+                band.SetNoDataValue(toa_ndv)
+                bandPrediction1 = np.ma.masked_values(band_data_list[id], context[Context.TARGET_NODATA_VALUE])
+                band.WriteArray(bandPrediction1)
+
+            # Close intermediate files
+            # intermediate_output_name = None
+            # ds_toa_copy_GTiff = None
+            # ds_toa = None
+
+            if (not (eval(context[Context.NONCOG_FLAG]))):
+                translateoptions = gdal.TranslateOptions( format="COG", bandList=band_index_list,
+                                                    creationOptions=['BIGTIFF=YES'])
+                dsCog = gdal.Translate(context[Context.FN_COG], ds_toa_copy_GTiff, options=translateoptions)
+                dsCog = None
+
+                self._plot_lib.trace(f"\nCreated COG from stack of regressed bands...\n   {context[Context.FN_COG]}")
+            else:
+                os.rename(intermediate_output_name, context[Context.FN_COG])
+                self._plot_lib.trace(f"\nCreated standard TIF from stack of regressed bands...\n   {context[Context.FN_COG]}")
+
+        except BaseException as err:
+            issue = "TIF file creation failed: " + err
+            raise Exception(issue)
+        finally:
+            # Remove pre-COG image
+            fileExists = (os.path.exists(intermediate_output_name))
+            if fileExists:
+                self.removeFile(intermediate_output_name, context[Context.CLEAN_FLAG])
+            ds_toa_copy_GTiff = None
+            ds_toa = None
+
+        return intermediate_output_name
     # -------------------------------------------------------------------------
     # removeFile()
     #
