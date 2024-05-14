@@ -1280,11 +1280,6 @@ class RasterLib(object):
                 bandPrediction1 = np.ma.masked_values(band_data_list[id], context[Context.TARGET_NODATA_VALUE])
                 band.WriteArray(bandPrediction1)
 
-            # Close intermediate files
-            # intermediate_output_name = None
-            # ds_toa_copy_GTiff = None
-            # ds_toa = None
-
             if (not (eval(context[Context.NONCOG_FLAG]))):
                 translateoptions = gdal.TranslateOptions( format="COG", bandList=band_index_list,
                                                     creationOptions=['BIGTIFF=YES'])
@@ -1293,8 +1288,10 @@ class RasterLib(object):
 
                 self._plot_lib.trace(f"\nCreated COG from stack of regressed bands...\n   {context[Context.FN_COG]}")
             else:
-                os.rename(intermediate_output_name, context[Context.FN_COG])
-                self._plot_lib.trace(f"\nCreated standard TIF from stack of regressed bands...\n   {context[Context.FN_COG]}")
+                cog_output_name = os.path.join(context[Context.DIR_OUTPUT] + '/' +
+                                               context[Context.FN_PREFIX] + str(Context.FN_SRLITE_SUFFIX))
+                os.rename(intermediate_output_name, cog_output_name)
+                self._plot_lib.trace(f"\nCreated standard TIF from stack of regressed bands...\n   {cog_output_name}")
 
         except BaseException as err:
             issue = "TIF file creation failed: " + err

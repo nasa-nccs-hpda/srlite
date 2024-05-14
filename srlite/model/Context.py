@@ -361,7 +361,7 @@ class Context(object):
         )
         #NOTE:  As per MC (3/19/24) regarding noncog flag: "Given your previous testing results that showed no real down side to COG,
         # I don’t see any reason to give the user the choice.  I would rather not offer options that may be confusing unless the 
-        # users start to request them."  Functionality exists but should not be advertised to users in documntation.
+        # users start to request them."  Functionality exists but should not be advertised to users in documentation.
         parser.add_argument(
             "--noncog", "--noncog", required=False, dest='noncogbool',
             action='store_true', help="Disable Cloud-optimized Geotiff format."
