@@ -67,13 +67,14 @@ class Context(object):
 
     # File name suffixes
     FN_TOA_SUFFIX = 'fn_toa_suffix'
-    FN_TOA_DOWNSCALE_SUFFIX = '-toa-30m.tif'
+    FN_TOA_DOWNSCALE_SUFFIX = '_toa_30m.tif'
     FN_TARGET_SUFFIX = 'fn_target_suffix'
-    FN_TARGET_DOWNSCALE_SUFFIX = '-target-30m.tif'
+    FN_TARGET_DOWNSCALE_SUFFIX = '_target_30m.tif'
     FN_CLOUDMASK_SUFFIX = 'fn_cloudmask_suffix'
-    FN_CLOUDMASK_DOWNSCALE_SUFFIX = '-toa-clouds-30m.tif'
-    FN_SRLITE_NONCOG_SUFFIX = '-noncog.tif'
-    FN_SRLITE_SUFFIX = '-sr-02m.tif'
+    FN_CLOUDMASK_DOWNSCALE_SUFFIX = '_toa_clouds_30m.tif'
+    FN_SRLITE_NONCOG_SUFFIX = '_noncog.tif'
+    FN_SRLITE_SUFFIX = '_sr_02m.tif'
+    FN_WARP_SUFFIX = '_warp.tif'
 
     # Band pairs
     LIST_BAND_PAIRS = 'list_band_pairs'
@@ -110,8 +111,10 @@ class Context(object):
     DEFAULT_TOA_SUFFIX = 'toa.tif'
     DEFAULT_TARGET_SUFFIX = 'ccdc.tif'
     DEFAULT_CLOUDMASK_SUFFIX = 'toa.cloudmask.v1.2.tif'
-    DEFAULT_ERROR_REPORT_SUFFIX = 'SRLite_errors.csv'
-    DEFAULT_STATISTICS_REPORT_SUFFIX = 'SRLite_statistics.csv'
+
+    # Suffixs modified as per PM - 05/19/24
+    DEFAULT_ERROR_REPORT_SUFFIX = 'sr_errors.csv'
+    DEFAULT_STATISTICS_REPORT_SUFFIX = '_sr_stats.csv'
     DEFAULT_XRES = 30
     DEFAULT_YRES = 30
     DEFAULT_NODATA_VALUE = -9999
@@ -172,8 +175,42 @@ class Context(object):
             self.context_dict[Context.DIR_TOA] = str(args.toa_dir)
             self.context_dict[Context.DIR_TARGET] = str(args.target_dir)
             self.context_dict[Context.DIR_CLOUDMASK] = str(args.cloudmask_dir)
-            self.context_dict[Context.DIR_OUTPUT] = str(args.out_dir)
 
+            # Manage output paths
+            self.context_dict[Context.DIR_OUTPUT] = str(args.out_dir)
+            try:
+                os.makedirs(self.context_dict[Context.DIR_OUTPUT], exist_ok=True)
+            except OSError as error:
+                print("Directory '%s' can not be created" % self.context_dict[Context.DIR_OUTPUT])
+
+            if (args.err_dir == "./"):
+                self.context_dict[Context.DIR_OUTPUT_ERROR] = self.context_dict[Context.DIR_OUTPUT]
+            else:
+                self.context_dict[Context.DIR_OUTPUT_ERROR] = str(args.err_dir)
+                try:
+                    os.makedirs(self.context_dict[Context.DIR_OUTPUT_ERROR], exist_ok=True)
+                except OSError as error:
+                    print("Directory '%s' can not be created" % self.context_dict[Context.DIR_OUTPUT_ERROR])
+
+            if (args.warp_dir == "./"):
+                self.context_dict[Context.DIR_OUTPUT_WARP] = self.context_dict[Context.DIR_OUTPUT]
+            else:
+                self.context_dict[Context.DIR_OUTPUT_WARP] = str(args.warp_dir)
+                try:
+                    os.makedirs(self.context_dict[Context.DIR_OUTPUT_WARP], exist_ok=True)
+                except OSError as error:
+                    print("Directory '%s' can not be created" % self.context_dict[Context.DIR_OUTPUT_WARP])
+
+            if (args.csv_dir == "./"):
+                self.context_dict[Context.DIR_OUTPUT_CSV] = self.context_dict[Context.DIR_OUTPUT]
+            else:
+                self.context_dict[Context.DIR_OUTPUT_CSV] = str(args.csv_dir)
+                try:
+                    os.makedirs(self.context_dict[Context.DIR_OUTPUT_CSV], exist_ok=True)
+                except OSError as error:
+                    print("Directory '%s' can not be created" % self.context_dict[Context.DIR_OUTPUT_CSV])
+
+            # Parse general configuration parameters
             self.context_dict[Context.LIST_BAND_PAIRS] = str(args.band_pairs_list)
             self.context_dict[Context.TARGET_XRES] = int(args.target_xres)
             self.context_dict[Context.TARGET_YRES] = int(args.target_yres)
@@ -197,8 +234,8 @@ class Context(object):
             self.context_dict[Context.STORAGE_TYPE] = str(args.storage)
             self.context_dict[Context.CLOUD_MASK_FLAG] = str(args.cmaskbool)
             self.context_dict[Context.POSITIVE_MASK_FLAG] = str(args.pmaskbool)
-            self.context_dict[Context.CSV_FLAG] = str(args.csvbool)
-            self.context_dict[Context.ERROR_REPORT_FLAG] = str(args.errorreportbool)
+            self.context_dict[Context.CSV_FLAG] = str(args.errorreportbool)
+            self.context_dict[Context.ERROR_REPORT_FLAG] = str(args.csvbool)
             self.context_dict[Context.BAND8_FLAG] = str(args.band8bool)
             self.context_dict[Context.QUALITY_MASK_FLAG] = str(args.qfmaskbool)
             self.context_dict[Context.LIST_QUALITY_MASK] = str(args.qfmask_list)
@@ -215,7 +252,6 @@ class Context(object):
         # Initialize instance variables
         self.debug_level = int(self.context_dict[Context.DEBUG_LEVEL])
         plotLib = self.plot_lib = PlotLib(self.context_dict[Context.DEBUG_LEVEL])
-        os.system(f'mkdir -p {self.context_dict[Context.DIR_OUTPUT]}')
 
         # Echo input parameter values
         plotLib.trace(f'Initializing SRLite Regression script with the following parameters')
@@ -238,31 +274,6 @@ class Context(object):
             plotLib.trace(f'Cloud Mask:    {self.context_dict[Context.CLOUD_MASK_FLAG]}')
         if (eval(self.context_dict[Context.POSITIVE_MASK_FLAG])):
             plotLib.trace(f'Positive Pixels Only Flag:    {self.context_dict[Context.POSITIVE_MASK_FLAG]}')
-        
-        self.context_dict[Context.DIR_OUTPUT_CSV] = \
-            os.path.join(self.context_dict[Context.DIR_OUTPUT], 'csv')
-        if (eval(self.context_dict[Context.CSV_FLAG])):
-            plotLib.trace(f'CSV Flag:    {self.context_dict[Context.CSV_FLAG]}')
-            try:
-                    os.makedirs(self.context_dict[Context.DIR_OUTPUT_CSV], exist_ok=True)
-            except OSError as error:
-                    print("Directory '%s' can not be created" % self.context_dict[Context.DIR_OUTPUT_CSV])
-
-        self.context_dict[Context.DIR_OUTPUT_ERROR] = \
-                os.path.join(self.context_dict[Context.DIR_OUTPUT], 'err')
-        if (eval(self.context_dict[Context.ERROR_REPORT_FLAG])):
-            plotLib.trace(f'ERROR Flag:    {self.context_dict[Context.ERROR_REPORT_FLAG]}')
-            try:
-                os.makedirs(self.context_dict[Context.DIR_OUTPUT_ERROR], exist_ok=True)
-            except OSError as error:
-                print("Directory '%s' can not be created" % self.context_dict[Context.DIR_OUTPUT_ERROR])
-
-        self.context_dict[Context.DIR_OUTPUT_WARP] = \
-            os.path.join(self.context_dict[Context.DIR_OUTPUT], 'warp')
-        try:
-            os.makedirs(self.context_dict[Context.DIR_OUTPUT_WARP], exist_ok=True)
-        except OSError as error:
-            print("Directory '%s' can not be created" % self.context_dict[Context.DIR_OUTPUT_WARP])
 
         if (eval(self.context_dict[Context.QUALITY_MASK_FLAG])):
             plotLib.trace(f'Quality Mask:    {self.context_dict[Context.QUALITY_MASK_FLAG]}')
@@ -271,12 +282,23 @@ class Context(object):
             plotLib.trace(f'Threshold Mask:    {self.context_dict[Context.THRESHOLD_MASK_FLAG]}')
             plotLib.trace(f'Threshold Min:    {self.context_dict[Context.THRESHOLD_MIN]}')
             plotLib.trace(f'Threshold Max:    {self.context_dict[Context.THRESHOLD_MAX]}')
-            
+        
+        plotLib.trace(f'Output Directory: {self.context_dict[Context.DIR_OUTPUT]}')
+        plotLib.trace(f'Error Directory: {self.context_dict[Context.DIR_OUTPUT_ERROR]}')
+        plotLib.trace(f'Warp Directory: {self.context_dict[Context.DIR_OUTPUT_WARP]}')
+        plotLib.trace(f'CSV Directory: {self.context_dict[Context.DIR_OUTPUT_CSV]}')
+           
         if (eval(self.context_dict[Context.CLEAN_FLAG])):
             path = os.path.join(self.context_dict[Context.DIR_OUTPUT_ERROR],
                                     Context.DEFAULT_ERROR_REPORT_SUFFIX)
             if os.path.exists(path):
                 os.remove(path)
+
+            #TODO 
+            # path = os.path.join(self.context_dict[Context.DIR_OUTPUT_WARP],
+            #                         Context.DEFAULT_ERROR_REPORT_SUFFIX)
+            # if os.path.exists(path):
+            #     os.remove(path)
 
             path = os.path.join(self.context_dict[Context.DIR_OUTPUT_CSV],
                                     Context.DEFAULT_STATISTICS_REPORT_SUFFIX)
@@ -323,8 +345,16 @@ class Context(object):
             default="./", help="Specify output directory."
         )
         parser.add_argument(
-            "--warp_dir", "--input-warp-dir", type=str, required=False, dest='warp_dir',
-            default="./", help="Specify directory path containing warped files."
+            "--err_dir", "--output-err-dir", type=str, required=False, dest='err_dir',
+            default="./", help="Specify directory path containing error files (defaults to out_dir)."
+        )
+        parser.add_argument(
+            "--warp_dir", "--interim-warp-dir", type=str, required=False, dest='warp_dir',
+            default="./", help="Specify directory path containing interim warped files (defaults to out_dir)."
+        )
+        parser.add_argument(
+            "--csv_dir", "--output-csv-dir", type=str, required=False, dest='csv_dir',
+            default="./", help="Specify directory path containing statistics files (defaults to out_dir)."
         )
         parser.add_argument(
             "--xres", "--input-x-resolution", type=str, required=False, dest='target_xres',
@@ -387,7 +417,7 @@ class Context(object):
         parser.add_argument('--csv',
                             required=False,
                             dest='csvbool',
-                            default=False,
+                            default=True,
                             action='store_true',
                             help='Generate CSV file with runtime history')
 

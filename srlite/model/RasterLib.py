@@ -20,6 +20,7 @@ from srlite.model.Context import Context
 import numpy.ma as ma
 
 import multiprocessing as multiprocessing
+import re
 
 # -----------------------------------------------------------------------------
 # class RasterLib
@@ -349,7 +350,7 @@ class RasterLib(object):
             # Derive reprojected file name
             out_fn = os.path.splitext(fn)[0]
             out_fn = os.path.basename(out_fn)
-            out_fn_warp = context[Context.DIR_OUTPUT_WARP] + '/' + out_fn + '_warp.tif'
+            out_fn_warp = context[Context.DIR_OUTPUT_WARP] + '/' + out_fn + str(Context.FN_WARP_SUFFIX)
 
              # Remove existing SR-Lite output if clean_flag is activated
             self.removeFile(out_fn_warp, context[Context.CLEAN_FLAG])
@@ -719,11 +720,10 @@ class RasterLib(object):
 
         if (eval(context[Context.CSV_FLAG])):
             if (context[Context.BATCH_NAME] != 'None'):
-                figureBase = context[Context.BATCH_NAME] + '_' + context[Context.FN_PREFIX] \
-                             + '_' + context[Context.REGRESSION_MODEL]
+                figureBase = context[Context.BATCH_NAME] + '_' + context[Context.FN_PREFIX] 
             else:
-                figureBase = context[Context.FN_PREFIX] \
-                             + '_' + context[Context.REGRESSION_MODEL]
+                figureBase = context[Context.FN_PREFIX] 
+                
             path = os.path.join(context[Context.DIR_OUTPUT_CSV],
                                 figureBase + Context.DEFAULT_STATISTICS_REPORT_SUFFIX)
             context[Context.METRICS_LIST].to_csv(path)
@@ -1392,6 +1392,16 @@ class RasterLib(object):
     def get_ndv(self, r_fn):
         with rasterio.open(r_fn) as src:
             return src.profile['nodata']
+
+    # -------------------------------------------------------------------------
+    # purge(dir, pattern)
+    #
+    # Delete files of a certain pattern in a specific directory
+    # -------------------------------------------------------------------------
+    def purge(self, dir, pattern):
+        for f in os.listdir(dir):
+            if re.search(pattern, f):
+                os.remove(os.path.join(dir, f))
 
     # -------------------------------------------------------------------------
     # refresh()
