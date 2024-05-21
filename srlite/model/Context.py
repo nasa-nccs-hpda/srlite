@@ -17,6 +17,7 @@ import csv
 class Context(object):
     # Custom name for current run
     BATCH_NAME = 'batch_name'
+    CAT_ID = 'catid'
 
     # Directories
     DIR_TOA = 'dir_toa'
@@ -284,9 +285,12 @@ class Context(object):
             plotLib.trace(f'Threshold Max:    {self.context_dict[Context.THRESHOLD_MAX]}')
         
         plotLib.trace(f'Output Directory: {self.context_dict[Context.DIR_OUTPUT]}')
-        plotLib.trace(f'Error Directory: {self.context_dict[Context.DIR_OUTPUT_ERROR]}')
-        plotLib.trace(f'Warp Directory: {self.context_dict[Context.DIR_OUTPUT_WARP]}')
-        plotLib.trace(f'CSV Directory: {self.context_dict[Context.DIR_OUTPUT_CSV]}')
+        if (self.context_dict[Context.DIR_OUTPUT_ERROR] != self.context_dict[Context.DIR_OUTPUT]):
+            plotLib.trace(f'Error Directory: {self.context_dict[Context.DIR_OUTPUT_ERROR]}')
+        if (self.context_dict[Context.DIR_OUTPUT_WARP] != self.context_dict[Context.DIR_OUTPUT]):
+            plotLib.trace(f'Interim Directory: {self.context_dict[Context.DIR_OUTPUT_WARP]}')
+        if (self.context_dict[Context.DIR_OUTPUT_CSV] != self.context_dict[Context.DIR_OUTPUT]):
+            plotLib.trace(f'CSV Directory: {self.context_dict[Context.DIR_OUTPUT_CSV]}')
            
         if (eval(self.context_dict[Context.CLEAN_FLAG])):
             path = os.path.join(self.context_dict[Context.DIR_OUTPUT_ERROR],
@@ -516,6 +520,8 @@ class Context(object):
         :return: updated context
         """
         context[Context.FN_PREFIX] = str((prefix[1]).split("-toa.tif", 1)[0])
+        last_index = context[Context.FN_PREFIX].rindex('_')
+        context[Context.CAT_ID] =  context[Context.FN_PREFIX] [last_index+1:]
 
         # Provide the fully-qualified file name (if provided).  Otherwise assume, list of files
         if os.path.isfile(Path(context[Context.DIR_TOA])):

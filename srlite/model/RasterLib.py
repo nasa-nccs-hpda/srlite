@@ -511,7 +511,7 @@ class RasterLib(object):
     # Generate band metrics based on corresponding TOA and CCDC arrays.
     # Optionally override metrics with no data value (used for synthetic bands)
     # -------------------------------------------------------------------------
-    def sr_performance(self, df, bandName, model, intercept, slope, ndv_value=None):
+    def sr_performance(self, df, context, bandName, model, intercept, slope, ndv_value=None):
 
         metadata = {}
         metadata['band_name'] = bandName
@@ -538,6 +538,11 @@ class RasterLib(object):
             metadata['mae_norm'] = ndv_value
             metadata['rmse_norm'] = ndv_value
 
+        metadata['catid'] = context[Context.CAT_ID] 
+        metadata['input_toa']  = context[Context.FN_TOA]
+        metadata['input_ref']  = context[Context.FN_TARGET]
+        metadata['input_cloudmask']  = context[Context.FN_CLOUDMASK]
+
         return metadata
 
     # -------------------------------------------------------------------------
@@ -560,7 +565,7 @@ class RasterLib(object):
         rededgeNIR1Corr = 0.379
 
         try:
-        # Retrieve slope, intercept, and score coefficients for data-driven bands
+            # Retrieve slope, intercept, and score coefficients for data-driven bands
             blueSlope = sr_metrics_list['slope'][0]
             blueIntercept = sr_metrics_list['intercept'][0]
 
@@ -639,38 +644,38 @@ class RasterLib(object):
             if eval(context[Context.BAND8_FLAG]):
                 ndv_value = "NA"
                 metrics_srlite_long = pd.concat([
-                    pd.DataFrame([self.sr_performance(reflect_df_long,
+                    pd.DataFrame([self.sr_performance(reflect_df_long, context,
                                                     'Blue', model, blueIntercept, blueSlope)]),
-                    pd.DataFrame([self.sr_performance(reflect_df_long,
+                    pd.DataFrame([self.sr_performance(reflect_df_long, context,
                                                     'Green', model, greenIntercept, greenSlope)]),
-                    pd.DataFrame([self.sr_performance(reflect_df_long,
+                    pd.DataFrame([self.sr_performance(reflect_df_long, context,
                                                     'Red', model, redIntercept, redSlope)]),
-                    pd.DataFrame([self.sr_performance(reflect_df_long,
+                    pd.DataFrame([self.sr_performance(reflect_df_long, context,
                                                     'NIR', model, NIR1Intercept, NIR1Slope)]),
-                    pd.DataFrame([self.sr_performance(reflect_df_long,
+                    pd.DataFrame([self.sr_performance(reflect_df_long, context,
                                                     'Coastal', model, blueIntercept, blueSlope, ndv_value)]),
-                    pd.DataFrame([self.sr_performance(reflect_df_long,
+                    pd.DataFrame([self.sr_performance(reflect_df_long, context,
                                                     'Yellow', model,
                                                     (greenIntercept * yellowGreenCorr) + (redIntercept * yellowRedCorr),
                                                     (greenSlope * yellowGreenCorr) + (redSlope * yellowRedCorr),
                                                     ndv_value)]),
-                    pd.DataFrame([self.sr_performance(reflect_df_long,
+                    pd.DataFrame([self.sr_performance(reflect_df_long, context,
                                                     'RedEdge', model,
                                                     (redIntercept * rededgeRedCorr) + (NIR1Intercept * rededgeNIR1Corr),
                                                     (redSlope * rededgeRedCorr) + (NIR1Slope * rededgeNIR1Corr),
                                                     ndv_value)]),
-                    pd.DataFrame([self.sr_performance(reflect_df_long,
+                    pd.DataFrame([self.sr_performance(reflect_df_long, context,
                                                     'NIR2', model, NIR1Intercept, NIR1Slope, ndv_value)])
                 ]).reset_index()
             else:
                 metrics_srlite_long = pd.concat([
-                    pd.DataFrame([self.sr_performance(reflect_df_long,
+                    pd.DataFrame([self.sr_performance(reflect_df_long, context,
                                                     'Blue', model, blueIntercept, blueSlope)]),
-                    pd.DataFrame([self.sr_performance(reflect_df_long,
+                    pd.DataFrame([self.sr_performance(reflect_df_long, context,
                                                     'Green', model, greenIntercept, greenSlope)]),
-                    pd.DataFrame([self.sr_performance(reflect_df_long,
+                    pd.DataFrame([self.sr_performance(reflect_df_long, context,
                                                     'Red', model, redIntercept, redSlope)]),
-                    pd.DataFrame([self.sr_performance(reflect_df_long,
+                    pd.DataFrame([self.sr_performance(reflect_df_long, context,
                                                     'NIR', model, NIR1Intercept, NIR1Slope)])
                 ]).reset_index()
 
@@ -723,7 +728,7 @@ class RasterLib(object):
                 figureBase = context[Context.BATCH_NAME] + '_' + context[Context.FN_PREFIX] 
             else:
                 figureBase = context[Context.FN_PREFIX] 
-                
+
             path = os.path.join(context[Context.DIR_OUTPUT_CSV],
                                 figureBase + Context.DEFAULT_STATISTICS_REPORT_SUFFIX)
             context[Context.METRICS_LIST].to_csv(path)
