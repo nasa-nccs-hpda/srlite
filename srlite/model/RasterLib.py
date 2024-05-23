@@ -731,6 +731,7 @@ class RasterLib(object):
 
             path = os.path.join(context[Context.DIR_OUTPUT_CSV],
                                 figureBase + Context.DEFAULT_STATISTICS_REPORT_SUFFIX)
+            context[Context.METRICS_LIST].drop('index', axis=1, inplace=True)
             context[Context.METRICS_LIST].to_csv(path)
             self._plot_lib.trace(
                 f"\nCreated CSV with coefficients for batch {context[Context.BATCH_NAME]}...\n   {path}")
@@ -1033,6 +1034,7 @@ class RasterLib(object):
 
         # remove transient TOA arrays
         sr_metrics_list.drop('toaBandMaArrayRaw', axis=1, inplace=True)
+        # sr_metrics_list.drop('index', axis=1, inplace=True)
         sr_metrics_list.reset_index()
 
         return sr_prediction_list, sr_metrics_list, common_mask_list
