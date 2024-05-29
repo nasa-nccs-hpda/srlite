@@ -202,8 +202,12 @@ class Context(object):
                 except OSError as error:
                     print("Directory '%s' can not be created" % self.context_dict[Context.DIR_OUTPUT_WARP])
 
+            self.context_dict[Context.CSV_FLAG] = str(args.errorreportbool)
             if (args.csv_dir == "./"):
                 self.context_dict[Context.DIR_OUTPUT_CSV] = self.context_dict[Context.DIR_OUTPUT]
+            elif (args.csv_dir == "None"):
+               self.context_dict[Context.CSV_FLAG] = str(False)
+               self.context_dict[Context.DIR_OUTPUT_CSV] = self.context_dict[Context.DIR_OUTPUT]
             else:
                 self.context_dict[Context.DIR_OUTPUT_CSV] = str(args.csv_dir)
                 try:
@@ -235,7 +239,6 @@ class Context(object):
             self.context_dict[Context.STORAGE_TYPE] = str(args.storage)
             self.context_dict[Context.CLOUD_MASK_FLAG] = str(args.cmaskbool)
             self.context_dict[Context.POSITIVE_MASK_FLAG] = str(args.pmaskbool)
-            self.context_dict[Context.CSV_FLAG] = str(args.errorreportbool)
             self.context_dict[Context.ERROR_REPORT_FLAG] = str(args.csvbool)
             self.context_dict[Context.BAND8_FLAG] = str(args.band8bool)
             self.context_dict[Context.QUALITY_MASK_FLAG] = str(args.qfmaskbool)
@@ -342,7 +345,7 @@ class Context(object):
         parser.add_argument(
             "-bandpairs", "--input-list-of-band-pairs", type=str, required=False, dest='band_pairs_list',
             default="[['blue_target', 'BAND-B'], ['green_target', 'BAND-G'], ['red_target', 'BAND-R'], ['nir_target', 'BAND-N']]",
-            help="Specify list of band pairs to be processed per scene."
+            help="Specify list of band pairs to be processed per TOA."
         )
         parser.add_argument(
             "-output_dir", "--output-directory", type=str, required=False, dest='out_dir',

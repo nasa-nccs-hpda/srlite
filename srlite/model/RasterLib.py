@@ -902,9 +902,101 @@ class RasterLib(object):
 
         return metadata
 
+    # -------------------------------------------------------------------------
+    # processBandPairIndex()
+    #
+    # Populate dictionary of coefficients
+    # -------------------------------------------------------------------------
+    def processBandPairIndexPathos(self, context, bandPairIndicesList, bandPairIndex, warp_ds_list, 
+                       bandNamePairList, common_mask_list, minWarning, sr_unmasked_prediction_list, sr_prediction_list, sr_metrics_list):
+            
+            self._plot_lib.trace('=>')
+            self._plot_lib.trace('====================================================================================')
+            self._plot_lib.trace('== Start Processing Band #' + str(bandPairIndex + 1) + ' ' + 
+                                 str(bandPairIndicesList[bandPairIndex + 1]) + ' ===============')
+            self._plot_lib.trace('====================================================================================')
+
+            # Retrieve band pair
+            bandPairIndices = bandPairIndicesList[bandPairIndex + 1]
+
+            # Get 30m EVHR/CCDC Masked Arrays
+            targetBandMaArray = iolib.ds_getma(warp_ds_list[0], bandPairIndices[0])
+            toaBandMaArray = iolib.ds_getma(warp_ds_list[1], bandPairIndices[1])
+
+            # Create common mask based on user-specified list (e.g., cloudmask, threshold, QF)
+            context[Context.COMMON_MASK] = self.getCommonMask(context, targetBandMaArray, toaBandMaArray)
+            common_mask_list.append(context[Context.COMMON_MASK])
+
+            # Apply the 3-way common mask to the CCDC and EVHR bands
+            warp_ma_masked_band_list = [np.ma.array(targetBandMaArray, mask=context[Context.COMMON_MASK]),
+                                        np.ma.array(toaBandMaArray, mask=context[Context.COMMON_MASK])]
+
+            # Check the mins of each ma - they should be greater than 0
+            for j, ma in enumerate(warp_ma_masked_band_list):
+                j = j + 1
+                if (ma.min() < minWarning):
+                    self._plot_lib.trace("Warning: Masked array values should be larger than " + str(minWarning))
+            #                    exit(1)
+
+            ########################################
+            # ### WARPED MASKED ARRAY WITH COMMON MASK, DATA VALUES ONLY
+            # CCDC SR is first element in list, which needs to be the y-var:
+            # b/c we are predicting SR from TOA ++++++++++[as per PM - 01/05/2022]
+            ########################################
+
+            # Get 2m TOA Masked Array
+            toaIndexArray = bandPairIndicesList[bandPairIndex+1]
+            toaIndex = toaIndexArray[1]
+            toaBandMaArrayRaw = iolib.fn_getma(context[Context.FN_TOA], toaIndex)
+            sr_prediction_band, metadata = self.predictSurfaceReflectance(context,
+                                                                          bandNamePairList[bandPairIndex][1],
+                                                                          toaBandMaArrayRaw,
+                                                                          warp_ma_masked_band_list[
+                                                                              context[Context.LIST_INDEX_TARGET]],
+                                                                          warp_ma_masked_band_list[
+                                                                              context[Context.LIST_INDEX_TOA]],
+                                                                          sr_metrics_list)
+
+            ########################################
+            # #### Apply the model to the original EVHR (2m) to predict surface reflectance
+            ########################################
+            self._plot_lib.trace(
+                f'Applying model to {str(bandNamePairList[bandPairIndex])} in file '
+                f'{os.path.basename(context[Context.FN_LIST][context[Context.LIST_INDEX_TOA]])}')
+            self._plot_lib.trace(f'Metrics: {metadata}')
+
+            ########### save predictions for each band #############
+            sr_unmasked_prediction_list.append(sr_prediction_band)
+
+            # Return to original shape and apply original mask
+            toa_sr_ma_band_reshaped = sr_prediction_band.reshape(toaBandMaArrayRaw.shape)
+
+            toa_sr_ma_band = np.ma.array(
+                toa_sr_ma_band_reshaped,
+                mask=toaBandMaArrayRaw.mask)
+            sr_prediction_list.append(toa_sr_ma_band)
+
+             ########### save metadata for each band #############
+            if (bandPairIndex == 0):
+                context[Context.METRICS_LIST] = pd.concat([pd.DataFrame([metadata], index=[bandPairIndex])])
+            else:
+                context[Context.METRICS_LIST] = pd.concat([context[Context.METRICS_LIST], pd.DataFrame([metadata], index=[bandPairIndex])])
+
+#            ########### save metadata for each band #############
+#             if str(Context.METRICS_LIST) not in context.keys():
+# #            if (bandPairIndex == 0):
+#                 context[Context.METRICS_LIST] = pd.concat([pd.DataFrame([metadata], index=[0])])
+#             else:
+#                 rows = len(context[Context.METRICS_LIST].index)
+#                 context[Context.METRICS_LIST] = pd.concat([context[Context.METRICS_LIST], pd.DataFrame([metadata], index=[rows])])
+
+            print(f"Finished with {str(bandNamePairList[bandPairIndex])} Band")
+
+            context['currentBandPairIndex'] = bandPairIndex
+            return context
 
     # -------------------------------------------------------------------------
-    # _model_coeffs_()
+    # processBandPairIndex()
     #
     # Populate dictionary of coefficients
     # -------------------------------------------------------------------------
@@ -985,7 +1077,7 @@ class RasterLib(object):
 
             print(f"Finished with {str(bandNamePairList[bandPairIndex])} Band")
 
-            return "SccopSnatch"
+            return sr_metrics_list
     
     # -------------------------------------------------------------------------
     # simulateSurfaceReflectance()
@@ -1038,6 +1130,154 @@ class RasterLib(object):
         sr_metrics_list.reset_index()
 
         return sr_prediction_list, sr_metrics_list, common_mask_list
+
+    # -------------------------------------------------------------------------
+    # simulateSurfaceReflectance()
+    #
+    # Perform workflow to create simulated surface reflectance for each band (SR-Lite)
+    # This method hosts the primary orchestration logic for the SR-Lite application.
+    # -------------------------------------------------------------------------
+    def simulateSurfaceReflectancePathos(self, context):
+        self._validateParms(context,
+                            [Context.MA_WARP_LIST, Context.LIST_BAND_PAIRS, Context.LIST_BAND_PAIR_INDICES,
+                             Context.REGRESSION_MODEL, Context.FN_LIST])
+
+        from pathos.multiprocessing import ThreadingPool
+        tmap = ThreadingPool().map
+        
+        bandPairIndicesList = context[Context.LIST_BAND_PAIR_INDICES]
+
+        sr_prediction_list = []
+        sr_unmasked_prediction_list = []
+        sr_metrics_list = []
+        common_mask_list = []
+        warp_ds_list = context[Context.DS_WARP_LIST]
+        bandNamePairList = list(ast.literal_eval(context[Context.LIST_BAND_PAIRS]))
+        minWarning = 0
+
+        # Aggregate the requested masks (e.g., clouds, quality mask)
+        self.prepareMasks(context)
+
+        ########################################
+        # ### FOR EACH BAND PAIR,
+        # now, each input should have same exact dimensions, grid, projection.
+        # They ony differ in their values (CCDC is surface reflectance, EVHR is TOA reflectance)
+        ########################################
+        #for bandPairIndex in range(0, len(bandPairIndicesList) - 1):
+        num_workers = len(bandPairIndicesList)   
+        items = [(context, bandPairIndicesList, bandPairIndex, warp_ds_list, 
+                bandNamePairList, common_mask_list, minWarning, 
+                sr_unmasked_prediction_list, sr_prediction_list) for bandPairIndex in range(0, num_workers)]
+
+        # newContext = tmap(self.processBandPairIndexPathos, [context], [bandPairIndicesList], [0,1,2], [warp_ds_list], 
+        #                [bandNamePairList], [common_mask_list], [minWarning], [sr_unmasked_prediction_list], [sr_prediction_list], [sr_metrics_list])
+
+
+        results = []
+        for i in range(num_workers):
+            print(f'Starting ProcessingPool().tmap() for band pair: {str(bandPairIndicesList[i])}', flush=True)
+            result = tmap(self.processBandPairIndexPathos, [context], [bandPairIndicesList], [i], [warp_ds_list], 
+                       [bandNamePairList], [common_mask_list], [minWarning], [sr_unmasked_prediction_list], 
+                       [sr_prediction_list], [sr_metrics_list])
+            # results.append(result)
+
+        print(f'Ending ProcessingPool().tmap() for band pairs: {str(bandPairIndicesList)}', flush=True)
+        # first = tmap(self.processBandPairIndexPathos, [context], [bandPairIndicesList], [0], [warp_ds_list], 
+        #                [bandNamePairList], [common_mask_list], [minWarning], [sr_unmasked_prediction_list], [sr_prediction_list], [sr_metrics_list])
+        # second = tmap(self.processBandPairIndexPathos, [context], [bandPairIndicesList], [1], [warp_ds_list], 
+        #                [bandNamePairList], [common_mask_list], [minWarning], [sr_unmasked_prediction_list], [sr_prediction_list], [sr_metrics_list])
+        # # print("second.get() = ", second.get())
+        # # print("first.get() = ", first.get())
+        # # for result in result.get():
+        # # context = newContext[0]
+        # print(f'last index processed: {second[0]["currentBandPairIndex"]}', flush=True)
+ 
+        # from multiprocessing.pool import Pool
+        # print('max processes: ', multiprocessing.cpu_count(), ' processes requested from pool: ', num_workers)
+        # print(f'Starting pool.starmap_async() for toas: {str(bandPairIndicesList)}', flush=True)
+        # with Pool(num_workers) as pool:
+        #     # issue tasks to process pool
+        #     result = pool.starmap_async(self.processBandPairIndex, items)
+        #     # iterate results
+        #     for result in result.get():
+        #         print(f'Got result: {result}', flush=True)
+
+        # remove transient TOA arrays
+        context[Context.METRICS_LIST].drop('toaBandMaArrayRaw', axis=1, inplace=True)
+        # sr_metrics_list.drop('index', axis=1, inplace=True)
+        context[Context.METRICS_LIST].reset_index()
+
+        return sr_prediction_list, context[Context.METRICS_LIST], common_mask_list
+
+    # -------------------------------------------------------------------------
+    # simulateSurfaceReflectance()
+    #
+    # Perform workflow to create simulated surface reflectance for each band (SR-Lite)
+    # This method hosts the primary orchestration logic for the SR-Lite application.
+    # -------------------------------------------------------------------------
+    def simulateSurfaceReflectancePathosWorks(self, context):
+        self._validateParms(context,
+                            [Context.MA_WARP_LIST, Context.LIST_BAND_PAIRS, Context.LIST_BAND_PAIR_INDICES,
+                             Context.REGRESSION_MODEL, Context.FN_LIST])
+
+        from pathos.multiprocessing import ThreadingPool
+        tmap = ThreadingPool().map
+        
+        bandPairIndicesList = context[Context.LIST_BAND_PAIR_INDICES]
+
+        sr_prediction_list = []
+        sr_unmasked_prediction_list = []
+        sr_metrics_list = []
+        common_mask_list = []
+        warp_ds_list = context[Context.DS_WARP_LIST]
+        bandNamePairList = list(ast.literal_eval(context[Context.LIST_BAND_PAIRS]))
+        minWarning = 0
+
+        # Aggregate the requested masks (e.g., clouds, quality mask)
+        self.prepareMasks(context)
+
+        ########################################
+        # ### FOR EACH BAND PAIR,
+        # now, each input should have same exact dimensions, grid, projection.
+        # They ony differ in their values (CCDC is surface reflectance, EVHR is TOA reflectance)
+        ########################################
+        #for bandPairIndex in range(0, len(bandPairIndicesList) - 1):
+        num_workers = len(bandPairIndicesList)   
+        items = [(context, bandPairIndicesList, bandPairIndex, warp_ds_list, 
+                bandNamePairList, common_mask_list, minWarning, 
+                sr_unmasked_prediction_list, sr_prediction_list) for bandPairIndex in range(0, num_workers)]
+
+        # newContext = tmap(self.processBandPairIndexPathos, [context], [bandPairIndicesList], [0,1,2], [warp_ds_list], 
+        #                [bandNamePairList], [common_mask_list], [minWarning], [sr_unmasked_prediction_list], [sr_prediction_list], [sr_metrics_list])
+
+
+        print(f'Starting ProcessingPool().tmap() for toas: {str(bandPairIndicesList)}', flush=True)
+        first = tmap(self.processBandPairIndexPathos, [context], [bandPairIndicesList], [0], [warp_ds_list], 
+                       [bandNamePairList], [common_mask_list], [minWarning], [sr_unmasked_prediction_list], [sr_prediction_list], [sr_metrics_list])
+        second = tmap(self.processBandPairIndexPathos, [context], [bandPairIndicesList], [1], [warp_ds_list], 
+                       [bandNamePairList], [common_mask_list], [minWarning], [sr_unmasked_prediction_list], [sr_prediction_list], [sr_metrics_list])
+        # print("second.get() = ", second.get())
+        # print("first.get() = ", first.get())
+        # for result in result.get():
+        # context = newContext[0]
+        print(f'last index processed: {second[0]["currentBandPairIndex"]}', flush=True)
+ 
+        # from multiprocessing.pool import Pool
+        # print('max processes: ', multiprocessing.cpu_count(), ' processes requested from pool: ', num_workers)
+        # print(f'Starting pool.starmap_async() for toas: {str(bandPairIndicesList)}', flush=True)
+        # with Pool(num_workers) as pool:
+        #     # issue tasks to process pool
+        #     result = pool.starmap_async(self.processBandPairIndex, items)
+        #     # iterate results
+        #     for result in result.get():
+        #         print(f'Got result: {result}', flush=True)
+
+        # remove transient TOA arrays
+        context[Context.METRICS_LIST].drop('toaBandMaArrayRaw', axis=1, inplace=True)
+        # sr_metrics_list.drop('index', axis=1, inplace=True)
+        context[Context.METRICS_LIST].reset_index()
+
+        return sr_prediction_list, context[Context.METRICS_LIST], common_mask_list
 
     # -------------------------------------------------------------------------
     # simulateSurfaceReflectance()
