@@ -21,6 +21,7 @@ import numpy.ma as ma
 
 import multiprocessing as multiprocessing
 import re
+import time 
 
 # -----------------------------------------------------------------------------
 # class RasterLib
@@ -745,85 +746,90 @@ class RasterLib(object):
     def predictSurfaceReflectance(self, context, band_name, toaBandMaArrayRaw,
                                   target_warp_ma_masked_band, toa_warp_ma_masked_band, sr_metrics_list):
 
-        # Perform regression fit based on model type (TARGET against TOA)
-        target_sr_band = target_warp_ma_masked_band.ravel()
-        toa_sr_band = toa_warp_ma_masked_band.ravel()
-        sr_prediction_band_2m = None
-        model_data_only_band = None
-        metadata = {}
+        try:
+            # Perform regression fit based on model type (TARGET against TOA)
+            target_sr_band = target_warp_ma_masked_band.ravel()
+            toa_sr_band = toa_warp_ma_masked_band.ravel()
+            sr_prediction_band_2m = None
+            model_data_only_band = None
+            metadata = {}
 
-        target_sr_data_only_band = target_sr_band[target_sr_band.mask == False]
-        target_sr_data_only_band_reshaped = target_sr_data_only_band.reshape(-1, 1)
-        toa_sr_data_only_band = toa_sr_band[toa_sr_band.mask == False]
-        toa_sr_data_only_band_reshaped = toa_sr_data_only_band.reshape(-1, 1)
+            target_sr_data_only_band = target_sr_band[target_sr_band.mask == False]
+            target_sr_data_only_band_reshaped = target_sr_data_only_band.reshape(-1, 1)
+            toa_sr_data_only_band = toa_sr_band[toa_sr_band.mask == False]
+            toa_sr_data_only_band_reshaped = toa_sr_data_only_band.reshape(-1, 1)
 
-        ####################
-        ### Huber (robust) Regressor
-        ####################
-        if (context[Context.REGRESSION_MODEL] == Context.REGRESSOR_MODEL_HUBER):
-            # ravel the Y band (e.g., CCDC)
-            # - /home/gtamkin/.conda/envs/ilab_gt/lib/python3.7/site-packages/sklearn/utils/validation.py:993:
-            # DataConversion Warning: A column-vector y was passed when a 1d array was expected.
-            # Please change the shape of y to (n_samples, ), for example using ravel().
-            model_data_only_band = HuberRegressor().fit(
-                toa_sr_data_only_band_reshaped, target_sr_data_only_band_reshaped.ravel())
+            ####################
+            ### Huber (robust) Regressor
+            ####################
+            if (context[Context.REGRESSION_MODEL] == Context.REGRESSOR_MODEL_HUBER):
+                # ravel the Y band (e.g., CCDC)
+                # - /home/gtamkin/.conda/envs/ilab_gt/lib/python3.7/site-packages/sklearn/utils/validation.py:993:
+                # DataConversion Warning: A column-vector y was passed when a 1d array was expected.
+                # Please change the shape of y to (n_samples, ), for example using ravel().
+                model_data_only_band = HuberRegressor().fit(
+                    toa_sr_data_only_band_reshaped, target_sr_data_only_band_reshaped.ravel())
 
-            sr_prediction_band_2m = model_data_only_band.predict(toaBandMaArrayRaw.reshape(-1, 1))
+                sr_prediction_band_2m = model_data_only_band.predict(toaBandMaArrayRaw.reshape(-1, 1))
 
-            #  band-specific metadata
-            metadata = self._model_coeffs_(context,
+                #  band-specific metadata
+                metadata = self._model_coeffs_(context,
+                                                band_name,
+                                                toaBandMaArrayRaw,
+                                                model_data_only_band.intercept_,
+                                                model_data_only_band.coef_[0])
+
+            ####################
+            ### OLS (simple) Regressor
+            ####################
+            elif (context[Context.REGRESSION_MODEL] == Context.REGRESSOR_MODEL_OLS):
+                model_data_only_band = LinearRegression().fit(
+                    toa_sr_data_only_band_reshaped, target_sr_data_only_band_reshaped)
+
+                sr_prediction_band_2m = model_data_only_band.predict(toaBandMaArrayRaw.reshape(-1, 1))
+
+                #  band-specific metadata
+                metadata = self._model_coeffs_(context,
+                                                band_name,
+                                                toaBandMaArrayRaw,
+                                                model_data_only_band.intercept_,
+                                                model_data_only_band.coef_[0])
+
+            ####################
+            ### Reduced Major Axis (rma) Regressor
+            ####################
+            elif (context[Context.REGRESSION_MODEL] == Context.REGRESSOR_MODEL_RMA):
+
+                reflect_df = pd.concat([
+                    self.ma2df(toa_sr_data_only_band, 'EVHR_TOA', 'Band'),
+                    self.ma2df(target_sr_data_only_band, 'CCDC_SR', 'Band')],
+                    axis=1)
+                model_data_only_band = regress2(np.array(reflect_df['EVHR_TOABand']), np.array(reflect_df['CCDC_SRBand']),
+                                                _method_type_2="reduced major axis")
+
+                #  band-specific metadata
+                metadata = self._model_coeffs_(context,
                                             band_name,
                                             toaBandMaArrayRaw,
-                                            model_data_only_band.intercept_,
-                                            model_data_only_band.coef_[0])
+                                            model_data_only_band['intercept'],
+                                            model_data_only_band['slope'])
 
-        ####################
-        ### OLS (simple) Regressor
-        ####################
-        elif (context[Context.REGRESSION_MODEL] == Context.REGRESSOR_MODEL_OLS):
-            model_data_only_band = LinearRegression().fit(
-                toa_sr_data_only_band_reshaped, target_sr_data_only_band_reshaped)
+            # Calculate SR-Lite band using original TOA 2m band
+                sr_prediction_band_2m = self.calculate_prediction_band(context,
+                                                                band_name,
+                                                                metadata,
+                                                                sr_metrics_list)
+            else:
+                print('Invalid regressor specified %s' % context[Context.REGRESSION_MODEL])
+                sys.exit(1)
 
-            sr_prediction_band_2m = model_data_only_band.predict(toaBandMaArrayRaw.reshape(-1, 1))
+            self._plot_lib.trace(f"\nRegressor=[{context[Context.REGRESSION_MODEL]}] "
+            f"slope={metadata['slope']} intercept={metadata['intercept']} ]")
 
-            #  band-specific metadata
-            metadata = self._model_coeffs_(context,
-                                            band_name,
-                                            toaBandMaArrayRaw,
-                                            model_data_only_band.intercept_,
-                                            model_data_only_band.coef_[0])
-
-        ####################
-        ### Reduced Major Axis (rma) Regressor
-        ####################
-        elif (context[Context.REGRESSION_MODEL] == Context.REGRESSOR_MODEL_RMA):
-
-            reflect_df = pd.concat([
-                self.ma2df(toa_sr_data_only_band, 'EVHR_TOA', 'Band'),
-                self.ma2df(target_sr_data_only_band, 'CCDC_SR', 'Band')],
-                axis=1)
-            model_data_only_band = regress2(np.array(reflect_df['EVHR_TOABand']), np.array(reflect_df['CCDC_SRBand']),
-                                            _method_type_2="reduced major axis")
-
-            #  band-specific metadata
-            metadata = self._model_coeffs_(context,
-                                           band_name,
-                                           toaBandMaArrayRaw,
-                                           model_data_only_band['intercept'],
-                                           model_data_only_band['slope'])
-
-           # Calculate SR-Lite band using original TOA 2m band
-            sr_prediction_band_2m = self.calculate_prediction_band(context,
-                                                              band_name,
-                                                              metadata,
-                                                              sr_metrics_list)
-        else:
-            print('Invalid regressor specified %s' % context[Context.REGRESSION_MODEL])
-            sys.exit(1)
-
-        self._plot_lib.trace(f"\nRegressor=[{context[Context.REGRESSION_MODEL]}] "
-          f"slope={metadata['slope']} intercept={metadata['intercept']} ]")
-
+        except BaseException as err:
+                print('\predictSurfaceReflectance processing failed - Error details: ', err)
+                raise err
+        
         return sr_prediction_band_2m, metadata
 
     # -------------------------------------------------------------------------
@@ -833,56 +839,61 @@ class RasterLib(object):
     # -------------------------------------------------------------------------
     def calculate_prediction_band(self, context,
                                   band_name, metadata, sr_metrics_list):
-        sr_prediction_band_2m = None
-        toaBandMaArrayRaw = metadata['toaBandMaArrayRaw']
-        slope = metadata['slope']
-        intercept = metadata['intercept']
+        try:
+            sr_prediction_band_2m = None
+            toaBandMaArrayRaw = metadata['toaBandMaArrayRaw']
+            slope = metadata['slope']
+            intercept = metadata['intercept']
 
-        # Correction coefficients for simulated bands
-        yellowGreenCorr = 0.473
-        yellowRedCorr = 0.527
-        rededgeRedCorr = 0.621
-        rededgeNIR1Corr = 0.379
+            # Correction coefficients for simulated bands
+            yellowGreenCorr = 0.473
+            yellowRedCorr = 0.527
+            rededgeRedCorr = 0.621
+            rededgeNIR1Corr = 0.379
 
-        if (band_name == 'BAND-C'):
-            # Apply BAND-B coefficients to Coastal band since we have no corresponding CCDC (as per Matt)
-            slope = sr_metrics_list.loc[sr_metrics_list.band_name=='BAND-B','slope'].values[0]
-            intercept = sr_metrics_list.loc[sr_metrics_list.band_name=='BAND-B','intercept'].values[0]
-            sr_prediction_band_2m = (toaBandMaArrayRaw.astype(float) * slope) + (intercept * 10000)
+            if (band_name == 'BAND-C'):
+                # Apply BAND-B coefficients to Coastal band since we have no corresponding CCDC (as per Matt)
+                slope = sr_metrics_list.loc[sr_metrics_list.band_name=='BAND-B','slope'].values[0]
+                intercept = sr_metrics_list.loc[sr_metrics_list.band_name=='BAND-B','intercept'].values[0]
+                sr_prediction_band_2m = (toaBandMaArrayRaw.astype(float) * slope) + (intercept * 10000)
 
-        elif (band_name == 'BAND-Y'):
-            # Apply BAND-G and BAND-R coefficients to RedEdge band since we have no corresponding CCDC (as per Matt)
-            green_slope  = sr_metrics_list.loc[sr_metrics_list.band_name=='BAND-G','slope'].values[0]
-            green_intercept  = sr_metrics_list.loc[sr_metrics_list.band_name=='BAND-G','intercept'].values[0]
-            red_slope  = sr_metrics_list.loc[sr_metrics_list.band_name=='BAND-R','slope'].values[0]
-            red_intercept  = sr_metrics_list.loc[sr_metrics_list.band_name=='BAND-R','intercept'].values[0]
+            elif (band_name == 'BAND-Y'):
+                # Apply BAND-G and BAND-R coefficients to RedEdge band since we have no corresponding CCDC (as per Matt)
+                green_slope  = sr_metrics_list.loc[sr_metrics_list.band_name=='BAND-G','slope'].values[0]
+                green_intercept  = sr_metrics_list.loc[sr_metrics_list.band_name=='BAND-G','intercept'].values[0]
+                red_slope  = sr_metrics_list.loc[sr_metrics_list.band_name=='BAND-R','slope'].values[0]
+                red_intercept  = sr_metrics_list.loc[sr_metrics_list.band_name=='BAND-R','intercept'].values[0]
 
-            correctedGreenBand = ((toaBandMaArrayRaw.astype(float) * green_slope) + (green_intercept * 10000)) * yellowGreenCorr
-            correctedRedBand = ((toaBandMaArrayRaw.astype(float) * red_slope) + (red_intercept * 10000)) * yellowRedCorr
+                correctedGreenBand = ((toaBandMaArrayRaw.astype(float) * green_slope) + (green_intercept * 10000)) * yellowGreenCorr
+                correctedRedBand = ((toaBandMaArrayRaw.astype(float) * red_slope) + (red_intercept * 10000)) * yellowRedCorr
 
-            sr_prediction_band_2m = correctedGreenBand + correctedRedBand
+                sr_prediction_band_2m = correctedGreenBand + correctedRedBand
 
-        elif (band_name == 'BAND-RE'):
-            # Apply BAND-R and BAND-N coefficients to RedEdge band since we have no corresponding CCDC (as per Matt)
-            red_slope  = sr_metrics_list.loc[sr_metrics_list.band_name=='BAND-R','slope'].values[0]
-            red_intercept  = sr_metrics_list.loc[sr_metrics_list.band_name=='BAND-R','intercept'].values[0]
-            nir1_slope  = sr_metrics_list.loc[sr_metrics_list.band_name=='BAND-N','slope'].values[0]
-            nir1_intercept  = sr_metrics_list.loc[sr_metrics_list.band_name=='BAND-N','intercept'].values[0]
+            elif (band_name == 'BAND-RE'):
+                # Apply BAND-R and BAND-N coefficients to RedEdge band since we have no corresponding CCDC (as per Matt)
+                red_slope  = sr_metrics_list.loc[sr_metrics_list.band_name=='BAND-R','slope'].values[0]
+                red_intercept  = sr_metrics_list.loc[sr_metrics_list.band_name=='BAND-R','intercept'].values[0]
+                nir1_slope  = sr_metrics_list.loc[sr_metrics_list.band_name=='BAND-N','slope'].values[0]
+                nir1_intercept  = sr_metrics_list.loc[sr_metrics_list.band_name=='BAND-N','intercept'].values[0]
 
-            correctedRedBand = ((toaBandMaArrayRaw.astype(float) * red_slope) + (red_intercept * 10000)) * rededgeRedCorr
-            correctedNirBand = ((toaBandMaArrayRaw.astype(float) * nir1_slope) + (nir1_intercept * 10000)) * rededgeNIR1Corr
+                correctedRedBand = ((toaBandMaArrayRaw.astype(float) * red_slope) + (red_intercept * 10000)) * rededgeRedCorr
+                correctedNirBand = ((toaBandMaArrayRaw.astype(float) * nir1_slope) + (nir1_intercept * 10000)) * rededgeNIR1Corr
 
-            sr_prediction_band_2m = correctedRedBand + correctedNirBand
+                sr_prediction_band_2m = correctedRedBand + correctedNirBand
 
-        elif (band_name == 'BAND-N2'):
-            # Apply BAND-N coefficients to NIR2 band since we have no corresponding CCDC (as per Matt)
-            slope = sr_metrics_list.loc[sr_metrics_list.band_name=='BAND-N','slope'].values[0]
-            intercept = sr_metrics_list.loc[sr_metrics_list.band_name=='BAND-N','intercept'].values[0]
-            sr_prediction_band_2m = (toaBandMaArrayRaw.astype(float)  * slope) + (intercept * 10000)
+            elif (band_name == 'BAND-N2'):
+                # Apply BAND-N coefficients to NIR2 band since we have no corresponding CCDC (as per Matt)
+                slope = sr_metrics_list.loc[sr_metrics_list.band_name=='BAND-N','slope'].values[0]
+                intercept = sr_metrics_list.loc[sr_metrics_list.band_name=='BAND-N','intercept'].values[0]
+                sr_prediction_band_2m = (toaBandMaArrayRaw.astype(float)  * slope) + (intercept * 10000)
 
-        else:
-            # Calculate SR-Lite band using original TOA 2m band
-            sr_prediction_band_2m = (toaBandMaArrayRaw  * slope) + (intercept * 10000)
+            else:
+                # Calculate SR-Lite band using original TOA 2m band
+                sr_prediction_band_2m = (toaBandMaArrayRaw  * slope) + (intercept * 10000)
+
+        except BaseException as err:
+                print('\calculate_prediction_band processing failed - Error details: ', err)
+                raise err
 
         return sr_prediction_band_2m
 
@@ -910,6 +921,7 @@ class RasterLib(object):
     def processBandPairIndexPathos(self, context, bandPairIndicesList, bandPairIndex, warp_ds_list, 
                        bandNamePairList, common_mask_list, minWarning, sr_unmasked_prediction_list, sr_prediction_list, sr_metrics_list):
             
+        try:
             self._plot_lib.trace('=>')
             self._plot_lib.trace('====================================================================================')
             self._plot_lib.trace('== Start Processing Band #' + str(bandPairIndex + 1) + ' ' + 
@@ -976,24 +988,39 @@ class RasterLib(object):
                 mask=toaBandMaArrayRaw.mask)
             sr_prediction_list.append(toa_sr_ma_band)
 
-             ########### save metadata for each band #############
-            if (bandPairIndex == 0):
-                context[Context.METRICS_LIST] = pd.concat([pd.DataFrame([metadata], index=[bandPairIndex])])
-            else:
-                context[Context.METRICS_LIST] = pd.concat([context[Context.METRICS_LIST], pd.DataFrame([metadata], index=[bandPairIndex])])
+            #  ########### save metadata for each band #############
+            # if (bandPairIndex == 0):
+            #     context[Context.METRICS_LIST] = pd.concat([pd.DataFrame([metadata], index=[bandPairIndex])])
+            # else:
+            #     context[Context.METRICS_LIST] = pd.concat([context[Context.METRICS_LIST], pd.DataFrame([metadata], index=[bandPairIndex])])
 
 #            ########### save metadata for each band #############
-#             if str(Context.METRICS_LIST) not in context.keys():
-# #            if (bandPairIndex == 0):
-#                 context[Context.METRICS_LIST] = pd.concat([pd.DataFrame([metadata], index=[0])])
-#             else:
-#                 rows = len(context[Context.METRICS_LIST].index)
-#                 context[Context.METRICS_LIST] = pd.concat([context[Context.METRICS_LIST], pd.DataFrame([metadata], index=[rows])])
+            if len(context[Context.METRICS_LIST]) == 0:
+                # if str(Context.METRICS_LIST) not in context.keys():
+#            if (bandPairIndex == 0):
+                context[Context.METRICS_LIST] = pd.concat([pd.DataFrame([metadata], index=[0])])
+            else:
+                rows = len(context[Context.METRICS_LIST].index)
+                context[Context.METRICS_LIST] = pd.concat([context[Context.METRICS_LIST], pd.DataFrame([metadata], index=[rows])])
 
             print(f"Finished with {str(bandNamePairList[bandPairIndex])} Band")
 
             context['currentBandPairIndex'] = bandPairIndex
-            return context
+
+        except BaseException as err:
+                print('\nprocessBandPairIndexPathos processing failed - Error details: ', err)
+                # ########### save error for each failed TOA #############
+                # metadata = {}
+                # metadata['toa_name'] = str(toa)
+                # metadata['error'] = str(err)
+                # if (errorIndex == 0):
+                #     sr_errors_list = pd.concat([pd.DataFrame([metadata], index=[errorIndex])])
+                # else:
+                #     sr_errors_list = pd.concat([sr_errors_list, pd.DataFrame([metadata], index=[errorIndex])])
+                # errorIndex = errorIndex + 1
+                raise err
+   
+        return context
 
     # -------------------------------------------------------------------------
     # processBandPairIndex()
@@ -1142,14 +1169,15 @@ class RasterLib(object):
                             [Context.MA_WARP_LIST, Context.LIST_BAND_PAIRS, Context.LIST_BAND_PAIR_INDICES,
                              Context.REGRESSION_MODEL, Context.FN_LIST])
 
-        from pathos.multiprocessing import ThreadingPool
+        from pathos.multiprocessing import ProcessingPool,ThreadingPool
         tmap = ThreadingPool().map
+        # amap = ProcessingPool().amap            
         
         bandPairIndicesList = context[Context.LIST_BAND_PAIR_INDICES]
 
         sr_prediction_list = []
         sr_unmasked_prediction_list = []
-        sr_metrics_list = []
+        context[Context.METRICS_LIST] = []
         common_mask_list = []
         warp_ds_list = context[Context.DS_WARP_LIST]
         bandNamePairList = list(ast.literal_eval(context[Context.LIST_BAND_PAIRS]))
@@ -1165,27 +1193,42 @@ class RasterLib(object):
         ########################################
         #for bandPairIndex in range(0, len(bandPairIndicesList) - 1):
         num_workers = len(bandPairIndicesList)   
-        items = [(context, bandPairIndicesList, bandPairIndex, warp_ds_list, 
-                bandNamePairList, common_mask_list, minWarning, 
-                sr_unmasked_prediction_list, sr_prediction_list) for bandPairIndex in range(0, num_workers)]
+        # items = [(context, bandPairIndicesList, bandPairIndex, warp_ds_list, 
+        #         bandNamePairList, common_mask_list, minWarning, 
+        #         sr_unmasked_prediction_list, sr_prediction_list) for bandPairIndex in range(0, num_workers)]
 
         # newContext = tmap(self.processBandPairIndexPathos, [context], [bandPairIndicesList], [0,1,2], [warp_ds_list], 
         #                [bandNamePairList], [common_mask_list], [minWarning], [sr_unmasked_prediction_list], [sr_prediction_list], [sr_metrics_list])
 
 
-        results = []
-        for i in range(num_workers):
+        # results = [num_workers]
+        for i in range(num_workers-1):
             print(f'Starting ProcessingPool().tmap() for band pair: {str(bandPairIndicesList[i])}', flush=True)
-            result = tmap(self.processBandPairIndexPathos, [context], [bandPairIndicesList], [i], [warp_ds_list], 
+            tmap(self.processBandPairIndexPathos, [context], [bandPairIndicesList], [i], [warp_ds_list], 
                        [bandNamePairList], [common_mask_list], [minWarning], [sr_unmasked_prediction_list], 
-                       [sr_prediction_list], [sr_metrics_list])
-            # results.append(result)
+                       [sr_prediction_list], [context[Context.METRICS_LIST]])
+            time.sleep(10)
+            print(f'End ProcessingPool().tmap() for band pair: {str(bandPairIndicesList[i])}', flush=True)
+        #     results[i] = tmap(self.processBandPairIndexPathos, [context], [bandPairIndicesList], [i], [warp_ds_list], 
+        #                [bandNamePairList], [common_mask_list], [minWarning], [sr_unmasked_prediction_list], 
+        #                [sr_prediction_list], [sr_metrics_list])
+        #     # results.append(result)
 
-        print(f'Ending ProcessingPool().tmap() for band pairs: {str(bandPairIndicesList)}', flush=True)
+        # for j in range(num_workers):
+        #     result = results[j].get()
+        #     print(f'Ending ProcessingPool().amap() for toa: {str(bandPairIndicesList[j])} {result}', flush=True)
+
+        # print(f'Ending ProcessingPool().tmap() for band pairs: {str(bandPairIndicesList)}', flush=True)
         # first = tmap(self.processBandPairIndexPathos, [context], [bandPairIndicesList], [0], [warp_ds_list], 
         #                [bandNamePairList], [common_mask_list], [minWarning], [sr_unmasked_prediction_list], [sr_prediction_list], [sr_metrics_list])
         # second = tmap(self.processBandPairIndexPathos, [context], [bandPairIndicesList], [1], [warp_ds_list], 
         #                [bandNamePairList], [common_mask_list], [minWarning], [sr_unmasked_prediction_list], [sr_prediction_list], [sr_metrics_list])
+
+        # tmap(self.processBandPairIndexPathos, [context], [bandPairIndicesList], [0], [warp_ds_list], 
+        #                [bandNamePairList], [common_mask_list], [minWarning], [sr_unmasked_prediction_list], [sr_prediction_list], [sr_metrics_list])
+        # tmap(self.processBandPairIndexPathos, [context], [bandPairIndicesList], [1], [warp_ds_list], 
+        #                [bandNamePairList], [common_mask_list], [minWarning], [sr_unmasked_prediction_list], [sr_prediction_list], [sr_metrics_list])
+
         # # print("second.get() = ", second.get())
         # # print("first.get() = ", first.get())
         # # for result in result.get():
@@ -1216,66 +1259,72 @@ class RasterLib(object):
     # This method hosts the primary orchestration logic for the SR-Lite application.
     # -------------------------------------------------------------------------
     def simulateSurfaceReflectancePathosWorks(self, context):
-        self._validateParms(context,
-                            [Context.MA_WARP_LIST, Context.LIST_BAND_PAIRS, Context.LIST_BAND_PAIR_INDICES,
-                             Context.REGRESSION_MODEL, Context.FN_LIST])
 
-        from pathos.multiprocessing import ThreadingPool
-        tmap = ThreadingPool().map
-        
-        bandPairIndicesList = context[Context.LIST_BAND_PAIR_INDICES]
+        try:
+            self._validateParms(context,
+                                [Context.MA_WARP_LIST, Context.LIST_BAND_PAIRS, Context.LIST_BAND_PAIR_INDICES,
+                                Context.REGRESSION_MODEL, Context.FN_LIST])
 
-        sr_prediction_list = []
-        sr_unmasked_prediction_list = []
-        sr_metrics_list = []
-        common_mask_list = []
-        warp_ds_list = context[Context.DS_WARP_LIST]
-        bandNamePairList = list(ast.literal_eval(context[Context.LIST_BAND_PAIRS]))
-        minWarning = 0
+            from pathos.multiprocessing import ThreadingPool
+            tmap = ThreadingPool().map
+            
+            bandPairIndicesList = context[Context.LIST_BAND_PAIR_INDICES]
 
-        # Aggregate the requested masks (e.g., clouds, quality mask)
-        self.prepareMasks(context)
+            sr_prediction_list = []
+            sr_unmasked_prediction_list = []
+            sr_metrics_list = []
+            common_mask_list = []
+            warp_ds_list = context[Context.DS_WARP_LIST]
+            bandNamePairList = list(ast.literal_eval(context[Context.LIST_BAND_PAIRS]))
+            minWarning = 0
 
-        ########################################
-        # ### FOR EACH BAND PAIR,
-        # now, each input should have same exact dimensions, grid, projection.
-        # They ony differ in their values (CCDC is surface reflectance, EVHR is TOA reflectance)
-        ########################################
-        #for bandPairIndex in range(0, len(bandPairIndicesList) - 1):
-        num_workers = len(bandPairIndicesList)   
-        items = [(context, bandPairIndicesList, bandPairIndex, warp_ds_list, 
-                bandNamePairList, common_mask_list, minWarning, 
-                sr_unmasked_prediction_list, sr_prediction_list) for bandPairIndex in range(0, num_workers)]
+            # Aggregate the requested masks (e.g., clouds, quality mask)
+            self.prepareMasks(context)
 
-        # newContext = tmap(self.processBandPairIndexPathos, [context], [bandPairIndicesList], [0,1,2], [warp_ds_list], 
-        #                [bandNamePairList], [common_mask_list], [minWarning], [sr_unmasked_prediction_list], [sr_prediction_list], [sr_metrics_list])
+            ########################################
+            # ### FOR EACH BAND PAIR,
+            # now, each input should have same exact dimensions, grid, projection.
+            # They ony differ in their values (CCDC is surface reflectance, EVHR is TOA reflectance)
+            ########################################
+            #for bandPairIndex in range(0, len(bandPairIndicesList) - 1):
+            num_workers = len(bandPairIndicesList)   
+            items = [(context, bandPairIndicesList, bandPairIndex, warp_ds_list, 
+                    bandNamePairList, common_mask_list, minWarning, 
+                    sr_unmasked_prediction_list, sr_prediction_list) for bandPairIndex in range(0, num_workers)]
+
+            # newContext = tmap(self.processBandPairIndexPathos, [context], [bandPairIndicesList], [0,1,2], [warp_ds_list], 
+            #                [bandNamePairList], [common_mask_list], [minWarning], [sr_unmasked_prediction_list], [sr_prediction_list], [sr_metrics_list])
 
 
-        print(f'Starting ProcessingPool().tmap() for toas: {str(bandPairIndicesList)}', flush=True)
-        first = tmap(self.processBandPairIndexPathos, [context], [bandPairIndicesList], [0], [warp_ds_list], 
-                       [bandNamePairList], [common_mask_list], [minWarning], [sr_unmasked_prediction_list], [sr_prediction_list], [sr_metrics_list])
-        second = tmap(self.processBandPairIndexPathos, [context], [bandPairIndicesList], [1], [warp_ds_list], 
-                       [bandNamePairList], [common_mask_list], [minWarning], [sr_unmasked_prediction_list], [sr_prediction_list], [sr_metrics_list])
-        # print("second.get() = ", second.get())
-        # print("first.get() = ", first.get())
-        # for result in result.get():
-        # context = newContext[0]
-        print(f'last index processed: {second[0]["currentBandPairIndex"]}', flush=True)
- 
-        # from multiprocessing.pool import Pool
-        # print('max processes: ', multiprocessing.cpu_count(), ' processes requested from pool: ', num_workers)
-        # print(f'Starting pool.starmap_async() for toas: {str(bandPairIndicesList)}', flush=True)
-        # with Pool(num_workers) as pool:
-        #     # issue tasks to process pool
-        #     result = pool.starmap_async(self.processBandPairIndex, items)
-        #     # iterate results
-        #     for result in result.get():
-        #         print(f'Got result: {result}', flush=True)
+            print(f'Starting ProcessingPool().tmap() for toas: {str(bandPairIndicesList)}', flush=True)
+            first = tmap(self.processBandPairIndexPathos, [context], [bandPairIndicesList], [0], [warp_ds_list], 
+                        [bandNamePairList], [common_mask_list], [minWarning], [sr_unmasked_prediction_list], [sr_prediction_list], [sr_metrics_list])
+            second = tmap(self.processBandPairIndexPathos, [context], [bandPairIndicesList], [1], [warp_ds_list], 
+                        [bandNamePairList], [common_mask_list], [minWarning], [sr_unmasked_prediction_list], [sr_prediction_list], [sr_metrics_list])
+            # print("second.get() = ", second.get())
+            # print("first.get() = ", first.get())
+            # for result in result.get():
+            # context = newContext[0]
+            print(f'last index processed: {second[0]["currentBandPairIndex"]}', flush=True)
+    
+            # from multiprocessing.pool import Pool
+            # print('max processes: ', multiprocessing.cpu_count(), ' processes requested from pool: ', num_workers)
+            # print(f'Starting pool.starmap_async() for toas: {str(bandPairIndicesList)}', flush=True)
+            # with Pool(num_workers) as pool:
+            #     # issue tasks to process pool
+            #     result = pool.starmap_async(self.processBandPairIndex, items)
+            #     # iterate results
+            #     for result in result.get():
+            #         print(f'Got result: {result}', flush=True)
 
-        # remove transient TOA arrays
-        context[Context.METRICS_LIST].drop('toaBandMaArrayRaw', axis=1, inplace=True)
-        # sr_metrics_list.drop('index', axis=1, inplace=True)
-        context[Context.METRICS_LIST].reset_index()
+            # remove transient TOA arrays
+            context[Context.METRICS_LIST].drop('toaBandMaArrayRaw', axis=1, inplace=True)
+            # sr_metrics_list.drop('index', axis=1, inplace=True)
+            context[Context.METRICS_LIST].reset_index()
+
+        except BaseException as err:
+            print('\simulateSurfaceReflectancePathosWorks processing failed - Error details: ', err)
+            raise err
 
         return sr_prediction_list, context[Context.METRICS_LIST], common_mask_list
 

@@ -72,7 +72,7 @@ def processToa(toa, contextClazz, context, rasterLib):
 
                     # Perform regression to capture coefficients from intersected pixels and apply to 2m EVHR
                     context[Context.PRED_LIST], context[Context.METRICS_LIST], context[Context.COMMON_MASK_LIST] = \
-                        rasterLib.simulateSurfaceReflectancePathosWorks(context)
+                        rasterLib.simulateSurfaceReflectancePathos(context)
                         # rasterLib.simulateSurfaceReflectancePathos(context)
 
                     # Create COG image from stack of processed bands
@@ -172,6 +172,15 @@ def main():
         print('File Not Found - Error details: ', exc)
     except BaseException as err:
         print('Run abended - Error details: ', err)
+    
+    finally:
+
+            # Delete interim noncog files
+            rasterLib.purge(context[Context.DIR_OUTPUT], str(Context.FN_SRLITE_NONCOG_SUFFIX))
+
+            # Delete interim warp files
+            rasterLib.purge(context[Context.DIR_OUTPUT_WARP], str(Context.FN_WARP_SUFFIX))
+
 
     # Generate Error Report
     context[Context.ERROR_LIST] = sr_errors_list
