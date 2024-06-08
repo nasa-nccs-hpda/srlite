@@ -173,7 +173,13 @@ class Context(object):
         # Initialize serializable context for orchestration
         try:
             self.context_dict[Context.BATCH_NAME] = str(args.batch_name)
-            self.context_dict[Context.DIR_TOA] = str(args.toa_dir)
+            toa_location = str(args.toa_dir)
+
+            # If a TOA file is specified, create a list of one TOA files
+            if (os.path.isfile(toa_location)):
+                self.context_dict[Context.DIR_TOA] = toa_location
+            else:
+                self.context_dict[Context.DIR_TOA] = str(args.toa_dir)
             self.context_dict[Context.DIR_TARGET] = str(args.target_dir)
             self.context_dict[Context.DIR_CLOUDMASK] = str(args.cloudmask_dir)
 
