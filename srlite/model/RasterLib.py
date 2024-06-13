@@ -573,6 +573,7 @@ class RasterLib(object):
             greenSlope = sr_metrics_list['slope'][1]
             greenIntercept = sr_metrics_list['intercept'][1]
 
+# TODO - Add check to see if redSlope exists (assume)
             redSlope = sr_metrics_list['slope'][2]
             redIntercept = sr_metrics_list['intercept'][2]
 
@@ -827,16 +828,114 @@ class RasterLib(object):
             f"slope={metadata['slope']} intercept={metadata['intercept']} ]")
 
         except BaseException as err:
-                print('\predictSurfaceReflectance processing failed - Error details: ', err)
+                print('\npredictSurfaceReflectance processing failed - Error details: ', err)
                 raise err
         
         return sr_prediction_band_2m, metadata
 
     # -------------------------------------------------------------------------
+    # predictSurfaceReflectance()
+    #
+    # Perform regression fit based on model type (TARGET against TOA)
+    # -------------------------------------------------------------------------
+    def predictSurfaceReflectanceConcurrent(self, reg_model, band_name, toaBandMaArrayRaw,
+                                  target_warp_ma_masked_band, toa_warp_ma_masked_band, sr_metrics_list):
+
+        try:
+            # Perform regression fit based on model type (TARGET against TOA)
+            target_sr_band = target_warp_ma_masked_band.ravel()
+            toa_sr_band = toa_warp_ma_masked_band.ravel()
+            sr_prediction_band_2m = None
+            model_data_only_band = None
+            metadata = {}
+
+            target_sr_data_only_band = target_sr_band[target_sr_band.mask == False]
+            target_sr_data_only_band_reshaped = target_sr_data_only_band.reshape(-1, 1)
+            toa_sr_data_only_band = toa_sr_band[toa_sr_band.mask == False]
+            toa_sr_data_only_band_reshaped = toa_sr_data_only_band.reshape(-1, 1)
+
+            ####################
+            ### Huber (robust) Regressor
+            ####################
+            if (reg_model == Context.REGRESSOR_MODEL_HUBER):
+                # ravel the Y band (e.g., CCDC)
+                # - /home/gtamkin/.conda/envs/ilab_gt/lib/python3.7/site-packages/sklearn/utils/validation.py:993:
+                # DataConversion Warning: A column-vector y was passed when a 1d array was expected.
+                # Please change the shape of y to (n_samples, ), for example using ravel().
+                model_data_only_band = HuberRegressor().fit(
+                    toa_sr_data_only_band_reshaped, target_sr_data_only_band_reshaped.ravel())
+
+                sr_prediction_band_2m = model_data_only_band.predict(toaBandMaArrayRaw.reshape(-1, 1))
+
+                #  band-specific metadata
+                metadata = self._model_coeffs_(reg_model,
+                                                band_name,
+                                                toaBandMaArrayRaw,
+                                                model_data_only_band.intercept_,
+                                                model_data_only_band.coef_[0])
+
+            ####################
+            ### OLS (simple) Regressor
+            ####################
+            elif (reg_model == Context.REGRESSOR_MODEL_OLS):
+                model_data_only_band = LinearRegression().fit(
+                    toa_sr_data_only_band_reshaped, target_sr_data_only_band_reshaped)
+
+                sr_prediction_band_2m = model_data_only_band.predict(toaBandMaArrayRaw.reshape(-1, 1))
+
+                #  band-specific metadata
+                metadata = self._model_coeffs_(reg_model,
+                                                band_name,
+                                                toaBandMaArrayRaw,
+                                                model_data_only_band.intercept_,
+                                                model_data_only_band.coef_[0])
+
+            ####################
+            ### Reduced Major Axis (rma) Regressor
+            ####################
+            elif (reg_model == Context.REGRESSOR_MODEL_RMA):
+
+                reflect_df = pd.concat([
+                    self.ma2df(toa_sr_data_only_band, 'EVHR_TOA', 'Band'),
+                    self.ma2df(target_sr_data_only_band, 'CCDC_SR', 'Band')],
+                    axis=1)
+                model_data_only_band = regress2(np.array(reflect_df['EVHR_TOABand']), np.array(reflect_df['CCDC_SRBand']),
+                                                _method_type_2="reduced major axis")
+
+                #  band-specific metadata
+                metadata = self._model_coeffs_Concurrent(reg_model,
+                                            band_name,
+                                            toaBandMaArrayRaw,
+                                            model_data_only_band['intercept'],
+                                            model_data_only_band['slope'])
+
+            # Calculate SR-Lite band using original TOA 2m band
+                sr_prediction_band_2m = self.calculate_prediction_band_Concurrent(
+                                                                band_name,
+                                                                metadata,
+                                                                sr_metrics_list)
+            else:
+                print('Invalid regressor specified %s' % reg_model)
+                sys.exit(1)
+
+            self._plot_lib.trace(f"\nRegressor=[{reg_model}] "
+            f"slope={metadata['slope']} intercept={metadata['intercept']} ]")
+
+        except BaseException as err:
+                print('\npredictSurfaceReflectanceConcurrent processing failed - Error details: ', err)
+                raise err
+        
+        return sr_prediction_band_2m, metadata
+    # -------------------------------------------------------------------------
     # calculate_prediction_band()
     #
     # Perform regression fit based on model type (TARGET against TOA)
     # -------------------------------------------------------------------------
+    def calculate_prediction_band_Concurrent(self,
+                                  band_name, metadata, sr_metrics_list):
+        sr_prediction_band_2m = self.calculate_prediction_band(None, band_name, metadata, sr_metrics_list)
+        return sr_prediction_band_2m
+ 
     def calculate_prediction_band(self, context,
                                   band_name, metadata, sr_metrics_list):
         try:
@@ -892,7 +991,7 @@ class RasterLib(object):
                 sr_prediction_band_2m = (toaBandMaArrayRaw  * slope) + (intercept * 10000)
 
         except BaseException as err:
-                print('\calculate_prediction_band processing failed - Error details: ', err)
+                print('\ncalculate_prediction_band processing failed - Error details: ', err)
                 raise err
 
         return sr_prediction_band_2m
@@ -907,6 +1006,23 @@ class RasterLib(object):
         metadata = {}
         metadata['band_name'] = band_name
         metadata['model'] = context[Context.REGRESSION_MODEL]
+        metadata['intercept'] = intercept
+        metadata['slope'] = slope
+        metadata['toaBandMaArrayRaw'] = toaBandMaArrayRaw
+
+        return metadata
+
+    # -------------------------------------------------------------------------
+    # _model_coeffs_()
+    #
+    # Populate dictionary of coefficients
+    # -------------------------------------------------------------------------
+
+    def _model_coeffs_Concurrent(self, reg_model, band_name, toaBandMaArrayRaw, intercept, slope):
+
+        metadata = {}
+        metadata['band_name'] = band_name
+        metadata['model'] = reg_model
         metadata['intercept'] = intercept
         metadata['slope'] = slope
         metadata['toaBandMaArrayRaw'] = toaBandMaArrayRaw
@@ -1566,7 +1682,7 @@ class RasterLib(object):
             ds_toa_copy_GTiff.SetGeoTransform(ds_toa.GetGeoTransform())
             ds_toa_copy_GTiff.SetProjection(ds_toa.GetProjection())
     
-            # Populate each output band with simulated prediction arrays
+            # Populate each output band with simulated prediction arrays            band_index_list = []
             band_index_list = []
             for id in range(0, numBandPairs):
                 band_index_list.append(int(id+1))

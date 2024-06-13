@@ -71,6 +71,7 @@ def processToa(toa, contextClazz, context, rasterLib):
                         context[Context.LIST_INDEX_CLOUDMASK] = 2
 
                     # Perform regression to capture coefficients from intersected pixels and apply to 2m EVHR
+                    context[Context.METRICS_LIST] = []
                     context[Context.PRED_LIST], context[Context.METRICS_LIST], context[Context.COMMON_MASK_LIST] = \
                         rasterLib.simulateSurfaceReflectancePathos(context)
                         # rasterLib.simulateSurfaceReflectancePathos(context)
