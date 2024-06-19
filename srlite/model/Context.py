@@ -350,7 +350,7 @@ class Context(object):
         )
         parser.add_argument(
             "-bandpairs", "--input-list-of-band-pairs", type=str, required=False, dest='band_pairs_list',
-            default="[['blue_target', 'BAND-B'], ['green_target', 'BAND-G'], ['red_target', 'BAND-R'], ['nir_target', 'BAND-N']]",
+            default="[['blue_ccdc', 'BAND-B'], ['green_ccdc', 'BAND-G'], ['red_ccdc', 'BAND-R'], ['nir_ccdc', 'BAND-N']]",
             help="Specify list of band pairs to be processed per TOA."
         )
         parser.add_argument(

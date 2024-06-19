@@ -374,6 +374,33 @@ class RasterLib(object):
         return warp_ds_list, warp_ma_list
 
     # -------------------------------------------------------------------------
+    # alignInputs()
+    #
+    # Align inputs to TOA attributes (res, extent, srs, nodata) and return masked arrays of reprojected pixels
+    # -------------------------------------------------------------------------
+    def alignInputs(self, toa, context):
+        #  Reproject (downscale) TOA to CCDC resolution (30m)  - use 'average' for resampling method
+        #  Reproject TARGET (CCDC) to remaining attributes of EVHR TOA Downscale (extent, srs, etc.) 
+        context[Context.FN_REPROJECTION_LIST] = [str(context[Context.FN_TARGET]), str(toa)]
+        context[Context.TARGET_FN] = str(toa)
+        context[Context.TARGET_SAMPLING_METHOD] = 'average'
+        context[Context.DS_WARP_LIST], context[Context.MA_WARP_LIST] = self.getReprojection(context)
+
+        #  Reproject cloudmask to attributes of EVHR TOA Downscale  - use 'mode' for resampling method
+        if eval(context[Context.CLOUD_MASK_FLAG]):
+            context[Context.FN_LIST].append(str(context[Context.FN_CLOUDMASK]))
+            context[Context.FN_REPROJECTION_LIST] = [str(context[Context.FN_CLOUDMASK])]
+            context[Context.TARGET_FN] = str(toa)
+                
+            # Reproject to 'mode' sampling for regression
+            context[Context.TARGET_SAMPLING_METHOD] = 'mode'
+            context[Context.DS_WARP_CLOUD_LIST], context[
+                Context.MA_WARP_CLOUD_LIST] = self.getReprojection(context)
+                
+            context[Context.LIST_INDEX_CLOUDMASK] = 2
+
+
+    # -------------------------------------------------------------------------
     # prepareEVHRCloudmask()
     #
     # Mask out clouds.  We are expecting cloud pixel values equal to 0 or 1.

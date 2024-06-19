@@ -245,25 +245,8 @@ class SrliteWorkflow(RasterLib):
                     context[Context.FN_LIST] = [str(context[Context.FN_TARGET]), str(toa)]
                     context[Context.LIST_BAND_PAIR_INDICES] = rasterLib.getBandIndices(context)
 
-                    #  Reproject (downscale) TOA to CCDC resolution (30m)  - use 'average' for resampling method
-                    #  Reproject TARGET (CCDC) to remaining attributes of EVHR TOA Downscale (extent, srs, etc.) 
-                    context[Context.FN_REPROJECTION_LIST] = [str(context[Context.FN_TARGET]), str(toa)]
-                    context[Context.TARGET_FN] = str(toa)
-                    context[Context.TARGET_SAMPLING_METHOD] = 'average'
-                    context[Context.DS_WARP_LIST], context[Context.MA_WARP_LIST] = rasterLib.getReprojection(context)
-
-                    #  Reproject cloudmask to attributes of EVHR TOA Downscale  - use 'mode' for resampling method
-                    if eval(context[Context.CLOUD_MASK_FLAG]):
-                        context[Context.FN_LIST].append(str(context[Context.FN_CLOUDMASK]))
-                        context[Context.FN_REPROJECTION_LIST] = [str(context[Context.FN_CLOUDMASK])]
-                        context[Context.TARGET_FN] = str(toa)
-                            
-                        # Reproject to 'mode' sampling for regression
-                        context[Context.TARGET_SAMPLING_METHOD] = 'mode'
-                        context[Context.DS_WARP_CLOUD_LIST], context[
-                            Context.MA_WARP_CLOUD_LIST] = rasterLib.getReprojection(context)
-                            
-                        context[Context.LIST_INDEX_CLOUDMASK] = 2
+                    # Align inputs to TOA
+                    rasterLib.alignInputs(toa, context)
 
                     # Perform regression to capture coefficients from intersected pixels and apply to 2m EVHR
                         # sr_prediction_list, context[Context.METRICS_LIST], common_mask_list
