@@ -283,7 +283,7 @@
                 "-bandpairs",
                 "[['blue_ccdc', 'BAND-B'], ['green_ccdc', 'BAND-G'], ['red_ccdc', 'BAND-R'], ['nir_ccdc', 'BAND-N'],['blue_ccdc', 'BAND-C'], ['green_ccdc', 'BAND-Y'], ['red_ccdc', 'BAND-RE'], ['nir_ccdc', 'BAND-N2']]",
                 "-output_dir",
-                "/explore/nobackup/people/gtamkin/dev/srlite/test/srlite-2.0-rma-baseline/20240617-nomulti",
+                "/explore/nobackup/people/gtamkin/dev/srlite/test/srlite-2.0-rma-baseline/20240629-nomulti",
                 "--regressor",
                 "rma",
                 "--debug",
@@ -458,7 +458,8 @@
             "console": "integratedTerminal",
             "args": [
                 "-toa_dir",
-                "/explore/nobackup/projects/ilab/data/srlite/products/srlite_1.0.1/toa/alaska_2nd_batch/split_4/WV02_20110903_M1BS_103001000D2C7C00-toa.tif",
+                "/explore/nobackup/projects/ilab/data/srlite/products/srlite_1.0.1/toa/alaska_2nd_batch/split_4/WV02_20170906_M1BS_103001006F1F5D00-toa.tif",
+                // "/explore/nobackup/projects/ilab/data/srlite/products/srlite_1.0.1/toa/alaska_2nd_batch/split_4/WV02_20110903_M1BS_103001000D2C7C00-toa.tif",
                 "-target_dir",
                 "/explore/nobackup/projects/ilab/data/srlite/ccdc/ccdc_20230807_alaska_batch23/alaska",
                 "-cloudmask_dir",
@@ -466,7 +467,7 @@
                 "-bandpairs",
                 "[['blue_ccdc', 'BAND-B'], ['green_ccdc', 'BAND-G'], ['red_ccdc', 'BAND-R'], ['nir_ccdc', 'BAND-N'],['blue_ccdc', 'BAND-C'], ['green_ccdc', 'BAND-Y'], ['red_ccdc', 'BAND-RE'], ['nir_ccdc', 'BAND-N2']]",
                 "-output_dir",
-                "/explore/nobackup/people/gtamkin/dev/srlite/test/test-alaska-memory-failure-single-file-from-Mel/20240608",
+                "/explore/nobackup/people/gtamkin/dev/srlite/test/test-alaska-memory-failure-single-file-from-Mel/20240625",
                 "--regressor",
                 "rma",
                 "--debug",
@@ -478,7 +479,9 @@
                 "--cloudmask_suffix",
                 "toa.cloudmask.tif",
                 "--target_suffix",
-                "ccdc.tif"
+                "ccdc.tif",
+                "--csv_dir",
+                "None",
             ]
         },
         {
@@ -777,7 +780,7 @@
                 "-bandpairs",
                 "[['blue_ccdc', 'BAND-B'], ['green_ccdc', 'BAND-G'], ['red_ccdc', 'BAND-R'], ['nir_ccdc', 'BAND-N'],['blue_ccdc', 'BAND-C'], ['green_ccdc', 'BAND-Y'], ['red_ccdc', 'BAND-RE'], ['nir_ccdc', 'BAND-N2']]",
                 "-output_dir",
-                "/explore/nobackup/people/gtamkin/dev/srlite/test/srlite-2.0-rma-baseline/20240314-err",
+                "/explore/nobackup/people/gtamkin/dev/srlite/test/srlite-2.0-rma-baseline/20240630a-err",
                 "--regressor",
                 "rma",
                 "--debug",
@@ -785,7 +788,8 @@
                 "--pmask",
                 "--cloudmask",
                 "--csv",
-                "--band8",
+                "--clean",
+                // "--band8",
                 "--err"
             ]
         },
@@ -803,7 +807,7 @@
                 "-cloudmask_dir",
                 "/panfs/ccds02/nobackup/people/iluser/projects/srlite/test/input/baseline",
                 "-output_dir",
-                "/explore/nobackup/people/gtamkin/dev/srlite/test/srlite-2.0-rma-baseline/20240619-no-bandpairs",
+                "/explore/nobackup/people/gtamkin/dev/srlite/test/srlite-2.0-rma-baseline/20240630-no-bandpairs",
                 "--regressor",
                 "rma",
                 "--debug",

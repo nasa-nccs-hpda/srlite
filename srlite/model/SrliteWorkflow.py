@@ -164,6 +164,8 @@ class SrliteWorkflow(RasterLib):
             results = []
             for bandPairIndex in range(num_workers):
                 print(f'Starting ProcessingPool().amap() for toa: {str(bandPairIndicesList[bandPairIndex+1])}', flush=True)
+ 
+ #?????? Need  next block?
                 # Get 30m EVHR/CCDC Masked Arrays
                 bandPairIndices = bandPairIndicesList[bandPairIndex + 1]
                 targetBandMaArray = iolib.ds_getma(warp_ds_list[0], bandPairIndices[0])

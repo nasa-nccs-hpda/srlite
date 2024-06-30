@@ -711,7 +711,7 @@ class RasterLib(object):
         except BaseException as err:
             issue = "CSV file creation failed, likely due to conflicts with the following expected band ordering: " \
                 "First four bands must be constant [B,G,R,N].  If 8-Band processing is requested, four synthetic bands are " \
-                    "then appended to the list [C,Y,RE,N2]"
+                    "then appended to the list [C,Y,RE,N2]: Error details = " + str(err)
 
             raise Exception(issue)
         return context[Context.FN_COG], metrics_srlite_long
@@ -1703,26 +1703,34 @@ class RasterLib(object):
             # Create new GeoTIFF raster - Can't use COG driver unless we use CreateCopy, which causes issues when we have less bands in SR than TOA
             driver_GTiff = gdal.GetDriverByName('GTiff')
             ds_toa_copy_GTiff = driver_GTiff.Create(intermediate_output_name, xsize=ds_toa.RasterXSize, ysize=ds_toa.RasterYSize, 
-                                                    bands=numBandPairs, eType=toa_datatype, options=['COMPRESS=LZW'])
+                                                    bands=numBandPairs, eType=toa_datatype, options=['COMPRESS=LZW','BIGTIFF=YES'])
+            # ds_toa_copy_GTiff = driver_GTiff.Create(intermediate_output_name, xsize=ds_toa.RasterXSize, ysize=ds_toa.RasterYSize, 
+            #                                         bands=numBandPairs, eType=toa_datatype, options=['COMPRESS=LZW'])
             
             # Set metadata to match TOA. 
             ds_toa_copy_GTiff.SetGeoTransform(ds_toa.GetGeoTransform())
             ds_toa_copy_GTiff.SetProjection(ds_toa.GetProjection())
     
-            # Populate each output band with simulated prediction arrays            band_index_list = []
+            # Populate each output band with simulated prediction arrays         
             band_index_list = []
+            band_data_list30m = []
             for id in range(0, numBandPairs):
                 band_index_list.append(int(id+1))
                 band = ds_toa_copy_GTiff.GetRasterBand(id+1)
                 band.SetDescription(str(band_description_list[id]))
                 band.SetNoDataValue(toa_ndv)
-                bandPrediction1 = np.ma.masked_values(band_data_list[id], context[Context.TARGET_NODATA_VALUE])
-                band.WriteArray(bandPrediction1)
+                bandPrediction2m = np.ma.masked_values(band_data_list[id], context[Context.TARGET_NODATA_VALUE])
+                self._plot_lib.trace(f"Writing simulated prediction band...   {str(band_description_list[id])}")
+                band.WriteArray(bandPrediction2m)
+
+                # Downscale new band to 30m for statistics-generation later
+                # bandPrediction30m = np.resize(bandPrediction2m, (757, 505))
+                # band_data_list30m.append(bandPrediction30m)
 
             if (not (eval(context[Context.NONCOG_FLAG]))):
                 translateoptions = gdal.TranslateOptions( format="COG", bandList=band_index_list,
                                                     creationOptions=['BIGTIFF=YES'])
-                dsCog = gdal.Translate(context[Context.FN_COG], ds_toa_copy_GTiff, options=translateoptions)
+                dsCog = gdal.Translate(context[Context.FN_DEST], ds_toa_copy_GTiff, options=translateoptions)
                 dsCog = None
 
                 self._plot_lib.trace(f"\nCreated COG from stack of regressed bands...\n   {context[Context.FN_COG]}")
@@ -1742,8 +1750,10 @@ class RasterLib(object):
                 self.removeFile(intermediate_output_name, context[Context.CLEAN_FLAG])
             ds_toa_copy_GTiff = None
             ds_toa = None
-
-        return intermediate_output_name
+        
+        # cheap attempt to avoid reprojection of TOA NONCOG from 2m to 30m for statistics calc
+        # context['band_data_list30m'] = band_data_list30m
+        return context[Context.FN_DEST]
     # -------------------------------------------------------------------------
     # removeFile()
     #
