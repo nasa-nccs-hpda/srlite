@@ -10,10 +10,10 @@ The workflow for estimating surface reflectance for commercial VHR multispectral
 
  Workflow Contributors | Role | Affiliation | 
 | ---------------- | ---------------- | ---------------- |
-| Paul Montesano |  Author ; Evaluator | NASA Goddard Space Flight Center Data Science Group |
-| Matthew Macader |   Author ; Evaluator | Alaska Biological Research, Inc. |
-| Jordan Caraballo-Vega  |  Developer | NASA Goddard Space Flight Center Data Science Group |
-| Melanie Frost |  Author ; Evaluator | NASA Goddard Space Flight Center Data Science Group |
-| Glenn Tamkin  |  Developer | NASA Goddard Space Flight Center Data Science Group |
-| Mark Carroll |  PI | NASA Goddard Space Flight Center Data Science Group (Lead)|
+| Paul M .Montesano |  Author ; Evaluator | NASA Goddard Space Flight Center Data Science Group |
+| Matthew J. Macander |   Author ; Evaluator | Alaska Biological Research, Inc. |
+| Jordan A. Caraballo-Vega  |  Developer | NASA Goddard Space Flight Center Data Science Group |
+| Melanie J. Frost |  Author ; Evaluator | NASA Goddard Space Flight Center Data Science Group |
+| Glenn S. Tamkin  |  Developer | NASA Goddard Space Flight Center Data Science Group |
+| Mark L. Carroll |  PI | NASA Goddard Space Flight Center Data Science Group (Lead)|
 
