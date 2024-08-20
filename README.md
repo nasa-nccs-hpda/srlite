@@ -6,7 +6,7 @@ Here we provide an open-source workflow for the scientific community for fine-sc
 ## SR<sub>VHR</sub> (SR-lite)  
 The workflow for estimating surface reflectance for commercial VHR multispectral imagery (SR<sub>VHR</sub>).
 
-![fig1_v3](https://github.com/user-attachments/assets/50b829c9-c37d-4975-9163-adbfa1e4e219)
+![fig1_v3 (1)](https://github.com/user-attachments/assets/f3a6f82c-56bd-4b14-b3d2-74f55be47514)
 
  Workflow Contributors | Role | Affiliation | 
 | ---------------- | ---------------- | ---------------- |
