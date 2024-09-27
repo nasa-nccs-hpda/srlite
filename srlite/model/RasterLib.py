@@ -831,7 +831,7 @@ class RasterLib(object):
             elif (context[Context.REGRESSION_MODEL] == Context.REGRESSOR_MODEL_RMA):
 
                 reflect_df = pd.concat([
-                    self.ma2df(toa_sr_data_only_band, 'EVHR_TOA', 'Band'),
+                    self.ma2df(toa_sr_data_only_band, 'EVHR_TOA', 'Band'), 
                     self.ma2df(target_sr_data_only_band, 'CCDC_SR', 'Band')],
                     axis=1)
                 model_data_only_band = regress2(np.array(reflect_df['EVHR_TOABand']), np.array(reflect_df['CCDC_SRBand']),
