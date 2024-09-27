@@ -119,7 +119,9 @@ class RasterLib(object):
         df = pd.DataFrame(unmasked)
         df.columns = [product + band]
         df[product + band] = df[product + band] * 0.0001
-        return df
+
+        # srlite-GI#25_Address_Maximum_TIFF_file_size_exceeded - reduce memory usage
+        return (df).astype('float32')
 
     # -------------------------------------------------------------------------
     # getBandIndices()
@@ -1015,13 +1017,14 @@ class RasterLib(object):
 
             else:
                 # Calculate SR-Lite band using original TOA 2m band
-                sr_prediction_band_2m = (toaBandMaArrayRaw  * slope) + (intercept * 10000)
+                sr_prediction_band_2m = (toaBandMaArrayRaw.astype(float)  * slope) + (intercept * 10000)
 
         except BaseException as err:
                 print('\ncalculate_prediction_band processing failed - Error details: ', err)
                 raise err
 
-        return sr_prediction_band_2m
+        # srlite-GI#25_Address_Maximum_TIFF_file_size_exceeded - reduce memory usage
+        return sr_prediction_band_2m.astype('float32')
 
     # -------------------------------------------------------------------------
     # _model_coeffs_()
