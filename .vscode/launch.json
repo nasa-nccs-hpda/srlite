@@ -4,6 +4,7 @@
         "PYTHONPATH": "/explore/nobackup/people/gtamkin/dev/vhr-toolkit/srlite:${workspaceFolder}"
     },
     "configurations": [
+
         {
             "name": "srlite-GI#7_Band_matching_naming",
             "type": "debugpy",
@@ -294,6 +295,26 @@
                 "--csv_dir",
                 "None",
             ]
+        },
+        {
+            "name": "srlite-GI#27_Add_API_class",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "args": [
+                "-toa_dir",
+                "/panfs/ccds02/nobackup/people/iluser/projects/srlite/test/input/baseline",
+                "-target_dir",
+                "/panfs/ccds02/nobackup/people/iluser/projects/srlite/test/input/baseline",
+                "-cloudmask_dir",
+                "/panfs/ccds02/nobackup/people/iluser/projects/srlite/test/input/baseline",
+                "-output_dir",
+                "/explore/nobackup/people/gtamkin/dev/srlite/test/srlite-GI#27_Add_API_class/20240927",
+                "--regressor",
+                "rma",
+                "--band8",
+           ]
         },
         // #########################################################################################
         // #########################################################################################
