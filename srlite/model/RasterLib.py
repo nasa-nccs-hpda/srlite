@@ -115,7 +115,7 @@ class RasterLib(object):
     # -------------------------------------------------------------------------
     def ma2df(self, ma, product, band):
         raveled = ma.ravel()
-        unmasked = raveled[raveled.mask == False]
+        unmasked = raveled[raveled.mask == False] 
         df = pd.DataFrame(unmasked)
         df.columns = [product + band]
         df[product + band] = df[product + band] * 0.0001
