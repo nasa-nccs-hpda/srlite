@@ -13,31 +13,56 @@ import numpy as np
 
 from pathlib import Path
 
+# -----------------------------------------------------------------------------
+# class SrliteWorkflow
+#
+# processToa(toa)
+#
+# processToas()
+#    processToa(toa)
+# -----------------------------------------------------------------------------
 class SrliteWorkflow(RasterLib):
+    """This class orchestrates Srlite workflows`.
+
+    Required Parameters:
+    :param output_dir: Directory to store output files.
+    :type output_dir: str
+    :param toa_src: Directory that hosts TOA files -OR- a specific TOA (fully qualified path).
+    :type toa_src: str
+    :param target_dir: Directory that hosts Reference files (e.g., CCDC).  File name generated from TOA prefix.
+    :type target_dir: str
+    :param cloudmask_dir: Directory that hosts Cloudmask files.  File name generated from TOA prefix.
+    :type cloudmask_dir: str
+
+    Optional Parameters:
+    :param regressor: Regression algorithm to use (i.e., "ols", "huber", "rma").
+    :type regressor: str
+    :param debug: Specify debug level [0,1,2,3]
+    :type debug: int
+    :param pmask: Suppress negative pixel values in reprojected bands. ["True", "False"]
+    :type pmask: str
+    :param cloudmask: Apply cloud mask values to common mask. ["True", "False"]
+    :type cloudmask: str
+    :param csv: Directory path containing statistics files (defaults to out_dir).
+    :type csv: str
+    :param band8: 'Generate missing spectral bands [Coastal,Yellow,Rededge,NIR2] when using CCDC as the Reference  - use only when input = [Blue|Green|Red|NIR]'
+    :type band8: str
+    :param clean: Force cleaning of generated artifacts prior to run (e.g, warp files). ["True", "False"]
+    :type clean: str
+    :param cloudmask_suffix=: CLOUDMASK file suffix (default = -toa.cloudmask.v1.2.tif').
+    :type cloudmask_suffix=: str
+    :param target_suffix=: TARGET file suffix (default = -ccdc.tif').
+    :type target_suffix=: str
+    :param logger: A logger device
+    :type logger: str
+    """
 
     # -------------------------------------------------------------------------
-    # __init__
-    # -------------------------------------------------------------------------
-    def __init__(self, debug_level, plot_lib):
-
-        # Initialize serializable context for orchestration
-        self._debug_level = debug_level
-        self._plot_lib = plot_lib
-
-        try:
-            if (self._debug_level >= 1):
-                self._plot_lib.trace(f'GDAL version: {osgeo.gdal.VersionInfo()}')
-        except BaseException as err:
-            print('ERROR - check gdal version: ', err)
-            sys.exit(1)
-        return
-
-    # -------------------------------------------------------------------------
-    # __init__
+    # __init__ : Constructor that initializes Srlite Workflow
     # -------------------------------------------------------------------------
     def __init__(self, 
                 output_dir=None, 
-                toa_dir=None, 
+                toa_src=None, 
                 target_dir=None, 
                 cloudmask_dir=None, 
                 regressor="rma",
@@ -65,8 +90,13 @@ class SrliteWorkflow(RasterLib):
         # Override CLI as needed
         if (output_dir != None): 
                 self.context[Context.DIR_OUTPUT] = output_dir
-        if (toa_dir != None): 
-                self.context[Context.DIR_TOA] = toa_dir                
+                try:
+                    os.makedirs(output_dir, exist_ok=True)
+                except OSError as error:
+                    print("Directory '%s' can not be created" % self.context_dict[Context.DIR_OUTPUT])
+
+        if (toa_src != None): 
+                self.context[Context.DIR_TOA] = toa_src                
         if (target_dir != None): 
                 self.context[Context.DIR_TARGET] = target_dir
         if (cloudmask_dir != None): 
@@ -84,8 +114,8 @@ class SrliteWorkflow(RasterLib):
 
         # Retrieve TOA files in sorted order from the input TOA directory and loop through them
         toa_filter = '*' + self.context[Context.FN_TOA_SUFFIX]
-        if (toa_dir != None): 
-            self.context[Context.DIR_TOA] = str(toa_dir)
+        if (toa_src != None): 
+            self.context[Context.DIR_TOA] = str(toa_src)
 
         if os.path.isdir(Path(self.context[Context.DIR_TOA])):
             self.toaList = sorted(Path(self.context[Context.DIR_TOA]).glob(toa_filter))
@@ -94,101 +124,126 @@ class SrliteWorkflow(RasterLib):
 
         self.context[Context.LIST_TOA_BANDS] = self.toaList
         return
+    
+    # # -------------------------------------------------------------------------
+    # # __init__ : Initialize workflow framework
+    # # -------------------------------------------------------------------------
+    # def __init__(self, debug_level, plot_lib):
 
-    # def processToas(self, toaList, contextClazz, context, rasterLib):
-    def processToas(self, toaList):
+    #     # Initialize serializable context for orchestration
+    #     self._debug_level = debug_level
+    #     self._plot_lib = plot_lib
+
+    #     try:
+    #         if (self._debug_level >= 1):
+    #             self._plot_lib.trace(f'GDAL version: {osgeo.gdal.VersionInfo()}')
+    #     except BaseException as err:
+    #         print('ERROR - check gdal version: ', err)
+    #         sys.exit(1)
+    #     return
+
+    
+    def processToas(self):
+        rasterLib = self.rasterLib
+        context = self.context
+        contextClazz = self.contextClazz
+
+        for toa in context[Context.LIST_TOA_BANDS]:
+             self.processToa(toa)
+
+ 
+    
+    def processToa(self, toa):
         errorIndex = 0
         sr_errors_list = []
         rasterLib = self.rasterLib
         context = self.context
         contextClazz = self.contextClazz
 
-        for toa in toaList:
-        # for context[Context.FN_TOA] in toaList:
-            try:
-                # Generate file names based on incoming EVHR file and declared suffixes - get snapshot
-                context = contextClazz.getFileNames(str(Path(toa)).rsplit("/", 1), context)
+        try:
+            # Generate file names based on incoming EVHR file and declared suffixes - get snapshot
+            context = contextClazz.getFileNames(str(Path(toa)).rsplit("/", 1), context)
 
-                # Remove existing SR-Lite output if clean_flag is activated
-                rasterLib.removeFile(context[Context.FN_COG], context[Context.CLEAN_FLAG])
+            # Remove existing SR-Lite output if clean_flag is activated
+            rasterLib.removeFile(context[Context.FN_COG], context[Context.CLEAN_FLAG])
 
-                # Proceed if SR-Lite output does not exist
-                if not (os.path.exists(context[Context.FN_COG])):
+            # Proceed if SR-Lite output does not exist
+            if not (os.path.exists(context[Context.FN_COG])):
 
-                    try:
-                        # Capture input attributes - then align all artifacts to EVHR TOA projection
-                        rasterLib.getAttributeSnapshot(context)
+                try:
+                    # Capture input attributes - then align all artifacts to EVHR TOA projection
+                    rasterLib.getAttributeSnapshot(context)
 
-                        # Define order indices for list processing
-                        context[Context.LIST_INDEX_TARGET] = 0
-                        context[Context.LIST_INDEX_TOA] = 1
-                        context[Context.LIST_INDEX_CLOUDMASK] = -1  # increment if cloudmask requested
+                    # Define order indices for list processing
+                    context[Context.LIST_INDEX_TARGET] = 0
+                    context[Context.LIST_INDEX_TOA] = 1
+                    context[Context.LIST_INDEX_CLOUDMASK] = -1  # increment if cloudmask requested
 
-                        # Validate that input band name pairs exist in EVHR & CCDC files
-                        context[Context.FN_LIST] = [str(context[Context.FN_TARGET]), str(context[Context.FN_TOA])]
-                        context[Context.LIST_BAND_PAIR_INDICES] = rasterLib.getBandIndices(context)
+                    # Validate that input band name pairs exist in EVHR & CCDC files
+                    context[Context.FN_LIST] = [str(context[Context.FN_TARGET]), str(context[Context.FN_TOA])]
+                    context[Context.LIST_BAND_PAIR_INDICES] = rasterLib.getBandIndices(context)
 
-                        #  Reproject (downscale) TOA to CCDC resolution (30m)  - use 'average' for resampling method
-                        #  Reproject TARGET (CCDC) to remaining attributes of EVHR TOA Downscale (extent, srs, etc.) 
-                        context[Context.FN_REPROJECTION_LIST] = [str(context[Context.FN_TARGET]), str(context[Context.FN_TOA])]
+                    #  Reproject (downscale) TOA to CCDC resolution (30m)  - use 'average' for resampling method
+                    #  Reproject TARGET (CCDC) to remaining attributes of EVHR TOA Downscale (extent, srs, etc.) 
+                    context[Context.FN_REPROJECTION_LIST] = [str(context[Context.FN_TARGET]), str(context[Context.FN_TOA])]
+                    context[Context.TARGET_FN] = str(context[Context.FN_TOA])
+                    context[Context.TARGET_SAMPLING_METHOD] = 'average'
+                    context[Context.DS_WARP_LIST], context[Context.MA_WARP_LIST] = rasterLib.getReprojection(context)
+
+                    #  Reproject cloudmask to attributes of EVHR TOA Downscale  - use 'mode' for resampling method
+                    if eval(context[Context.CLOUD_MASK_FLAG]):
+                        context[Context.FN_LIST].append(str(context[Context.FN_CLOUDMASK]))
+                        context[Context.FN_REPROJECTION_LIST] = [str(context[Context.FN_CLOUDMASK])]
                         context[Context.TARGET_FN] = str(context[Context.FN_TOA])
-                        context[Context.TARGET_SAMPLING_METHOD] = 'average'
-                        context[Context.DS_WARP_LIST], context[Context.MA_WARP_LIST] = rasterLib.getReprojection(context)
-    
-                        #  Reproject cloudmask to attributes of EVHR TOA Downscale  - use 'mode' for resampling method
-                        if eval(context[Context.CLOUD_MASK_FLAG]):
-                            context[Context.FN_LIST].append(str(context[Context.FN_CLOUDMASK]))
-                            context[Context.FN_REPROJECTION_LIST] = [str(context[Context.FN_CLOUDMASK])]
-                            context[Context.TARGET_FN] = str(context[Context.FN_TOA])
-                                
-                            # Reproject to 'mode' sampling for regression
-                            context[Context.TARGET_SAMPLING_METHOD] = 'mode'
-                            context[Context.DS_WARP_CLOUD_LIST], context[
-                                Context.MA_WARP_CLOUD_LIST] = rasterLib.getReprojection(context)
-                                
-                            context[Context.LIST_INDEX_CLOUDMASK] = 2
+                            
+                        # Reproject to 'mode' sampling for regression
+                        context[Context.TARGET_SAMPLING_METHOD] = 'mode'
+                        context[Context.DS_WARP_CLOUD_LIST], context[
+                            Context.MA_WARP_CLOUD_LIST] = rasterLib.getReprojection(context)
+                            
+                        context[Context.LIST_INDEX_CLOUDMASK] = 2
 
-                        # Perform regression to capture coefficients from intersected pixels and apply to 2m EVHR
-                        context[Context.PRED_LIST], context[Context.METRICS_LIST], context[Context.COMMON_MASK_LIST] = \
-                            rasterLib.simulateSurfaceReflectance(context)
+                    # Perform regression to capture coefficients from intersected pixels and apply to 2m EVHR
+                    context[Context.PRED_LIST], context[Context.METRICS_LIST], context[Context.COMMON_MASK_LIST] = \
+                        rasterLib.simulateSurfaceReflectance(context)
 
-                        # Create COG image from stack of processed bands
-                        context[Context.FN_SRC] = str(context[Context.FN_TOA])
-                        context[Context.FN_DEST] = str(context[Context.FN_COG])
-                        context[Context.BAND_NUM] = len(list(context[Context.LIST_TOA_BANDS]))
-                        context[Context.BAND_DESCRIPTION_LIST] = list(context[Context.LIST_TOA_BANDS])
-                        context[Context.FN_COG] = rasterLib.createImage(context)
+                    # Create COG image from stack of processed bands
+                    context[Context.FN_SRC] = str(context[Context.FN_TOA])
+                    context[Context.FN_DEST] = str(context[Context.FN_COG])
+                    context[Context.BAND_NUM] = len(list(context[Context.LIST_TOA_BANDS]))
+                    context[Context.BAND_DESCRIPTION_LIST] = list(context[Context.LIST_TOA_BANDS])
+                    context[Context.FN_COG] = rasterLib.createImage(context)
 
-                        # Generate CSV
-                        if eval(context[Context.CSV_FLAG]):
-                            rasterLib.generateCSV(context)
+                    # Generate CSV
+                    if eval(context[Context.CSV_FLAG]):
+                        rasterLib.generateCSV(context)
 
-                        # Clean up
-                        rasterLib.refresh(context)
+                    # Clean up
+                    rasterLib.refresh(context)
 
-                    except BaseException as err:
-                        print('\nToa processing failed - Error details: ', err)
-                        ########### save error for each failed TOA #############
-                        metadata = {}
-                        metadata['toa_name'] = str(context[Context.FN_TOA])
-                        metadata['error'] = str(err)
-                        if (errorIndex == 0):
-                            sr_errors_list = pd.concat([pd.DataFrame([metadata], index=[errorIndex])])
-                        else:
-                            sr_errors_list = pd.concat([sr_errors_list, pd.DataFrame([metadata], index=[errorIndex])])
-                        errorIndex = errorIndex + 1
+                except BaseException as err:
+                    print('\nToa processing failed - Error details: ', err)
+                    ########### save error for each failed TOA #############
+                    metadata = {}
+                    metadata['toa_name'] = str(context[Context.FN_TOA])
+                    metadata['error'] = str(err)
+                    if (errorIndex == 0):
+                        sr_errors_list = pd.concat([pd.DataFrame([metadata], index=[errorIndex])])
+                    else:
+                        sr_errors_list = pd.concat([sr_errors_list, pd.DataFrame([metadata], index=[errorIndex])])
+                    errorIndex = errorIndex + 1
 
-            except FileNotFoundError as exc:
-                print('File Not Found - Error details: ', exc)
-            except BaseException as err:
-                print('Run abended - Error details: ', err)
-            finally:
+        except FileNotFoundError as exc:
+            print('File Not Found - Error details: ', exc)
+        except BaseException as err:
+            print('Run abended - Error details: ', err)
+        finally:
 
-                # Delete interim noncog files
-                rasterLib.purge(context[Context.DIR_OUTPUT], str(Context.FN_SRLITE_NONCOG_SUFFIX))
+            # Delete interim noncog files
+            rasterLib.purge(context[Context.DIR_OUTPUT], str(Context.FN_SRLITE_NONCOG_SUFFIX))
 
-                # Delete interim warp files
-                rasterLib.purge(context[Context.DIR_OUTPUT_WARP], str(Context.FN_WARP_SUFFIX))
+            # Delete interim warp files
+            rasterLib.purge(context[Context.DIR_OUTPUT_WARP], str(Context.FN_WARP_SUFFIX))
 
         # Generate Error Report
         context[Context.ERROR_LIST] = sr_errors_list
@@ -198,6 +253,66 @@ class SrliteWorkflow(RasterLib):
         print("\nTotal Elapsed Time for " + str(context[Context.DIR_OUTPUT]) + ': ',
             (time.time() - self.start_time) / 60.0)  # time in min
 
+    def processToaConcurrently(self, toa, contextClazz, context, rasterLib):
+            
+            errorIndex = 0
+            
+            # Generate file names based on incoming EVHR file and declared suffixes - get snapshot
+            context = contextClazz.getFileNames(str(toa).rsplit("/", 1), context)
+
+            # Remove existing SR-Lite output if clean_flag is activated
+            rasterLib.removeFile(context[Context.FN_COG], context[Context.CLEAN_FLAG])
+
+            # Proceed if SR-Lite output does not exist
+            if not (os.path.exists(context[Context.FN_COG])):
+
+                try:
+                    # Capture input attributes - then align all artifacts to EVHR TOA projection
+                    rasterLib.getAttributeSnapshot(context)
+
+                    # Define order indices for list processing
+                    context[Context.LIST_INDEX_TARGET] = 0
+                    context[Context.LIST_INDEX_TOA] = 1
+                    context[Context.LIST_INDEX_CLOUDMASK] = -1  # increment if cloudmask requested
+
+                    # Validate that input band name pairs exist in EVHR & CCDC files
+                    context[Context.FN_LIST] = [str(context[Context.FN_TARGET]), str(toa)]
+                    context[Context.LIST_BAND_PAIR_INDICES] = rasterLib.getBandIndices(context)
+
+                    # Align inputs to TOA
+                    rasterLib.alignInputs(toa, context)
+
+                    # Perform regression to capture coefficients from intersected pixels and apply to 2m EVHR
+                        # sr_prediction_list, context[Context.METRICS_LIST], common_mask_list
+                    context[Context.PRED_LIST], context[Context.METRICS_LIST], context[Context.COMMON_MASK_LIST] = \
+                        self.simulateSurfaceReflectanceConcurrent(context)
+
+                    # Create COG image from stack of processed bands
+                    context[Context.FN_SRC] = str(toa)
+                    context[Context.FN_DEST] = str(context[Context.FN_COG])
+                    context[Context.BAND_NUM] = len(list(context[Context.LIST_TOA_BANDS]))
+                    context[Context.BAND_DESCRIPTION_LIST] = list(context[Context.LIST_TOA_BANDS])
+                    context[Context.FN_COG] = rasterLib.createImage(context)
+
+                    # Generate CSV
+                    if eval(context[Context.CSV_FLAG]):
+                        rasterLib.generateCSV(context)
+
+                    # Clean up
+                    rasterLib.refresh(context)
+                except BaseException as err:
+                    print('\nToa processing failed - Error details: ', err)
+                    ########### save error for each failed TOA #############
+                    metadata = {}
+                    metadata['toa_name'] = str(toa)
+                    metadata['error'] = str(err)
+                    if (errorIndex == 0):
+                        sr_errors_list = pd.concat([pd.DataFrame([metadata], index=[errorIndex])])
+                    else:
+                        sr_errors_list = pd.concat([sr_errors_list, pd.DataFrame([metadata], index=[errorIndex])])
+                    errorIndex = errorIndex + 1
+                    
+            return
     # -------------------------------------------------------------------------
     # processBandPairIndex()
     #
@@ -388,67 +503,6 @@ class SrliteWorkflow(RasterLib):
 
         return context[Context.PRED_LIST], context[Context.METRICS_LIST], context[Context.COMMON_MASK_LIST]
 
-    def processToa(self, toa, contextClazz, context, rasterLib):
-            
-            errorIndex = 0
-            
-            # Generate file names based on incoming EVHR file and declared suffixes - get snapshot
-            context = contextClazz.getFileNames(str(toa).rsplit("/", 1), context)
-
-            # Remove existing SR-Lite output if clean_flag is activated
-            rasterLib.removeFile(context[Context.FN_COG], context[Context.CLEAN_FLAG])
-
-            # Proceed if SR-Lite output does not exist
-            if not (os.path.exists(context[Context.FN_COG])):
-
-                try:
-                    # Capture input attributes - then align all artifacts to EVHR TOA projection
-                    rasterLib.getAttributeSnapshot(context)
-
-                    # Define order indices for list processing
-                    context[Context.LIST_INDEX_TARGET] = 0
-                    context[Context.LIST_INDEX_TOA] = 1
-                    context[Context.LIST_INDEX_CLOUDMASK] = -1  # increment if cloudmask requested
-
-                    # Validate that input band name pairs exist in EVHR & CCDC files
-                    context[Context.FN_LIST] = [str(context[Context.FN_TARGET]), str(toa)]
-                    context[Context.LIST_BAND_PAIR_INDICES] = rasterLib.getBandIndices(context)
-
-                    # Align inputs to TOA
-                    rasterLib.alignInputs(toa, context)
-
-                    # Perform regression to capture coefficients from intersected pixels and apply to 2m EVHR
-                        # sr_prediction_list, context[Context.METRICS_LIST], common_mask_list
-                    context[Context.PRED_LIST], context[Context.METRICS_LIST], context[Context.COMMON_MASK_LIST] = \
-                        self.simulateSurfaceReflectanceConcurrent(context)
-
-                    # Create COG image from stack of processed bands
-                    context[Context.FN_SRC] = str(toa)
-                    context[Context.FN_DEST] = str(context[Context.FN_COG])
-                    context[Context.BAND_NUM] = len(list(context[Context.LIST_TOA_BANDS]))
-                    context[Context.BAND_DESCRIPTION_LIST] = list(context[Context.LIST_TOA_BANDS])
-                    context[Context.FN_COG] = rasterLib.createImage(context)
-
-                    # Generate CSV
-                    if eval(context[Context.CSV_FLAG]):
-                        rasterLib.generateCSV(context)
-
-                    # Clean up
-                    rasterLib.refresh(context)
-                except BaseException as err:
-                    print('\nToa processing failed - Error details: ', err)
-                    ########### save error for each failed TOA #############
-                    metadata = {}
-                    metadata['toa_name'] = str(toa)
-                    metadata['error'] = str(err)
-                    if (errorIndex == 0):
-                        sr_errors_list = pd.concat([pd.DataFrame([metadata], index=[errorIndex])])
-                    else:
-                        sr_errors_list = pd.concat([sr_errors_list, pd.DataFrame([metadata], index=[errorIndex])])
-                    errorIndex = errorIndex + 1
-                    
-            return "DonkeyPuddins"
-    
 
     def synchronized(wrapped):
         import functools

@@ -338,15 +338,15 @@ class Context(object):
         )
         parser.add_argument(
             "-toa_dir", "--input-toa-dir", type=str, required=False, dest='toa_dir',
-            default=None, help="Specify directory path containing TOA files."
+            default=None, help="Directory that hosts TOA files -OR- a specific TOA (fully qualified path)."
         )
         parser.add_argument(
             "-target_dir", "--input-target-dir", type=str, required=False, dest='target_dir',
-            default=None, help="Specify directory path containing TARGET files."
+            default=None, help="Directory that hosts Reference files (e.g., CCDC).  File name generated from TOA prefix."
         )
         parser.add_argument(
             "-cloudmask_dir", "--input-cloudmask-dir", type=str, required=False, dest='cloudmask_dir',
-            default=None, help="Specify directory path containing Cloudmask files."
+            default=None, help="Directory that hosts Cloudmask files.  File name generated from TOA prefix."
         )
         parser.add_argument(
             "-bandpairs", "--input-list-of-band-pairs", type=str, required=False, dest='band_pairs_list',
@@ -355,7 +355,7 @@ class Context(object):
         )
         parser.add_argument(
             "-output_dir", "--output-directory", type=str, required=False, dest='out_dir',
-            default="./", help="Specify output directory."
+            default="./", help="Directory to store output files."
         )
         parser.add_argument(
             "--err_dir", "--output-err-dir", type=str, required=False, dest='err_dir',

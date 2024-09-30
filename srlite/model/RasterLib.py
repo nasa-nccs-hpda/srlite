@@ -1744,7 +1744,8 @@ class RasterLib(object):
                 self._plot_lib.trace(f"\nCreated standard TIF from stack of regressed bands...\n   {cog_output_name}")
 
         except BaseException as err:
-            issue = "TIF file creation failed: " + err
+            issue = "TIF file creation failed: " + str(err)
+            self._plot_lib.trace(f"\nImage creation failed for: " + intermediate_output_name + "Issue = " + str(issue))
             raise Exception(issue)
         finally:
             # Remove pre-COG image
@@ -1851,9 +1852,10 @@ class RasterLib(object):
     # Delete files of a certain pattern in a specific directory
     # -------------------------------------------------------------------------
     def purge(self, dir, pattern):
-        for f in os.listdir(dir):
-            if re.search(pattern, f):
-                os.remove(os.path.join(dir, f))
+        if (os.path.isdir(dir)):
+            for f in os.listdir(dir):
+                if re.search(pattern, f):
+                    os.remove(os.path.join(dir, f))
 
     # -------------------------------------------------------------------------
     # refresh()
