@@ -58,7 +58,33 @@ class SrliteWorkflow(RasterLib):
     """
 
     # -------------------------------------------------------------------------
+    # __validatePaths__ : Verify user-specified paths
+    # -------------------------------------------------------------------------
+    def _validatePaths(self):
+        err = None
+
+       # Validate paths
+        if (self.context[Context.DIR_OUTPUT] != None): 
+                try:
+                    os.makedirs(self.context[Context.DIR_OUTPUT], exist_ok=True)
+                except OSError as error:
+                    err = ('\nCannot create output directory: ', self.context[Context.DIR_OUTPUT])
+        if (self.context[Context.DIR_TOA] != None): 
+            if not os.path.exists(self.context[Context.DIR_TOA]):
+                err = ('\nTOA Path or file does not exist: ', self.context[Context.DIR_TOA])             
+        if (self.context[Context.DIR_TARGET] != None): 
+            if not os.path.exists(self.context[Context.DIR_TARGET]):
+                err = ('\nReference Path or file does not exist: ', self.context[Context.DIR_TARGET])             
+        if (self.context[Context.DIR_CLOUDMASK] != None): 
+             if not os.path.exists(self.context[Context.DIR_CLOUDMASK]):
+                err = ('\nCloudmask Path or file does not exist: ', self.context[Context.DIR_CLOUDMASK])
+
+        if (err != None):
+             raise err             
+
+    # -------------------------------------------------------------------------
     # __init__ : Constructor that initializes Srlite Workflow
+    #   _validatePaths()
     # -------------------------------------------------------------------------
     def __init__(self, 
                 output_dir=None, 
@@ -90,18 +116,14 @@ class SrliteWorkflow(RasterLib):
         # Override CLI as needed
         if (output_dir != None): 
                 self.context[Context.DIR_OUTPUT] = output_dir
-                try:
-                    os.makedirs(output_dir, exist_ok=True)
-                except OSError as error:
-                    print("Directory '%s' can not be created" % self.context_dict[Context.DIR_OUTPUT])
-
         if (toa_src != None): 
                 self.context[Context.DIR_TOA] = toa_src                
         if (target_dir != None): 
                 self.context[Context.DIR_TARGET] = target_dir
         if (cloudmask_dir != None): 
                 self.context[Context.DIR_CLOUDMASK] = cloudmask_dir
-    
+        self._validatePaths()
+
         self.context[Context.REGRESSION_MODEL] = regressor
         self.context[Context.DEBUG_LEVEL] = debug
         self.context[Context.POSITIVE_MASK_FLAG] = pmask
@@ -122,43 +144,35 @@ class SrliteWorkflow(RasterLib):
         else:
             self.toaList = [self.context[Context.DIR_TOA]]
 
-        self.context[Context.LIST_TOA_BANDS] = self.toaList
+        self.context[Context.LIST_TOAS] = self.toaList
         return
     
-    # # -------------------------------------------------------------------------
-    # # __init__ : Initialize workflow framework
-    # # -------------------------------------------------------------------------
-    # def __init__(self, debug_level, plot_lib):
-
-    #     # Initialize serializable context for orchestration
-    #     self._debug_level = debug_level
-    #     self._plot_lib = plot_lib
-
-    #     try:
-    #         if (self._debug_level >= 1):
-    #             self._plot_lib.trace(f'GDAL version: {osgeo.gdal.VersionInfo()}')
-    #     except BaseException as err:
-    #         print('ERROR - check gdal version: ', err)
-    #         sys.exit(1)
-    #     return
-
-    
+    # -------------------------------------------------------------------------
+    # processToas() - loop through default list of TOAs provided in __init__()
+    #    _validatePaths(toa)
+    #    processToa(toa)
+    # -------------------------------------------------------------------------
     def processToas(self):
-        rasterLib = self.rasterLib
-        context = self.context
-        contextClazz = self.contextClazz
-
-        for toa in context[Context.LIST_TOA_BANDS]:
+        self._validatePaths()
+        for toa in self.context[Context.LIST_TOAS]:
              self.processToa(toa)
-
- 
     
+    # -------------------------------------------------------------------------
+    # processToa(toa) - process a single TOA (expects a specific, fully-qualified path with file name)
+    #
+    # Perform regression to capture coefficients from intersected pixels and apply to 2m source
+    # -------------------------------------------------------------------------
     def processToa(self, toa):
         errorIndex = 0
         sr_errors_list = []
         rasterLib = self.rasterLib
         context = self.context
         contextClazz = self.contextClazz
+        context[Context.FN_TOA] = toa
+
+        # Verify that TOA exists first, since Reference and Cloudmask file names are derived from TOA file name
+        self.context[Context.DIR_TOA] = toa             
+        self._validatePaths()
 
         try:
             # Generate file names based on incoming EVHR file and declared suffixes - get snapshot
@@ -222,7 +236,7 @@ class SrliteWorkflow(RasterLib):
                     rasterLib.refresh(context)
 
                 except BaseException as err:
-                    print('\nToa processing failed - Error details: ', err)
+                    print('\nToa processing failed - Error details: ', str(err))
                     ########### save error for each failed TOA #############
                     metadata = {}
                     metadata['toa_name'] = str(context[Context.FN_TOA])

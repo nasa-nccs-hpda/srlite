@@ -3,17 +3,13 @@
 # Import System Libraries
 # --------------------------------------------------------------------------------
 import sys
-import os
-import time  # tracking time
 from pathlib import Path
 
-from srlite.model.Context import Context
-from srlite.model.RasterLib import RasterLib
 from srlite.model.SrliteWorkflow import SrliteWorkflow
 
 def main():
     """
-    Main routine for SR-Lite
+    Main routine for SR-Lite Python API orchestrator
     """
     print('Command line executed:    {sys.argv}')
     
@@ -29,6 +25,7 @@ def main():
     # cloudmask_suffix="-toa.cloudmask.tif" 
     
     # BASELINE TOA
+    toa_file = "/panfs/ccds02/nobackup/people/iluser/projects/srlite/test/input/baseline/WV02_20150911_M1BS_1030010049148A00-toa.tif"
     toa_dir = "/panfs/ccds02/nobackup/people/iluser/projects/srlite/test/input/baseline"
     target_dir = "/panfs/ccds02/nobackup/people/iluser/projects/srlite/test/input/baseline"
     cloudmask_dir = "/panfs/ccds02/nobackup/people/iluser/projects/srlite/test/input/baseline"
@@ -38,6 +35,13 @@ def main():
     # DEFAULT TOA
     logger=None
 
+    # Initialize workflow - See the following link for parameter descriptions:
+    #   https://github.com/nasa-nccs-hpda/srlite/blob/main/srlite/model/SrliteWorkflow.py
+    #
+    # USAGE:  toa_dir can point to a directory OR a specific file.  If a directory is provided,
+    # call processToas() with no override parameters.  To process specific TOAs, send a fully
+    # qualified path to processToas(toa).
+    #
     srlWorkflow = SrliteWorkflow(output_dir=output_dir, 
                                  toa_src=toa_dir,
                                  target_dir=target_dir, 
@@ -52,12 +56,14 @@ def main():
                                  cloudmask_suffix=cloudmask_suffix, 
                                  target_suffix="-ccdc.tif",
                                  logger=logger)
-    print('Command line executed:    {' +str(sys.argv) + '}')
-    print('Initial context:    {' +str(srlWorkflow.context) + '}')
 
+    # Example runs:
+
+    # Process all TOAs in the toa_dir directory
     srlWorkflow.processToas()
 
-    # srlWorkflow.processToas(srlWorkflow.context[Context.LIST_TOA_BANDS])
+    # Process a specific TOA
+    srlWorkflow.processToa(toa_file)
 
 if __name__ == "__main__":
         main()

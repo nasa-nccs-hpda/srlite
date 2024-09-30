@@ -1541,7 +1541,7 @@ class RasterLib(object):
             # Get 2m TOA Masked Array
             toaIndexArray = bandPairIndicesList[bandPairIndex+1]
             toaIndex = toaIndexArray[1]
-            toaBandMaArrayRaw = iolib.fn_getma(context[Context.FN_TOA], toaIndex)
+            toaBandMaArrayRaw = iolib.fn_getma(str(context[Context.FN_TOA]), toaIndex)
             sr_prediction_band, metadata = self.predictSurfaceReflectance(context,
                                                                           bandNamePairList[bandPairIndex][1],
                                                                           toaBandMaArrayRaw,
