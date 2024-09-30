@@ -530,7 +530,7 @@ class RasterLib(object):
         metadata['mse'] = sklearn.metrics.mean_squared_error(target_sr_data_only_band_reshaped, toa_sr_data_only_band)
         metadata['rmse'] = metadata['mse'] ** 0.5
         metadata['mean_ref_sr'] = target_sr_data_only_band.mean()
-        metadata['mean_toa_sr'] = toa_sr_data_only_band.mean()
+        metadata['mean_src_sr'] = toa_sr_data_only_band.mean()
         metadata['mae_norm'] = metadata['mae'] / metadata['mean_ref_sr']
         metadata['rmse_norm'] =  metadata['rmse'] / metadata['mean_ref_sr']
         return metadata
@@ -564,13 +564,13 @@ class RasterLib(object):
             metadata['mse'] = ndv_value
             metadata['rmse'] = ndv_value
             metadata['mean_ref_sr'] = ndv_value
-            metadata['mean_toa_sr'] = ndv_value
+            metadata['mean_src_sr'] = ndv_value
             metadata['mae_norm'] = ndv_value
             metadata['rmse_norm'] = ndv_value
 
         metadata['catid'] = context[Context.CAT_ID] 
-        metadata['input_toa']  = context[Context.FN_TOA]
-        metadata['input_ref']  = context[Context.FN_TARGET]
+        metadata['input_src_toa']  = context[Context.FN_TOA]
+        metadata['input_ref_sr']  = context[Context.FN_TARGET]
         metadata['input_cloudmask']  = context[Context.FN_CLOUDMASK]
 
         return metadata
