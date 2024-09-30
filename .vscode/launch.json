@@ -5,6 +5,12 @@
     },
     "configurations": [
 
+
+
+
+        
+
+
         {
             "name": "srlite-GI#7_Band_matching_naming",
             "type": "debugpy",
@@ -279,7 +285,7 @@
                 "-bandpairs",
                 "[['blue_ccdc', 'BAND-B'], ['green_ccdc', 'BAND-G'], ['red_ccdc', 'BAND-R'], ['nir_ccdc', 'BAND-N'],['blue_ccdc', 'BAND-C'], ['green_ccdc', 'BAND-Y'], ['red_ccdc', 'BAND-RE'], ['nir_ccdc', 'BAND-N2']]",
                 "-output_dir",
-                "/explore/nobackup/people/gtamkin/dev/srlite/test/srlite-GI#25_Address_Maximum_TIFF_file_size_exceeded/20240927-vscode-ilab212",
+                "/explore/nobackup/people/gtamkin/dev/srlite/test/srlite-GI#25_Address_Maximum_TIFF_file_size_exceeded/20240928-vscode-ilab212",
                 "--regressor",
                 "rma",
                 "--debug",
@@ -310,11 +316,17 @@
                 "-cloudmask_dir",
                 "/panfs/ccds02/nobackup/people/iluser/projects/srlite/test/input/baseline",
                 "-output_dir",
-                "/explore/nobackup/people/gtamkin/dev/srlite/test/srlite-GI#27_Add_API_class/20240927",
+                "/explore/nobackup/people/gtamkin/dev/srlite/test/srlite-GI#27_Add_API_class/20240929",
                 "--regressor",
                 "rma",
+                "--debug",
+                "1",
+                "--pmask",
+                 "--cloudmask",
+                "--csv",
                 "--band8",
-           ]
+                "--clean"           
+            ]
         },
         // #########################################################################################
         // #########################################################################################
@@ -334,7 +346,7 @@
                 "-bandpairs",
                 "[['blue_ccdc', 'BAND-B'], ['green_ccdc', 'BAND-G'], ['red_ccdc', 'BAND-R'], ['nir_ccdc', 'BAND-N'],['blue_ccdc', 'BAND-C'], ['green_ccdc', 'BAND-Y'], ['red_ccdc', 'BAND-RE'], ['nir_ccdc', 'BAND-N2']]",
                 "-output_dir",
-                "/explore/nobackup/people/gtamkin/dev/srlite/test/srlite-2.0-rma-baseline/20240927-DEV-Kernel",
+                "/explore/nobackup/people/gtamkin/dev/srlite/test/srlite-2.0-rma-baseline/20240929-cli",
                 "--regressor",
                 "rma",
                 "--debug",

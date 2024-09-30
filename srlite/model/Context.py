@@ -337,7 +337,7 @@ class Context(object):
             default=None, help="Specify batch name for run."
         )
         parser.add_argument(
-            "-toa_dir", "--input-toa-dir", type=str, required=True, dest='toa_dir',
+            "-toa_dir", "--input-toa-dir", type=str, required=False, dest='toa_dir',
             default=None, help="Specify directory path containing TOA files."
         )
         parser.add_argument(
@@ -416,7 +416,7 @@ class Context(object):
         parser.add_argument('--regressor',
                             required=False,
                             dest='regressor',
-                            default='robust',
+                            default='rma',
                             choices=['ols', 'huber', 'rma'],
                             help='Choose which regression algorithm to use')
 
@@ -576,8 +576,8 @@ class Context(object):
         if not (os.path.exists(context[Context.FN_TARGET])):
             self.plot_lib.trace("Processing: " + context[Context.FN_TOA])
             raise FileNotFoundError("TARGET File not found: {}".format(context[Context.FN_TARGET]))
-        if (eval(self.context_dict[Context.CLOUD_MASK_FLAG])):
-            if not (os.path.exists(context[Context.FN_CLOUDMASK])):
+        if (eval(str(self.context_dict[Context.CLOUD_MASK_FLAG]))):
+            if not (os.path.exists(Path(context[Context.FN_CLOUDMASK]))):
                 self.plot_lib.trace("Processing: " + context[Context.FN_TOA])
                 raise FileNotFoundError("Cloudmask File not found: {}".format(context[Context.FN_CLOUDMASK]))
 

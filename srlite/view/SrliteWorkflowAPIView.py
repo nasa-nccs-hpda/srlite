@@ -21,35 +21,6 @@ from srlite.model.Context import Context
 from srlite.model.RasterLib import RasterLib
 from srlite.model.SrliteWorkflow import SrliteWorkflow
 
-
-        # {
-        #     "name": "===== srlite-2.0-rma-baseline =========",
-        #     "type": "debugpy",
-        #     "request": "launch",
-        #     "program": "${file}",
-        #     "console": "integratedTerminal",
-        #     "args": [
-        #         "-toa_dir",
-        #         "/panfs/ccds02/nobackup/people/iluser/projects/srlite/test/input/baseline",
-        #         "-target_dir",
-        #         "/panfs/ccds02/nobackup/people/iluser/projects/srlite/test/input/baseline",
-        #         "-cloudmask_dir",
-        #         "/panfs/ccds02/nobackup/people/iluser/projects/srlite/test/input/baseline",
-        #         "-bandpairs",
-        #         "[['blue_ccdc', 'BAND-B'], ['green_ccdc', 'BAND-G'], ['red_ccdc', 'BAND-R'], ['nir_ccdc', 'BAND-N'],['blue_ccdc', 'BAND-C'], ['green_ccdc', 'BAND-Y'], ['red_ccdc', 'BAND-RE'], ['nir_ccdc', 'BAND-N2']]",
-        #         "-output_dir",
-        #         "/explore/nobackup/people/gtamkin/dev/srlite/test/srlite-2.0-rma-baseline/20240927-DEV-Kernel",
-        #         "--regressor",
-        #         "rma",
-        #         "--debug",
-        #         "1",
-        #         "--pmask",
-        #         "--cloudmask",
-        #         "--csv",
-        #         "--band8",
-        #         "--clean"
-        #    ]
-
 def main():
     """
     Main routine for SR-Lite
@@ -59,18 +30,38 @@ def main():
     ##############################################
     # Default configuration values
     ##############################################
-    toa_dir = "/panfs/ccds02/nobackup/people/iluser/projects/srlite/test/input/baseline",
-    target_dir = "/panfs/ccds02/nobackup/people/iluser/projects/srlite/test/input/baseline",
-    cloudmask_dir = "/panfs/ccds02/nobackup/people/iluser/projects/srlite/test/input/baseline",
-    output_dir = "/explore/nobackup/people/gtamkin/dev/srlite/test/srlite-2.0-rma-baseline/20240927-DEV-Kernel",
 
-    # srlWorkflow = SrliteWorkflow(output_dir, toa_dir, target_dir, cloudmask_dir, 
-    #              regressor="rma", debug=1,
-    #              pmask=True, cloudmask=True, band8=True, clean=True, 
-    #              cloudmask_suffix="toa.cloudmask.tif", target_suffix="ccdc.tif",
-    #              logger=None)
+    # BIGTIFF TOA
+    # toa_dir = "/explore/nobackup/projects/ilab/data/srlite/products/srlite_1.0.1/toa/alaska_2nd_batch/split_4/WV02_20170906_M1BS_103001006F1F5D00-toa.tif"
+    # target_dir = "/explore/nobackup/projects/ilab/data/srlite/ccdc/ccdc_20230807_alaska_batch23/alaska"
+    # cloudmask_dir = "/explore/nobackup/projects/ilab/data/srlite/products/srlite_1.0.1/cloudmask/alaska_batch_2/split_4"
+    # output_dir = "/explore/nobackup/people/gtamkin/dev/srlite/test/srlite-GI#25_Address_Maximum_TIFF_file_size_exceeded/20240929-vscode-API-ilab213"
+    # cloudmask_suffix="-toa.cloudmask.tif" 
+    
+    # BASELINE TOA
+    toa_dir = "/panfs/ccds02/nobackup/people/iluser/projects/srlite/test/input/baseline"
+    target_dir = "/panfs/ccds02/nobackup/people/iluser/projects/srlite/test/input/baseline"
+    cloudmask_dir = "/panfs/ccds02/nobackup/people/iluser/projects/srlite/test/input/baseline"
+    output_dir = "/explore/nobackup/people/gtamkin/dev/srlite/test/srlite-2.0-rma-baseline/wtf"
+    cloudmask_suffix="-toa.cloudmask.v1.2.tif"
 
-    srlWorkflow = SrliteWorkflow(logger=None)
+    # DEFAULT TOA
+    logger=None
+
+    srlWorkflow = SrliteWorkflow(output_dir=output_dir, 
+                                 toa_dir=toa_dir,
+                                 target_dir=target_dir, 
+                                 cloudmask_dir=cloudmask_dir,
+                                 regressor="rma",
+                                 debug=1,
+                                 pmask="True",
+                                 cloudmask="True",
+                                 csv="True",
+                                 band8="True",
+                                 clean="True",
+                                 cloudmask_suffix=cloudmask_suffix, 
+                                 target_suffix="-ccdc.tif",
+                                 logger=logger)
     print('Command line executed:    {' +str(sys.argv) + '}')
     print('Initial context:    {' +str(srlWorkflow.context) + '}')
 

@@ -35,7 +35,21 @@ class SrliteWorkflow(RasterLib):
     # -------------------------------------------------------------------------
     # __init__
     # -------------------------------------------------------------------------
-    def __init__(self, output_dir=None, toa_dir=None, target_dir=None, cloudmask_dir=None, logger=None):
+    def __init__(self, 
+                output_dir=None, 
+                toa_dir=None, 
+                target_dir=None, 
+                cloudmask_dir=None, 
+                regressor="rma",
+                debug=1,
+                pmask=True,
+                cloudmask=True,
+                csv=True,
+                band8=True,
+                clean=True,
+                cloudmask_suffix="toa.cloudmask.tif", 
+                target_suffix="ccdc.tif",
+                logger=None):
         
         self.start_time = time.time()  # record start time
         self._logger = logger
@@ -51,18 +65,32 @@ class SrliteWorkflow(RasterLib):
         # Override CLI as needed
         if (output_dir != None): 
                 self.context[Context.DIR_OUTPUT] = output_dir
+        if (toa_dir != None): 
+                self.context[Context.DIR_TOA] = toa_dir                
         if (target_dir != None): 
                 self.context[Context.DIR_TARGET] = target_dir
         if (cloudmask_dir != None): 
                 self.context[Context.DIR_CLOUDMASK] = cloudmask_dir
     
+        self.context[Context.REGRESSION_MODEL] = regressor
+        self.context[Context.DEBUG_LEVEL] = debug
+        self.context[Context.POSITIVE_MASK_FLAG] = pmask
+        self.context[Context.CLOUD_MASK_FLAG] = cloudmask
+        self.context[Context.ERROR_REPORT_FLAG] = csv
+        self.context[Context.BAND8_FLAG] = band8
+        self.context[Context.CLEAN_FLAG] = clean
+        self.context[Context.FN_CLOUDMASK_SUFFIX] = cloudmask_suffix 
+        self.context[Context.DEFAULT_TARGET_SUFFIX] = target_suffix
+
         # Retrieve TOA files in sorted order from the input TOA directory and loop through them
         toa_filter = '*' + self.context[Context.FN_TOA_SUFFIX]
         if (toa_dir != None): 
-            self.context[Context.DIR_TOA] = toa_dir
-        self.toaList = [self.context[Context.DIR_TOA]]
+            self.context[Context.DIR_TOA] = str(toa_dir)
+
         if os.path.isdir(Path(self.context[Context.DIR_TOA])):
             self.toaList = sorted(Path(self.context[Context.DIR_TOA]).glob(toa_filter))
+        else:
+            self.toaList = [self.context[Context.DIR_TOA]]
 
         self.context[Context.LIST_TOA_BANDS] = self.toaList
         return
@@ -75,10 +103,11 @@ class SrliteWorkflow(RasterLib):
         context = self.context
         contextClazz = self.contextClazz
 
-        for context[Context.FN_TOA] in toaList:
+        for toa in toaList:
+        # for context[Context.FN_TOA] in toaList:
             try:
                 # Generate file names based on incoming EVHR file and declared suffixes - get snapshot
-                context = contextClazz.getFileNames(str(context[Context.FN_TOA]).rsplit("/", 1), context)
+                context = contextClazz.getFileNames(str(Path(toa)).rsplit("/", 1), context)
 
                 # Remove existing SR-Lite output if clean_flag is activated
                 rasterLib.removeFile(context[Context.FN_COG], context[Context.CLEAN_FLAG])
@@ -163,7 +192,7 @@ class SrliteWorkflow(RasterLib):
 
         # Generate Error Report
         context[Context.ERROR_LIST] = sr_errors_list
-        if eval(context[Context.ERROR_REPORT_FLAG]):
+        if eval(str(context[Context.ERROR_REPORT_FLAG])):
             rasterLib.generateErrorReport(context)
 
         print("\nTotal Elapsed Time for " + str(context[Context.DIR_OUTPUT]) + ': ',

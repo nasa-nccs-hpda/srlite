@@ -726,7 +726,7 @@ class RasterLib(object):
 
     def generateErrorReport(self, context):
 
-       if (eval(context[Context.ERROR_REPORT_FLAG])):
+       if (eval(str(context[Context.ERROR_REPORT_FLAG]))):
  
             if not (len(context[Context.ERROR_LIST]) == 0):
                 df = pd.DataFrame(context[Context.ERROR_LIST])
