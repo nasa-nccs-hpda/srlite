@@ -34,6 +34,7 @@ def main():
 
     # DEFAULT TOA
     logger=None
+    # output_dir = None
 
     # Initialize workflow - See the following link for parameter descriptions:
     #   https://github.com/nasa-nccs-hpda/srlite/blob/main/srlite/model/SrliteWorkflow.py
