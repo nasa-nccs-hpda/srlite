@@ -3,6 +3,7 @@ __pycache__/
 *.py[cod]
 *$py.class
 sr_errors.csv
+.vscode
 
 # C extensions
 *.so
