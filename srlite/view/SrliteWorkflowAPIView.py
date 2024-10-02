@@ -29,7 +29,7 @@ def main():
     toa_dir = "/panfs/ccds02/nobackup/people/iluser/projects/srlite/test/input/baseline"
     target_dir = "/panfs/ccds02/nobackup/people/iluser/projects/srlite/test/input/baseline"
     cloudmask_dir = "/panfs/ccds02/nobackup/people/iluser/projects/srlite/test/input/baseline"
-    output_dir = "/explore/nobackup/people/gtamkin/dev/srlite/test/srlite-2.0-rma-baseline/20240930-api"
+    output_dir = "/explore/nobackup/people/gtamkin/dev/srlite/test/srlite-2.0-rma-baseline/20241002-api-norma"
     cloudmask_suffix="-toa.cloudmask.v1.2.tif"
 
     # DEFAULT TOA
@@ -47,7 +47,6 @@ def main():
                                  toa_src=toa_dir,
                                  target_dir=target_dir, 
                                  cloudmask_dir=cloudmask_dir,
-                                 regressor="rma",
                                  debug=1,
                                  pmask="True",
                                  cloudmask="True",

@@ -4,6 +4,7 @@ __pycache__/
 *$py.class
 sr_errors.csv
 .vscode
+*stats.csv
 
 # C extensions
 *.so
