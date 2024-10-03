@@ -1,7 +1,5 @@
 import os
 import time
-import sys
-import osgeo
 
 from srlite.model.Context import Context
 from srlite.model.RasterLib import RasterLib
@@ -80,7 +78,7 @@ class SrliteWorkflow(RasterLib):
                 err = ('\nCloudmask Path or file does not exist: ', self.context[Context.DIR_CLOUDMASK])
 
         if (err != None):
-             raise err             
+             raise Exception(err)             
 
     # -------------------------------------------------------------------------
     # __init__ : Constructor that initializes Srlite Workflow
@@ -92,7 +90,7 @@ class SrliteWorkflow(RasterLib):
                 target_dir=None, 
                 cloudmask_dir=None, 
                 regressor="rma",
-                debug=1,
+                debug=0,
                 pmask=True,
                 cloudmask=True,
                 csv=True,
@@ -104,9 +102,9 @@ class SrliteWorkflow(RasterLib):
         
         self.start_time = time.time()  # record start time
         self._logger = logger
-        
+
         # Initialize context
-        self.contextClazz = Context()
+        self.contextClazz = Context(output_dir, debug)
         self.context = self.contextClazz.getDict()
 
         # Get handles to plot and raster classes

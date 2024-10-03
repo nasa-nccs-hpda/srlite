@@ -29,7 +29,7 @@ def main():
     toa_dir = "/panfs/ccds02/nobackup/people/iluser/projects/srlite/test/input/baseline"
     target_dir = "/panfs/ccds02/nobackup/people/iluser/projects/srlite/test/input/baseline"
     cloudmask_dir = "/panfs/ccds02/nobackup/people/iluser/projects/srlite/test/input/baseline"
-    output_dir = "/explore/nobackup/people/gtamkin/dev/srlite/test/srlite-2.0-rma-baseline/20241002-api-norma"
+    output_dir = "/explore/nobackup/people/gtamkin/dev/srlite/test/srlite-GI#27_Add_API_class/20241003-csv-band8-default-bandpairs-API__"
     cloudmask_suffix="-toa.cloudmask.v1.2.tif"
 
     # DEFAULT TOA
@@ -44,7 +44,7 @@ def main():
     # qualified path to processToas(toa).
     #
     srlWorkflow = SrliteWorkflow(output_dir=output_dir, 
-                                 toa_src=toa_dir,
+                                 toa_src=toa_file,
                                  target_dir=target_dir, 
                                  cloudmask_dir=cloudmask_dir,
                                  debug=1,

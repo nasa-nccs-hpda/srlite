@@ -168,7 +168,7 @@ class Context(object):
     # -------------------------------------------------------------------------
     # __init__
     # -------------------------------------------------------------------------
-    def __init__(self):
+    def __init__(self, output_dir=None, debug=None):
 
         args = self._getParser()
         # Initialize serializable context for orchestration
@@ -185,7 +185,10 @@ class Context(object):
             self.context_dict[Context.DIR_CLOUDMASK] = str(args.cloudmask_dir)
 
             # Manage output paths
-            self.context_dict[Context.DIR_OUTPUT] = str(args.out_dir)
+            if (output_dir != None):
+                self.context_dict[Context.DIR_OUTPUT] = str(output_dir)
+            else:
+                self.context_dict[Context.DIR_OUTPUT] = str(args.out_dir)
             try:
                 os.makedirs(self.context_dict[Context.DIR_OUTPUT], exist_ok=True)
             except OSError as error:
@@ -233,7 +236,12 @@ class Context(object):
             self.context_dict[Context.FN_CLOUDMASK_SUFFIX] = '-' + str(args.cloudmask_suffix)
 
             self.context_dict[Context.REGRESSION_MODEL] = str(args.regressor)
-            self.context_dict[Context.DEBUG_LEVEL] = int(args.debug_level)
+
+            if (debug != None):
+                self.context_dict[Context.DEBUG_LEVEL] = int(debug)
+            else:
+                self.context_dict[Context.DEBUG_LEVEL] = int(args.debug_level)
+
             self.context_dict[Context.CLEAN_FLAG] = str(args.cleanbool)
             self.context_dict[Context.NONCOG_FLAG] = str(args.noncogbool)
             self.context_dict[Context.LOG_FLAG] = str(args.logbool)
@@ -351,7 +359,7 @@ class Context(object):
         )
         parser.add_argument(
             "-bandpairs", "--input-list-of-band-pairs", type=str, required=False, dest='band_pairs_list',
-            default="[['blue_ccdc', 'BAND-B'], ['green_ccdc', 'BAND-G'], ['red_ccdc', 'BAND-R'], ['nir_ccdc', 'BAND-N']]",
+            default="[['blue_ccdc', 'BAND-B'], ['green_ccdc', 'BAND-G'], ['red_ccdc', 'BAND-R'], ['nir_ccdc', 'BAND-N'],['blue_ccdc', 'BAND-C'], ['green_ccdc', 'BAND-Y'], ['red_ccdc', 'BAND-RE'], ['nir_ccdc', 'BAND-N2']]",
             help="Specify list of band pairs to be processed per TOA."
         )
         parser.add_argument(

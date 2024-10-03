@@ -587,6 +587,14 @@ class RasterLib(object):
         # Get coefficients for standard 4-Bands
         sr_metrics_list = context[Context.METRICS_LIST]
         model = context[Context.REGRESSION_MODEL]
+        numBandPairs = context[Context.BAND_NUM] 
+
+        if ((numBandPairs < 4) and eval(context[Context.BAND8_FLAG])):
+            issue = "CSV file creation failed because 8-band processing was requested, but fewer than four bands were input for statistics: " \
+                "First four bands must be constant [B,G,R,N].  If 8-Band processing is requested, four synthetic bands are " \
+                    "then appended to the list [C,Y,RE,N2]: Error details = " + str(err)
+
+            raise Exception(issue)
 
         # Correction coefficients for simulated bands
         yellowGreenCorr = 0.473
@@ -599,15 +607,17 @@ class RasterLib(object):
             blueSlope = sr_metrics_list['slope'][0]
             blueIntercept = sr_metrics_list['intercept'][0]
 
-            greenSlope = sr_metrics_list['slope'][1]
-            greenIntercept = sr_metrics_list['intercept'][1]
+            if (numBandPairs > 1):
+                greenSlope = sr_metrics_list['slope'][1]
+                greenIntercept = sr_metrics_list['intercept'][1]
 
-# TODO - Add check to see if redSlope exists (assume)
-            redSlope = sr_metrics_list['slope'][2]
-            redIntercept = sr_metrics_list['intercept'][2]
+            if (numBandPairs > 2):
+                redSlope = sr_metrics_list['slope'][2]
+                redIntercept = sr_metrics_list['intercept'][2]
 
-            NIR1Slope = sr_metrics_list['slope'][3]
-            NIR1Intercept = sr_metrics_list['intercept'][3]
+            if (numBandPairs > 3):
+                NIR1Slope = sr_metrics_list['slope'][3]
+                NIR1Intercept = sr_metrics_list['intercept'][3]
 
             # Reproject newly minted sr-lite output for status calculations
             evhrSrliteImage = os.path.join(context[Context.FN_COG])
