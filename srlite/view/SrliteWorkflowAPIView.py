@@ -29,7 +29,7 @@ def main():
     toa_dir = "/panfs/ccds02/nobackup/people/iluser/projects/srlite/test/input/baseline"
     target_dir = "/panfs/ccds02/nobackup/people/iluser/projects/srlite/test/input/baseline"
     cloudmask_dir = "/panfs/ccds02/nobackup/people/iluser/projects/srlite/test/input/baseline"
-    output_dir = "/explore/nobackup/people/gtamkin/dev/srlite/test/srlite-GI#27_Add_API_class/20241003-csv-band8-default-bandpairs-API__"
+    output_dir = "/explore/nobackup/people/gtamkin/dev/srlite/test/srlite-GI#27_Add_API_class/20241004-csv-band8-default-nobandpairs-API"
     cloudmask_suffix="-toa.cloudmask.v1.2.tif"
 
     # DEFAULT TOA
