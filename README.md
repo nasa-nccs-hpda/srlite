@@ -9,6 +9,9 @@ The workflow for estimating surface reflectance for commercial VHR multispectral
 ![fig1_v3 (1)](https://github.com/user-attachments/assets/f3a6f82c-56bd-4b14-b3d2-74f55be47514)
 
 User Guide: https://docs.google.com/document/d/1tajOxCI53WAvnyrkgYiPNU7oTiBr-HOiFmUGfZN44lM/edit#heading=h.cbjbmv6c5chq
+[link](https://docs.google.com/document/d/1tajOxCI53WAvnyrkgYiPNU7oTiBr-HOiFmUGfZN44lM/edit#heading=h.cbjbmv6c5chq)
+
+<a href="UG">link</a>
 
 References: <em>Surface Reflectance From Commercial Very High Resolution Multispectral Imagery Estimated Empirically With Synthetic Landsat (2023)</em>,  https://ieeexplore.ieee.org/document/10670299
 
