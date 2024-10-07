@@ -43,6 +43,8 @@ def main():
 
     # Retrieve TOA files in sorted order from the input TOA directory and loop through them
     toa_filter = '*' + context[Context.FN_TOA_SUFFIX]
+    if (context[Context.FN_TOA_FILTER] != None):
+        toa_filter = context[Context.FN_TOA_FILTER]       
     toaList = [context[Context.DIR_TOA]]
     if os.path.isdir(Path(context[Context.DIR_TOA])):
         toaList = sorted(Path(context[Context.DIR_TOA]).glob(toa_filter))

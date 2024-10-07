@@ -6,7 +6,6 @@ import argparse  # system libraries
 from datetime import datetime
 from srlite.model.PlotLib import PlotLib
 from pathlib import Path
-import csv
 
 
 # -----------------------------------------------------------------------------
@@ -67,6 +66,7 @@ class Context(object):
     GEOM_TOA = 'geom_toa'
 
     # File name suffixes
+    FN_TOA_FILTER = 'fn_toa_filter'
     FN_TOA_SUFFIX = 'fn_toa_suffix'
     FN_TOA_DOWNSCALE_SUFFIX = '_toa_30m.tif'
     FN_TARGET_SUFFIX = 'fn_target_suffix'
@@ -235,6 +235,7 @@ class Context(object):
             self.context_dict[Context.FN_TARGET_SUFFIX] = '-' + str(args.target_suffix)
             self.context_dict[Context.FN_CLOUDMASK_SUFFIX] = '-' + str(args.cloudmask_suffix)
 
+            self.context_dict[Context.FN_TOA_FILTER] = str(args.fn_toa_filter)
             self.context_dict[Context.REGRESSION_MODEL] = str(args.regressor)
 
             if (debug != None):
@@ -283,7 +284,6 @@ class Context(object):
         plotLib.trace(f'Regression Model:    {self.context_dict[Context.REGRESSION_MODEL]}')
         plotLib.trace(f'Debug Level: {self.context_dict[Context.DEBUG_LEVEL]}')
         plotLib.trace(f'Clean Flag: {self.context_dict[Context.CLEAN_FLAG]}')
-        plotLib.trace(f'NonCog Flag: {self.context_dict[Context.NONCOG_FLAG]}')
         plotLib.trace(f'CSV Flag: {self.context_dict[Context.CSV_FLAG]}')
         plotLib.trace(f'Error Report Flag: {self.context_dict[Context.ERROR_REPORT_FLAG]}')
         plotLib.trace(f'Band8 Flag: {self.context_dict[Context.BAND8_FLAG]}')
@@ -389,6 +389,10 @@ class Context(object):
         parser.add_argument(
             "--sampling", "--reprojection-sampling-method", type=str, required=False, dest='target_sampling_method',
             default=Context.DEFAULT_SAMPLING_METHOD, help="Specify target warp sampling method (default = 'average'')."
+        )
+        parser.add_argument(
+            "--toa_filter", "--input-toa-filter", type=str, required=False, dest='fn_toa_filter',
+            default=None, help="Specify TOA filter suffix (default = *.<toa_suffix>)."
         )
         parser.add_argument(
             "--toa_suffix", "--input-toa-suffix", type=str, required=False, dest='toa_suffix',
