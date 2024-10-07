@@ -10,6 +10,8 @@ The workflow for estimating surface reflectance for commercial VHR multispectral
 
 User Guide: https://docs.google.com/document/d/1tajOxCI53WAvnyrkgYiPNU7oTiBr-HOiFmUGfZN44lM/edit#heading=h.cbjbmv6c5chq
 
+References: <em>Surface Reflectance From Commercial Very High Resolution Multispectral Imagery Estimated Empirically With Synthetic Landsat (2023)</em>,  https://ieeexplore.ieee.org/document/10670299
+
  Workflow Contributors | Role | Affiliation | 
 | ---------------- | ---------------- | ---------------- |
 | Paul M .Montesano |  Author ; Evaluator | NASA Goddard Space Flight Center Data Science Group |
