@@ -43,6 +43,8 @@ def main():
 
     # Retrieve TOA files in sorted order from the input TOA directory and loop through them
     toa_filter = '*' + context[Context.FN_TOA_SUFFIX]
+    # Override default file filter if specified in configuration 
+    #   For example [--toa_filter, "*M1BS*toa.tif"] will ignore TOAs of type P1BS
     if (context[Context.FN_TOA_FILTER] != 'None'):
         toa_filter = context[Context.FN_TOA_FILTER]       
     toaList = [context[Context.DIR_TOA]]
