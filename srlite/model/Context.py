@@ -2,6 +2,7 @@
 # coding: utf-8
 import os
 import sys
+import io
 import argparse  # system libraries
 from datetime import datetime
 from srlite.model.PlotLib import PlotLib
@@ -168,7 +169,7 @@ class Context(object):
     # -------------------------------------------------------------------------
     # __init__
     # -------------------------------------------------------------------------
-    def __init__(self, output_dir=None, debug=None):
+    def __init__(self, output_dir=None, overrideArgs=False, debug=None):
 
         args = self._getParser()
         # Initialize serializable context for orchestration
@@ -216,8 +217,8 @@ class Context(object):
             if (args.csv_dir == "./"):
                 self.context_dict[Context.DIR_OUTPUT_CSV] = self.context_dict[Context.DIR_OUTPUT]
             elif (args.csv_dir == "None"):
-               self.context_dict[Context.CSV_FLAG] = str(False)
-               self.context_dict[Context.DIR_OUTPUT_CSV] = self.context_dict[Context.DIR_OUTPUT]
+                self.context_dict[Context.CSV_FLAG] = str(False)
+                self.context_dict[Context.DIR_OUTPUT_CSV] = self.context_dict[Context.DIR_OUTPUT]
             else:
                 self.context_dict[Context.DIR_OUTPUT_CSV] = str(args.csv_dir)
                 try:
@@ -271,7 +272,34 @@ class Context(object):
 
         # Initialize instance variables
         self.debug_level = int(self.context_dict[Context.DEBUG_LEVEL])
-        plotLib = self.plot_lib = PlotLib(self.context_dict[Context.DEBUG_LEVEL])
+        self.plot_lib = PlotLib(self.context_dict[Context.DEBUG_LEVEL])
+           
+        if (eval(self.context_dict[Context.CLEAN_FLAG])):
+            path = os.path.join(self.context_dict[Context.DIR_OUTPUT_ERROR],
+                                    Context.DEFAULT_ERROR_REPORT_SUFFIX)
+            if os.path.exists(path):
+                os.remove(path)
+
+            #TODO 
+            # path = os.path.join(self.context_dict[Context.DIR_OUTPUT_WARP],
+            #                         Context.DEFAULT_ERROR_REPORT_SUFFIX)
+            # if os.path.exists(path):
+            #     os.remove(path)
+
+            path = os.path.join(self.context_dict[Context.DIR_OUTPUT_CSV],
+                                    Context.DEFAULT_STATISTICS_REPORT_SUFFIX)
+            if os.path.exists(path):
+                os.remove(path)
+ 
+
+        return
+
+    # -------------------------------------------------------------------------
+    # echoInput()
+    #
+    # Echo input parms
+    # -------------------------------------------------------------------------
+    def echoInput(self, plotLib):
 
         # Echo input parameter values
         plotLib.trace(f'Initializing SRLite Regression script with the following parameters')
@@ -309,33 +337,13 @@ class Context(object):
             plotLib.trace(f'Interim Directory: {self.context_dict[Context.DIR_OUTPUT_WARP]}')
         if (self.context_dict[Context.DIR_OUTPUT_CSV] != self.context_dict[Context.DIR_OUTPUT]):
             plotLib.trace(f'CSV Directory: {self.context_dict[Context.DIR_OUTPUT_CSV]}')
-           
-        if (eval(self.context_dict[Context.CLEAN_FLAG])):
-            path = os.path.join(self.context_dict[Context.DIR_OUTPUT_ERROR],
-                                    Context.DEFAULT_ERROR_REPORT_SUFFIX)
-            if os.path.exists(path):
-                os.remove(path)
-
-            #TODO 
-            # path = os.path.join(self.context_dict[Context.DIR_OUTPUT_WARP],
-            #                         Context.DEFAULT_ERROR_REPORT_SUFFIX)
-            # if os.path.exists(path):
-            #     os.remove(path)
-
-            path = os.path.join(self.context_dict[Context.DIR_OUTPUT_CSV],
-                                    Context.DEFAULT_STATISTICS_REPORT_SUFFIX)
-            if os.path.exists(path):
-                os.remove(path)
- 
-
-        return
 
     # -------------------------------------------------------------------------
     # getParser()
     #
     # Print trace debug (cus
     # -------------------------------------------------------------------------
-    def _getParser(self):
+    def _getParser(self, overrideArgs=False):
         """
         :return: argparser object with CLI commands.
         """
@@ -503,8 +511,45 @@ class Context(object):
                             default='-100, 2000',
                             type=str,
                             help='Choose quality flag values to mask')
+        
+        # Suppress error message if additional sysarg parms are passed in through API
+        if (eval(str(overrideArgs))):
+            with self.Suppressor():
+                args = parser.parse_args()
+        else:
+                args = parser.parse_args()
 
-        return parser.parse_args()
+        return args
+
+    # -------------------------------------------------------------------------
+    # Suppressor()
+    #
+    # Suppress output messages (handles case when API sends in additional sysarg parms)
+    # -------------------------------------------------------------------------
+    class Suppressor():
+
+        def __enter__(self):
+            print("Before turning off stderr")
+            text_trap = io.StringIO()
+            self.stdout = sys.stdout
+            self.stderr = sys.stderr
+       
+            sys.stdout = text_trap
+            sys.stderr = text_trap
+            print("After turning off stderr")
+
+        def __exit__(self, exception_type, value, traceback):
+            print("Before restoring stderr")
+            sys.stdout = self.stdout
+            sys.stderr = self.stderr
+            print("After restoring stderr")
+            # if exception_type is not None:
+            #     # Do normal exception handling
+            #     raise Exception(f"Got exception: {exception_type} {value} {traceback}")
+
+        def write(self, x): pass
+
+        def flush(self): pass
 
     # -------------------------------------------------------------------------
     # getDict()
@@ -529,6 +574,23 @@ class Context(object):
     # # -------------------------------------------------------------------------
     # def getDebugLevel(self):
     #     return self.debug_level
+
+    # -------------------------------------------------------------------------
+    # getToaList()
+    #
+    # Get list of TOAs to run
+    # -------------------------------------------------------------------------
+    def getToaList(self):
+        # Retrieve TOA files in sorted order from the input TOA directory and loop through them
+        toa_filter = '*' + self.context_dict[Context.FN_TOA_SUFFIX]
+        # Override default file filter if specified in configuration 
+        #   For example [--toa_filter, "*M1BS*toa.tif"] will ignore TOAs of type P1BS
+        if (self.context_dict[Context.FN_TOA_FILTER] != 'None'):
+            toa_filter = self.context_dict[Context.FN_TOA_FILTER]       
+        toaList = [self.context_dict[Context.DIR_TOA]]
+        if os.path.isdir(Path(self.context_dict[Context.DIR_TOA])):
+            toaList = sorted(Path(self.context_dict[Context.DIR_TOA]).glob(toa_filter))
+        return toaList
 
     # -------------------------------------------------------------------------
     # getFileNames()

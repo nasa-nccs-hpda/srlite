@@ -11,7 +11,6 @@ def main():
     """
     Main routine for SR-Lite Python API orchestrator
     """
-    print('Command line executed:    {sys.argv}')
     
     ##############################################
     # Default configuration values
@@ -29,7 +28,7 @@ def main():
     toa_dir = "/panfs/ccds02/nobackup/people/iluser/projects/srlite/test/input/baseline"
     target_dir = "/panfs/ccds02/nobackup/people/iluser/projects/srlite/test/input/baseline"
     cloudmask_dir = "/panfs/ccds02/nobackup/people/iluser/projects/srlite/test/input/baseline"
-    output_dir = "/explore/nobackup/people/gtamkin/dev/srlite/test/srlite-GI#27_Add_API_class/20241004-csv-band8-default-nobandpairs-API"
+    output_dir = "/explore/nobackup/people/gtamkin/dev/srlite/test/srlite-GI#27_Add_API_class/20241009-SrliteWorkflowAPIView"
     cloudmask_suffix="-toa.cloudmask.v1.2.tif"
 
     # DEFAULT TOA

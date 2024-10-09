@@ -104,7 +104,7 @@ class SrliteWorkflow(RasterLib):
         self._logger = logger
 
         # Initialize context
-        self.contextClazz = Context(output_dir, debug)
+        self.contextClazz = Context(output_dir=output_dir, overrideArgs=True, debug=debug)
         self.context = self.contextClazz.getDict()
 
         # Get handles to plot and raster classes
@@ -133,16 +133,11 @@ class SrliteWorkflow(RasterLib):
         self.context[Context.DEFAULT_TARGET_SUFFIX] = target_suffix
 
         # Retrieve TOA files in sorted order from the input TOA directory and loop through them
-        toa_filter = '*' + self.context[Context.FN_TOA_SUFFIX]
-        if (toa_src != None): 
-            self.context[Context.DIR_TOA] = str(toa_src)
+        self.context[Context.LIST_TOAS] = self.contextClazz.getToaList()
 
-        if os.path.isdir(Path(self.context[Context.DIR_TOA])):
-            self.toaList = sorted(Path(self.context[Context.DIR_TOA]).glob(toa_filter))
-        else:
-            self.toaList = [self.context[Context.DIR_TOA]]
+        # Echo input parameter values
+        self.contextClazz.echoInput(self.plotLib)
 
-        self.context[Context.LIST_TOAS] = self.toaList
         return
     
     # -------------------------------------------------------------------------
