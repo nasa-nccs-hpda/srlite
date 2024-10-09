@@ -31,8 +31,7 @@ def main():
     # Default configuration values
     ##############################################
     start_time = time.time()  # record start time
-    print('Command line executed:    {sys.argv}')
-
+ 
     # Initialize context
     contextClazz = Context()
     context = contextClazz.getDict()

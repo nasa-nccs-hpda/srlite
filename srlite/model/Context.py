@@ -111,9 +111,9 @@ class Context(object):
     TARGET_SAMPLING_METHOD = 'target_sampling_method'
 
     # Default values
-    DEFAULT_TOA_SUFFIX = 'toa.tif'
-    DEFAULT_TARGET_SUFFIX = 'ccdc.tif'
-    DEFAULT_CLOUDMASK_SUFFIX = 'toa.cloudmask.v1.2.tif'
+    DEFAULT_TOA_SUFFIX = '-toa.tif'
+    DEFAULT_TARGET_SUFFIX = '-ccdc.tif'
+    DEFAULT_CLOUDMASK_SUFFIX = '-toa.cloudmask.v1.2.tif'
 
     # Suffixs modified as per PM - 05/19/24
     DEFAULT_ERROR_REPORT_SUFFIX = 'sr_errors.csv'
@@ -232,9 +232,18 @@ class Context(object):
             self.context_dict[Context.TARGET_YRES] = int(args.target_yres)
             self.context_dict[Context.TARGET_SAMPLING_METHOD] = str(args.target_sampling_method)
 
-            self.context_dict[Context.FN_TOA_SUFFIX] = '-' + str(args.toa_suffix)
-            self.context_dict[Context.FN_TARGET_SUFFIX] = '-' + str(args.target_suffix)
-            self.context_dict[Context.FN_CLOUDMASK_SUFFIX] = '-' + str(args.cloudmask_suffix)
+            # Remove placeholder character ('*') if it exists.  Special handling required because of how parser deals with leading '-'.
+            toa_suffix = str(args.toa_suffix)
+            if (toa_suffix[0] == '*'): toa_suffix = toa_suffix[1:]
+            self.context_dict[Context.FN_TOA_SUFFIX] = toa_suffix
+
+            target_suffix = str(args.target_suffix)
+            if (target_suffix[0] == '*'): target_suffix = target_suffix[1:]
+            self.context_dict[Context.FN_TARGET_SUFFIX] = target_suffix
+
+            cloudmask_suffix = str(args.cloudmask_suffix)
+            if (cloudmask_suffix[0] == '*'): cloudmask_suffix = cloudmask_suffix[1:]
+            self.context_dict[Context.FN_CLOUDMASK_SUFFIX] = cloudmask_suffix
 
             self.context_dict[Context.FN_TOA_FILTER] = str(args.fn_toa_filter)
             self.context_dict[Context.REGRESSION_MODEL] = str(args.regressor)
