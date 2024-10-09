@@ -3,7 +3,7 @@
 # Import System Libraries
 # --------------------------------------------------------------------------------
 import sys
-from pathlib import Path
+import logging
 
 from srlite.model.SrliteWorkflow import SrliteWorkflow
 
@@ -32,7 +32,15 @@ def main():
     cloudmask_suffix="-toa.cloudmask.v1.2.tif"
 
     # DEFAULT TOA
-    logger=None
+    # ---
+    # Logging
+    # ---
+    logger = logging.getLogger()
+    logger.setLevel(logging.INFO)
+    ch = logging.StreamHandler(sys.stdout)
+    ch.setLevel(logging.INFO)
+    logger.addHandler(ch)
+    # logger=None
     # output_dir = None
 
     # Initialize workflow - See the following link for parameter descriptions:

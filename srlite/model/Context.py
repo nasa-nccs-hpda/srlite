@@ -171,7 +171,7 @@ class Context(object):
     # -------------------------------------------------------------------------
     def __init__(self, output_dir=None, overrideArgs=False, debug=None):
 
-        args = self._getParser()
+        args = self._getParser(overrideArgs)
         # Initialize serializable context for orchestration
         try:
             self.context_dict[Context.BATCH_NAME] = str(args.batch_name)
@@ -256,7 +256,7 @@ class Context(object):
             self.context_dict[Context.CLEAN_FLAG] = str(args.cleanbool)
             self.context_dict[Context.NONCOG_FLAG] = str(args.noncogbool)
             self.context_dict[Context.LOG_FLAG] = str(args.logbool)
-            if eval(self.context_dict[Context.LOG_FLAG]):
+            if eval(str(self.context_dict[Context.LOG_FLAG])):
                 self._create_logfile(self.context_dict[Context.REGRESSION_MODEL],
                                      self.context_dict[Context.DIR_OUTPUT])
             if (int(self.context_dict[Context.DEBUG_LEVEL]) >= int(self.DEBUG_TRACE_VALUE)):
@@ -281,9 +281,9 @@ class Context(object):
 
         # Initialize instance variables
         self.debug_level = int(self.context_dict[Context.DEBUG_LEVEL])
-        self.plot_lib = PlotLib(self.context_dict[Context.DEBUG_LEVEL])
+        self.plot_lib = self.plotLib = PlotLib(self.context_dict[Context.DEBUG_LEVEL])
            
-        if (eval(self.context_dict[Context.CLEAN_FLAG])):
+        if (eval(str(self.context_dict[Context.CLEAN_FLAG]))):
             path = os.path.join(self.context_dict[Context.DIR_OUTPUT_ERROR],
                                     Context.DEFAULT_ERROR_REPORT_SUFFIX)
             if os.path.exists(path):
@@ -326,15 +326,15 @@ class Context(object):
         plotLib.trace(f'Band8 Flag: {self.context_dict[Context.BAND8_FLAG]}')
         plotLib.trace(f'Log: {self.context_dict[Context.LOG_FLAG]}')
         #       plotLib.trace(f'Storage:    {self.context_dict[Context.STORAGE_TYPE]}')
-        if (eval(self.context_dict[Context.CLOUD_MASK_FLAG])):
+        if (eval(str(self.context_dict[Context.CLOUD_MASK_FLAG]))):
             plotLib.trace(f'Cloud Mask:    {self.context_dict[Context.CLOUD_MASK_FLAG]}')
-        if (eval(self.context_dict[Context.POSITIVE_MASK_FLAG])):
+        if (eval(str(self.context_dict[Context.POSITIVE_MASK_FLAG]))):
             plotLib.trace(f'Positive Pixels Only Flag:    {self.context_dict[Context.POSITIVE_MASK_FLAG]}')
 
-        if (eval(self.context_dict[Context.QUALITY_MASK_FLAG])):
+        if (eval(str(self.context_dict[Context.QUALITY_MASK_FLAG]))):
             plotLib.trace(f'Quality Mask:    {self.context_dict[Context.QUALITY_MASK_FLAG]}')
             plotLib.trace(f'Quality Mask Values:    {self.context_dict[Context.LIST_QUALITY_MASK]}')
-        if (eval(self.context_dict[Context.THRESHOLD_MASK_FLAG])):
+        if (eval(str(self.context_dict[Context.THRESHOLD_MASK_FLAG]))):
             plotLib.trace(f'Threshold Mask:    {self.context_dict[Context.THRESHOLD_MASK_FLAG]}')
             plotLib.trace(f'Threshold Min:    {self.context_dict[Context.THRESHOLD_MIN]}')
             plotLib.trace(f'Threshold Max:    {self.context_dict[Context.THRESHOLD_MAX]}')
@@ -356,7 +356,8 @@ class Context(object):
         """
         :return: argparser object with CLI commands.
         """
-        parser = argparse.ArgumentParser()
+        # Create custom parser to suppress exit if an additional argv turns up
+        parser = self.ErrorCatchingArgumentParser()
 
         parser.add_argument(
             "--batch", "--batch", type=str, required=False, dest='batch_name',
@@ -377,6 +378,7 @@ class Context(object):
         parser.add_argument(
             "-bandpairs", "--input-list-of-band-pairs", type=str, required=False, dest='band_pairs_list',
             default="[['blue_ccdc', 'BAND-B'], ['green_ccdc', 'BAND-G'], ['red_ccdc', 'BAND-R'], ['nir_ccdc', 'BAND-N'],['blue_ccdc', 'BAND-C'], ['green_ccdc', 'BAND-Y'], ['red_ccdc', 'BAND-RE'], ['nir_ccdc', 'BAND-N2']]",
+#            default="[['BLUE', 'BAND-B'], ['GREEN', 'BAND-G'], ['RED', 'BAND-R'], ['NIR', 'BAND-N'],['BLUE', 'BAND-C'], ['GREEN', 'BAND-Y'], ['RED', 'BAND-RE'], ['NIR', 'BAND-N2']]",
             help="Specify list of band pairs to be processed per TOA."
         )
         parser.add_argument(
@@ -522,14 +524,17 @@ class Context(object):
                             help='Choose quality flag values to mask')
         
         # Suppress error message if additional sysarg parms are passed in through API
+        args = None
         if (eval(str(overrideArgs))):
             with self.Suppressor():
                 args = parser.parse_args()
         else:
-                args = parser.parse_args()
-
+            args = parser.parse_args()
         return args
 
+    class ErrorCatchingArgumentParser(argparse.ArgumentParser):
+        def exit(self, status=0, message=None):
+            print("Overriding: ", status, message)
     # -------------------------------------------------------------------------
     # Suppressor()
     #
@@ -538,20 +543,16 @@ class Context(object):
     class Suppressor():
 
         def __enter__(self):
-            # print("Before parsing argv")
             text_trap = io.StringIO()
             self.stdout = sys.stdout
             self.stderr = sys.stderr
        
             sys.stdout = text_trap
             sys.stderr = text_trap
-            # print("After turning off stderr")
 
         def __exit__(self, exception_type, value, traceback):
-            # print("Before restoring stderr")
             sys.stdout = self.stdout
             sys.stderr = self.stderr
-            # print("After restoring stderr")
 
         def write(self, x): pass
 
@@ -609,57 +610,58 @@ class Context(object):
         :param context: input context object dictionary
         :return: updated context
         """
-        context[Context.FN_PREFIX] = str((prefix[1]).split("-toa.tif", 1)[0])
-        last_index = context[Context.FN_PREFIX].rindex('_')
-        context[Context.CAT_ID] =  context[Context.FN_PREFIX] [last_index+1:]
+        try:
+            context[Context.FN_PREFIX] = str((prefix[1]).split(context[Context.FN_TOA_SUFFIX], 1)[0])
+            last_index = context[Context.FN_PREFIX].rindex('_')
+            context[Context.CAT_ID] =  context[Context.FN_PREFIX] [last_index+1:]
 
-        # Provide the fully-qualified file name (if provided).  Otherwise assume, list of files
-        if os.path.isfile(Path(context[Context.DIR_TOA])):
-            context[Context.FN_TOA] = context[Context.DIR_TOA]
-        else:
-            context[Context.FN_TOA] = os.path.join(context[Context.DIR_TOA] + '/' +
-                                                   context[Context.FN_PREFIX] + context[Context.FN_TOA_SUFFIX])
+            # Provide the fully-qualified file name (if provided).  Otherwise assume, list of files
+            if os.path.isfile(Path(context[Context.DIR_TOA])):
+                context[Context.FN_TOA] = context[Context.DIR_TOA]
+            else:
+                context[Context.FN_TOA] = os.path.join(str(context[Context.DIR_TOA]) + '/' +
+                                                    context[Context.FN_PREFIX] + context[Context.FN_TOA_SUFFIX])
 
-        if os.path.isfile(Path(context[Context.DIR_TARGET])):
-            context[Context.FN_TARGET] = context[Context.DIR_TARGET]
-        else:
-            context[Context.FN_TARGET] = os.path.join(context[Context.DIR_TARGET] + '/' +
-                                                      context[Context.FN_PREFIX] + context[Context.FN_TARGET_SUFFIX])
+            if os.path.isfile(Path(context[Context.DIR_TARGET])):
+                context[Context.FN_TARGET] = context[Context.DIR_TARGET]
+            else:
+                context[Context.FN_TARGET] = os.path.join(str(context[Context.DIR_TARGET]) + '/' +
+                                                        context[Context.FN_PREFIX] + context[Context.FN_TARGET_SUFFIX])
 
-        if os.path.isfile(Path(context[Context.DIR_CLOUDMASK])):
-            context[Context.FN_CLOUDMASK] = context[Context.DIR_CLOUDMASK]
-        else:
-            context[Context.FN_CLOUDMASK] = os.path.join(context[Context.DIR_CLOUDMASK] + '/' +
-                                                         context[Context.FN_PREFIX] + context[
-                                                             Context.FN_CLOUDMASK_SUFFIX])
+            if os.path.isfile(Path(context[Context.DIR_CLOUDMASK])):
+                context[Context.FN_CLOUDMASK] = context[Context.DIR_CLOUDMASK]
+            else:
+                context[Context.FN_CLOUDMASK] = os.path.join(str(context[Context.DIR_CLOUDMASK]) + '/' +
+                                                            context[Context.FN_PREFIX] + context[
+                                                                Context.FN_CLOUDMASK_SUFFIX])
 
-        # Name artifacts according to TOA prefix
-        context[Context.FN_TOA_DOWNSCALE] = os.path.join(context[Context.DIR_OUTPUT] + '/' +
-                                                         context[Context.FN_PREFIX] + self.FN_TOA_DOWNSCALE_SUFFIX)
-        context[Context.FN_TARGET_DOWNSCALE] = os.path.join(context[Context.DIR_OUTPUT] + '/' +
-                                                            context[
-                                                                Context.FN_PREFIX] + self.FN_TARGET_DOWNSCALE_SUFFIX)
-        context[Context.FN_CLOUDMASK_DOWNSCALE] = os.path.join(context[Context.DIR_OUTPUT] + '/' +
-                                                               context[
-                                                                   Context.FN_PREFIX] + self.FN_CLOUDMASK_DOWNSCALE_SUFFIX)
+            # Name artifacts according to TOA prefix
+            context[Context.FN_TOA_DOWNSCALE] = os.path.join(str(context[Context.DIR_OUTPUT]) + '/' +
+                                                            context[Context.FN_PREFIX] + self.FN_TOA_DOWNSCALE_SUFFIX)
+            context[Context.FN_TARGET_DOWNSCALE] = os.path.join(str(context[Context.DIR_OUTPUT]) + '/' +
+                                                                context[
+                                                                    Context.FN_PREFIX] + self.FN_TARGET_DOWNSCALE_SUFFIX)
+            context[Context.FN_CLOUDMASK_DOWNSCALE] = os.path.join(str(context[Context.DIR_OUTPUT]) + '/' +
+                                                                context[
+                                                                    Context.FN_PREFIX] + self.FN_CLOUDMASK_DOWNSCALE_SUFFIX)
 
-                                                    
-        if (eval(self.context_dict[Context.NONCOG_FLAG])):
-            context[Context.FN_COG] = os.path.join(context[Context.DIR_OUTPUT] + '/' +
-                                               context[Context.FN_PREFIX] + self.FN_SRLITE_NONCOG_SUFFIX)
-        else:
-            context[Context.FN_COG] = os.path.join(context[Context.DIR_OUTPUT] + '/' +
-                                               context[Context.FN_PREFIX] + self.FN_SRLITE_SUFFIX)
+                                                        
+            if (eval(str(self.context_dict[Context.NONCOG_FLAG]))):
+                context[Context.FN_COG] = os.path.join(str(context[Context.DIR_OUTPUT]) + '/' +
+                                                context[Context.FN_PREFIX] + self.FN_SRLITE_NONCOG_SUFFIX)
+            else:
+                context[Context.FN_COG] = os.path.join(str(context[Context.DIR_OUTPUT]) + '/' +
+                                                context[Context.FN_PREFIX] + self.FN_SRLITE_SUFFIX)
 
+        except Exception as err:
+            raise FileNotFoundError("Error generating file names from TOA:  {}".format(context[Context.FN_TOA]))
 
         if not (os.path.exists(context[Context.FN_TOA])):
             raise FileNotFoundError("TOA File not found: {}".format(context[Context.FN_TOA]))
         if not (os.path.exists(context[Context.FN_TARGET])):
-            self.plot_lib.trace("Processing: " + context[Context.FN_TOA])
             raise FileNotFoundError("TARGET File not found: {}".format(context[Context.FN_TARGET]))
         if (eval(str(self.context_dict[Context.CLOUD_MASK_FLAG]))):
             if not (os.path.exists(Path(context[Context.FN_CLOUDMASK]))):
-                self.plot_lib.trace("Processing: " + context[Context.FN_TOA])
                 raise FileNotFoundError("Cloudmask File not found: {}".format(context[Context.FN_CLOUDMASK]))
 
         return context

@@ -96,20 +96,34 @@ class SrliteWorkflow(RasterLib):
                 csv=True,
                 band8=True,
                 clean=True,
-                cloudmask_suffix="toa.cloudmask.tif", 
+                bandpairs="[['BLUE', 'BAND-B'], ['GREEN', 'BAND-G'], ['RED', 'BAND-R'], ['NIR', 'BAND-N'],['BLUE', 'BAND-C'], ['GREEN', 'BAND-Y'], ['RED', 'BAND-RE'], ['NIR', 'BAND-N2']]",
+                toa_suffix="-toa.tif",
                 target_suffix="ccdc.tif",
+                cloudmask_suffix="toa.cloudmask.tif", 
                 logger=None):
         
         self.start_time = time.time()  # record start time
         self._logger = logger
 
         # Initialize context
-        self.contextClazz = Context(output_dir=output_dir, overrideArgs=True, debug=debug)
-        self.context = self.contextClazz.getDict()
-
+        try:
+            self.contextClazz = Context(output_dir=output_dir, overrideArgs=True, debug=debug)
+            self.context = self.contextClazz.getDict()
+        except BaseException as err:
+            print('\nError during context initialization', str(err))
+            raise err
+ 
         # Get handles to plot and raster classes
-        self.plotLib = self.contextClazz.getPlotLib()
-        self.rasterLib = RasterLib(int(self.context[Context.DEBUG_LEVEL]), self.plotLib)
+        self.plot_lib = self.plotLib = self.contextClazz.getPlotLib()
+        self.raster_lib = self.rasterLib = RasterLib(int(self.context[Context.DEBUG_LEVEL]), self.plotLib)
+
+        # Retrieve suffixes
+        self.context[Context.FN_TOA_SUFFIX] = toa_suffix
+        self.context[Context.FN_TARGET_SUFFIX] = target_suffix 
+        self.context[Context.FN_CLOUDMASK_SUFFIX] = cloudmask_suffix 
+
+        # # Generate file names based on incoming EVHR file and declared suffixes - get snapshot
+        # self.context = self.contextClazz.getFileNames(str(self.context[Context.FN_TOA]).rsplit("/", 1), self.context)
 
         # Override CLI as needed
         if (output_dir != None): 
@@ -122,6 +136,7 @@ class SrliteWorkflow(RasterLib):
                 self.context[Context.DIR_CLOUDMASK] = cloudmask_dir
         self._validatePaths()
 
+        self.context[Context.LIST_BAND_PAIRS] = bandpairs
         self.context[Context.REGRESSION_MODEL] = regressor
         self.context[Context.DEBUG_LEVEL] = debug
         self.context[Context.POSITIVE_MASK_FLAG] = pmask
@@ -129,8 +144,8 @@ class SrliteWorkflow(RasterLib):
         self.context[Context.ERROR_REPORT_FLAG] = csv
         self.context[Context.BAND8_FLAG] = band8
         self.context[Context.CLEAN_FLAG] = clean
-        self.context[Context.FN_CLOUDMASK_SUFFIX] = cloudmask_suffix 
-        self.context[Context.DEFAULT_TARGET_SUFFIX] = target_suffix
+
+
 
         # Retrieve TOA files in sorted order from the input TOA directory and loop through them
         self.context[Context.LIST_TOAS] = self.contextClazz.getToaList()
@@ -159,6 +174,7 @@ class SrliteWorkflow(RasterLib):
         errorIndex = 0
         sr_errors_list = []
         rasterLib = self.rasterLib
+        plotLib = self.plotLib
         context = self.context
         contextClazz = self.contextClazz
         context[Context.FN_TOA] = toa
@@ -170,7 +186,7 @@ class SrliteWorkflow(RasterLib):
         try:
             # Generate file names based on incoming EVHR file and declared suffixes - get snapshot
             context = contextClazz.getFileNames(str(Path(toa)).rsplit("/", 1), context)
-
+            
             # Remove existing SR-Lite output if clean_flag is activated
             rasterLib.removeFile(context[Context.FN_COG], context[Context.CLEAN_FLAG])
 

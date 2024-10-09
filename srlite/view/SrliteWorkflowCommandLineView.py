@@ -15,8 +15,6 @@ Original Author: Glenn Tamkin, CISTO, Code 602
 import sys
 import os
 import time  # tracking time
-from pathlib import Path
-#sys.path.insert(0,'/explore/nobackup/people/gtamkin/dev/srlite/src')
 
 from srlite.model.Context import Context
 from srlite.model.RasterLib import RasterLib
