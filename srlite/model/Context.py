@@ -529,23 +529,20 @@ class Context(object):
     class Suppressor():
 
         def __enter__(self):
-            print("Before turning off stderr")
+            # print("Before parsing argv")
             text_trap = io.StringIO()
             self.stdout = sys.stdout
             self.stderr = sys.stderr
        
             sys.stdout = text_trap
             sys.stderr = text_trap
-            print("After turning off stderr")
+            # print("After turning off stderr")
 
         def __exit__(self, exception_type, value, traceback):
-            print("Before restoring stderr")
+            # print("Before restoring stderr")
             sys.stdout = self.stdout
             sys.stderr = self.stderr
-            print("After restoring stderr")
-            # if exception_type is not None:
-            #     # Do normal exception handling
-            #     raise Exception(f"Got exception: {exception_type} {value} {traceback}")
+            # print("After restoring stderr")
 
         def write(self, x): pass
 
