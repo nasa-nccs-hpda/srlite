@@ -3,15 +3,15 @@ Scientific analysis of changes of the Earth's land surface benefit from well-cha
 
 Here we provide an open-source workflow for the scientific community for fine-scaled empirical estimation of surface reflectance from multispectral VHR imagery using reference from synthetically-derived coincident Landsat-based surface reflectance.  
 
-## SR<sub>VHR</sub>: empirical estimation of VHR surface reflectance (SR-lite)  
+## SR<sub>VHR</sub>: empirical estimation of VHR surface reflectance
 The workflow for estimating surface reflectance for commercial VHR multispectral imagery (SR<sub>VHR</sub>).
 
 ![fig1_v3 (1)](https://github.com/user-attachments/assets/f3a6f82c-56bd-4b14-b3d2-74f55be47514)
 
 
 References: 
-1. <em>User Guide (October 2024)</em>: https://docs.google.com/document/d/1tajOxCI53WAvnyrkgYiPNU7oTiBr-HOiFmUGfZN44lM/edit#heading=h.cbjbmv6c5chq
-2. <em>Surface Reflectance From Commercial Very High Resolution Multispectral Imagery Estimated Empirically With Synthetic Landsat (2023)</em>:  https://ieeexplore.ieee.org/document/10670299
+1. [User Guide (October 2024)](https://github.com/nasa-nccs-hpda/srlite/blob/main/SRVHR%20-%20User's%20Guide%20and%20Workflow%20Documentation.md)
+2. **Surface Reflectance From Commercial Very High Resolution Multispectral Imagery Estimated Empirically With Synthetic Landsat (2023)**:  <em>Montesano et al. 2024 https://ieeexplore.ieee.org/document/10670299</em> 
 
  Workflow Contributors | Role | Affiliation | 
 | ---------------- | ---------------- | ---------------- |
