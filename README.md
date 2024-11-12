@@ -14,7 +14,7 @@ References:
 
  Workflow Contributors | Role | Affiliation | 
 | ---------------- | ---------------- | ---------------- |
-| Paul M .Montesano |  Author ; Evaluator | NASA Goddard Space Flight Center Data Science Group |
+| Paul M. Montesano |  Author ; Evaluator | NASA Goddard Space Flight Center Data Science Group |
 | Matthew J. Macander |   Author ; Evaluator | Alaska Biological Research, Inc. |
 | Jordan A. Caraballo-Vega  |  Developer | NASA Goddard Space Flight Center Data Science Group |
 | Melanie J. Frost |  Author ; Evaluator | NASA Goddard Space Flight Center Data Science Group |
