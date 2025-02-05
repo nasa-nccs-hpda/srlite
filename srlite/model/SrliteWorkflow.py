@@ -325,7 +325,7 @@ class SrliteWorkflow(RasterLib):
                     # Clean up
                     rasterLib.refresh(context)
                 except BaseException as err:
-                    print('\nToa processing failed - Error details: ', err)
+                    print('\nToa processing failed - Error details: ', str(err))
                     ########### save error for each failed TOA #############
                     metadata = {}
                     metadata['toa_name'] = str(toa)
@@ -522,7 +522,7 @@ class SrliteWorkflow(RasterLib):
             print(f'Ending ProcessingPool().amap() for toa: {str(bandPairIndicesList[j+1])}', flush=True)
 
         except BaseException as err:
-                print('\simulateSurfaceReflectanceConcurrent processing failed - Error details: ', err)
+                print('simulateSurfaceReflectanceConcurrent processing failed - Error details: ', err)
                 raise err
 
         return context[Context.PRED_LIST], context[Context.METRICS_LIST], context[Context.COMMON_MASK_LIST]
