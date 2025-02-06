@@ -142,4 +142,5 @@ dmypy.json
 srlite-1.1.0/.idea/srlite-1.1.0.iml
 srlite_1.0.2/.idea/srlite_1.0.2.iml
 src.tar
-WV02_20150911_M1BS_1030010049148A00_sr_stats.csv
+*.csv
+*.caleb
