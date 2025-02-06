@@ -107,7 +107,7 @@ def main():
                     rasterLib.refresh(context)
 
                 except BaseException as err:
-                    print('\nToa processing failed - Error details: ', err)
+                    print('\nToa processing failed - Error details: ', str(err))
                     ########### save error for each failed TOA #############
                     metadata = {}
                     metadata['toa_name'] = str(context[Context.FN_TOA])
