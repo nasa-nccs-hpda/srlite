@@ -1008,7 +1008,6 @@ class RasterLib(object):
             ####################
             elif (context[Context.REGRESSION_MODEL] == Context.REGRESSOR_MODEL_RMA):
 
-
                 reflect_df = pd.concat([
                     self.ma2df(toa_sr_data_only_band, 'EVHR_TOA', 'Band'), 
                     self.ma2df(target_sr_data_only_band, 'CCDC_SR', 'Band')],
@@ -1239,7 +1238,7 @@ class RasterLib(object):
                                   band_name, metadata, sr_metrics_list):
         try:
             # tracemalloc.start()
-            breakpoint()
+            #breakpoint()
             sr_prediction_band_2m = None
             toaBandMaArrayRaw = metadata['toaBandMaArrayRaw'].astype(np.float16)
             toaBandMaArrayRaw = metadata['toaBandMaArrayRaw'].astype(np.float16)
@@ -2096,7 +2095,6 @@ class RasterLib(object):
         # cheap attempt to avoid reprojection of TOA NONCOG from 2m to 30m for statistics calc
         # context['band_data_list30m'] = band_data_list30m
         return context[Context.FN_DEST]
-
     # -------------------------------------------------------------------------
     # removeFile()
     #
