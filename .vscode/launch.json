@@ -389,7 +389,7 @@
                 "-bandpairs",
                 "[['blue_ccdc', 'BAND-B'], ['green_ccdc', 'BAND-G'], ['red_ccdc', 'BAND-R'], ['nir_ccdc', 'BAND-N'],['blue_ccdc', 'BAND-C'], ['green_ccdc', 'BAND-Y'], ['red_ccdc', 'BAND-RE'], ['nir_ccdc', 'BAND-N2']]",
                 "-output_dir",
-                "/explore/nobackup/people/gtamkin/dev/srlite/test/srlite-GI#25_Address_Maximum_TIFF_file_size_exceeded/20250205-vscode-ilab212",
+                "/explore/nobackup/people/gtamkin/dev/srlite/test/srlite-GI#25_Address_Maximum_TIFF_file_size_exceeded/20250206-tiling",
                 "--regressor",
                 "rma",
                 "--debug",

@@ -23,6 +23,44 @@ import multiprocessing as multiprocessing
 import re
 import time 
 
+#####
+# TRACING PKGS
+#####
+import linecache
+import os
+import tracemalloc
+import tqdm
+
+
+def display_top(snapshot, key_type='lineno', limit=10):
+    current_file = os.path.abspath(__file__)
+    snapshot = snapshot.filter_traces((
+        tracemalloc.Filter(True, current_file),  # Only include current file
+    ))
+    top_stats = snapshot.statistics(key_type)
+
+    print("Top %s lines" % limit)
+    for index, stat in enumerate(top_stats[:limit], 1):
+        frame = stat.traceback[0]
+        print("#%s: %s:%s: %.1f MiB"
+              % (index, frame.filename, frame.lineno, stat.size / 1024 / 1024))
+        line = linecache.getline(frame.filename, frame.lineno).strip()
+        if line:
+            print('    %s' % line)
+
+    other = top_stats[limit:]
+    if other:
+        size = sum(stat.size for stat in other)
+        print("%s other: %.1f MiB" % (len(other), size / 1024 / 1024))
+    total = sum(stat.size for stat in top_stats)
+    print("Total allocated size: %.1f MiB" % (total / 1024 / 1024))
+
+def print_variable_sizes_in_mb(local_vars):
+    for var_name, var_value in local_vars.items():
+        size_mb = sys.getsizeof(var_value) / (1024 ** 2)
+        print(f"Variable '{var_name}' has size: {size_mb:.6f} MB")
+
+
 # -----------------------------------------------------------------------------
 # class RasterLib
 #
@@ -122,6 +160,52 @@ class RasterLib(object):
 
         # srlite-GI#25_Address_Maximum_TIFF_file_size_exceeded - reduce memory usage
         return (df).astype('float32')
+
+    # -------------------------------------------------------------------------
+    # processMaInChunks()
+    #
+    # Process a matrix in bite-size chunks.
+    # -------------------------------------------------------------------------
+    def processMaInChunks(self, ma, chunkSize, computeFunction, castDtype, **kwargs):
+        rows, cols = ma.shape
+        resultMa = np.ma.zeros_like(ma)
+
+        numRowChunks = (rows + chunkSize - 1) // chunkSize
+        numColChunks = (cols + chunkSize - 1) // chunkSize
+
+        self._plot_lib.trace(f'Processing matrix in chunks with computation {computeFunction}')
+        for rowChunk in tqdm.tqdm(range(numRowChunks)):
+            for colChunk in range(numColChunks):
+
+                # Compute boundaries of each chunk
+                startRow = rowChunk * chunkSize
+                endRow = min((rowChunk + 1) * chunkSize, rows)
+                startCol = colChunk * chunkSize
+                endCol = min((colChunk + 1) * chunkSize, cols)
+
+                # Extract sub-matrix
+                subMa = ma[startRow:endRow, startCol:endCol]
+                dataChunk = subMa.data
+                maskChunk = subMa.mask
+                dataChunkDtype = dataChunk.dtype
+
+                # If needed, cast the sub-matrix to the given datatype
+                if castDtype:
+                    dataChunkCasted = dataChunk.astype(castDtype)
+                    processedDataChunk = computeFunction(dataChunkCasted, **kwargs)
+                    processedDataChunk = processedDataChunk.astype(dataChunkDtype)
+
+                # Process the sub-matrix without casting
+                else:
+                    processedDataChunk = computeFunction(dataChunkCasted, **kwargs)
+
+                # Reapply the original mask to the processed data
+                processedChunk = np.ma.array(processedDataChunk, mask=maskChunk)
+
+                # Insert the processed chunk back into the result matrix
+                resultMa[startRow:endRow, startCol:endCol] = processedChunk
+
+        return resultMa
 
     # -------------------------------------------------------------------------
     # getBandIndices()
@@ -855,7 +939,7 @@ class RasterLib(object):
                                             model_data_only_band['slope'])
 
             # Calculate SR-Lite band using original TOA 2m band
-                sr_prediction_band_2m = self.calculate_prediction_band(context,
+                sr_prediction_band_2m = self.calculate_prediction_band_chunked(context,
                                                                 band_name,
                                                                 metadata,
                                                                 sr_metrics_list)
@@ -965,6 +1049,51 @@ class RasterLib(object):
                 raise err
         
         return sr_prediction_band_2m, metadata
+
+    @staticmethod
+    def compute_band_c(toaBandMaArrayRaw, sr_metrics_list):
+        slope = sr_metrics_list.loc[sr_metrics_list.band_name == 'BAND-B', 'slope'].values[0]
+        intercept = sr_metrics_list.loc[sr_metrics_list.band_name == 'BAND-B', 'intercept'].values[0]
+        return (toaBandMaArrayRaw * slope) + (intercept * 10000)
+
+    @staticmethod
+    def compute_band_y(toaBandMaArrayRaw, sr_metrics_list):
+        yellowGreenCorr = 0.473
+        yellowRedCorr = 0.527
+        green_slope = sr_metrics_list.loc[sr_metrics_list.band_name == 'BAND-G', 'slope'].values[0]
+        green_intercept = sr_metrics_list.loc[sr_metrics_list.band_name == 'BAND-G', 'intercept'].values[0]
+        red_slope = sr_metrics_list.loc[sr_metrics_list.band_name == 'BAND-R', 'slope'].values[0]
+        red_intercept = sr_metrics_list.loc[sr_metrics_list.band_name == 'BAND-R', 'intercept'].values[0]
+
+        correctedGreenBand = ((toaBandMaArrayRaw * green_slope) + (green_intercept * 10000)) * yellowGreenCorr
+        correctedRedBand = ((toaBandMaArrayRaw * red_slope) + (red_intercept * 10000)) * yellowRedCorr
+
+        return correctedGreenBand + correctedRedBand
+
+    @staticmethod
+    def compute_band_re(toaBandMaArrayRaw, sr_metrics_list):
+        rededgeRedCorr = 0.621
+        rededgeNIR1Corr = 0.379
+        red_slope = sr_metrics_list.loc[sr_metrics_list.band_name == 'BAND-R', 'slope'].values[0]
+        red_intercept = sr_metrics_list.loc[sr_metrics_list.band_name == 'BAND-R', 'intercept'].values[0]
+        nir1_slope = sr_metrics_list.loc[sr_metrics_list.band_name == 'BAND-N', 'slope'].values[0]
+        nir1_intercept = sr_metrics_list.loc[sr_metrics_list.band_name == 'BAND-N', 'intercept'].values[0]
+
+        correctedRedBand = ((toaBandMaArrayRaw * red_slope) + (red_intercept * 10000)) * rededgeRedCorr
+        correctedNirBand = ((toaBandMaArrayRaw * nir1_slope) + (nir1_intercept * 10000)) * rededgeNIR1Corr
+
+        return correctedRedBand + correctedNirBand
+
+    @staticmethod
+    def compute_band_n2(toaBandMaArrayRaw, sr_metrics_list):
+        slope = sr_metrics_list.loc[sr_metrics_list.band_name == 'BAND-N', 'slope'].values[0]
+        intercept = sr_metrics_list.loc[sr_metrics_list.band_name == 'BAND-N', 'intercept'].values[0]
+        return (toaBandMaArrayRaw * slope) + (intercept * 10000)
+
+    @staticmethod
+    def compute_sr_lite(toaBandMaArrayRaw, slope, intercept):
+        return (toaBandMaArrayRaw * slope) + (intercept * 10000)
+        
     # -------------------------------------------------------------------------
     # calculate_prediction_band()
     #
@@ -978,63 +1107,69 @@ class RasterLib(object):
     def calculate_prediction_band(self, context,
                                   band_name, metadata, sr_metrics_list):
         try:
+            # tracemalloc.start()
+            #breakpoint()
             sr_prediction_band_2m = None
-            toaBandMaArrayRaw = metadata['toaBandMaArrayRaw']
+            toaBandMaArrayRaw = metadata['toaBandMaArrayRaw'].astype(np.float16)
             slope = metadata['slope']
             intercept = metadata['intercept']
 
-            # Correction coefficients for simulated bands
-            yellowGreenCorr = 0.473
-            yellowRedCorr = 0.527
-            rededgeRedCorr = 0.621
-            rededgeNIR1Corr = 0.379
-
-            if (band_name == 'BAND-C'):
-                # Apply BAND-B coefficients to Coastal band since we have no corresponding CCDC (as per Matt)
-                slope = sr_metrics_list.loc[sr_metrics_list.band_name=='BAND-B','slope'].values[0]
-                intercept = sr_metrics_list.loc[sr_metrics_list.band_name=='BAND-B','intercept'].values[0]
-                sr_prediction_band_2m = (toaBandMaArrayRaw.astype(float) * slope) + (intercept * 10000)
-
-            elif (band_name == 'BAND-Y'):
-                # Apply BAND-G and BAND-R coefficients to RedEdge band since we have no corresponding CCDC (as per Matt)
-                green_slope  = sr_metrics_list.loc[sr_metrics_list.band_name=='BAND-G','slope'].values[0]
-                green_intercept  = sr_metrics_list.loc[sr_metrics_list.band_name=='BAND-G','intercept'].values[0]
-                red_slope  = sr_metrics_list.loc[sr_metrics_list.band_name=='BAND-R','slope'].values[0]
-                red_intercept  = sr_metrics_list.loc[sr_metrics_list.band_name=='BAND-R','intercept'].values[0]
-
-                correctedGreenBand = ((toaBandMaArrayRaw.astype(float) * green_slope) + (green_intercept * 10000)) * yellowGreenCorr
-                correctedRedBand = ((toaBandMaArrayRaw.astype(float) * red_slope) + (red_intercept * 10000)) * yellowRedCorr
-
-                sr_prediction_band_2m = correctedGreenBand + correctedRedBand
-
-            elif (band_name == 'BAND-RE'):
-                # Apply BAND-R and BAND-N coefficients to RedEdge band since we have no corresponding CCDC (as per Matt)
-                red_slope  = sr_metrics_list.loc[sr_metrics_list.band_name=='BAND-R','slope'].values[0]
-                red_intercept  = sr_metrics_list.loc[sr_metrics_list.band_name=='BAND-R','intercept'].values[0]
-                nir1_slope  = sr_metrics_list.loc[sr_metrics_list.band_name=='BAND-N','slope'].values[0]
-                nir1_intercept  = sr_metrics_list.loc[sr_metrics_list.band_name=='BAND-N','intercept'].values[0]
-
-                correctedRedBand = ((toaBandMaArrayRaw.astype(float) * red_slope) + (red_intercept * 10000)) * rededgeRedCorr
-                correctedNirBand = ((toaBandMaArrayRaw.astype(float) * nir1_slope) + (nir1_intercept * 10000)) * rededgeNIR1Corr
-
-                sr_prediction_band_2m = correctedRedBand + correctedNirBand
-
-            elif (band_name == 'BAND-N2'):
-                # Apply BAND-N coefficients to NIR2 band since we have no corresponding CCDC (as per Matt)
-                slope = sr_metrics_list.loc[sr_metrics_list.band_name=='BAND-N','slope'].values[0]
-                intercept = sr_metrics_list.loc[sr_metrics_list.band_name=='BAND-N','intercept'].values[0]
-                sr_prediction_band_2m = (toaBandMaArrayRaw.astype(float)  * slope) + (intercept * 10000)
-
+            if band_name == 'BAND-C':
+                sr_prediction_band_2m = self.compute_band_c(toaBandMaArrayRaw, sr_metrics_list)
+            elif band_name == 'BAND-Y':
+                sr_prediction_band_2m = self.compute_band_y(toaBandMaArrayRaw, sr_metrics_list)
+            elif band_name == 'BAND-RE':
+                sr_prediction_band_2m = self.compute_band_re(toaBandMaArrayRaw, sr_metrics_list)
+            elif band_name == 'BAND-N2':
+                sr_prediction_band_2m = self.compute_band_n2(toaBandMaArrayRaw, sr_metrics_list)
             else:
-                # Calculate SR-Lite band using original TOA 2m band
-                sr_prediction_band_2m = (toaBandMaArrayRaw.astype(float)  * slope) + (intercept * 10000)
+                sr_prediction_band_2m = self.compute_sr_lite(toaBandMaArrayRaw, slope, intercept)
+
+            # snapshot = tracemalloc.take_snapshot()
+            # display_top(snapshot)
 
         except BaseException as err:
                 print('\ncalculate_prediction_band processing failed - Error details: ', err)
                 raise err
 
         # srlite-GI#25_Address_Maximum_TIFF_file_size_exceeded - reduce memory usage
-        return sr_prediction_band_2m.astype('float32')
+        print(f'sr_prediction_band_2m type: {sr_prediction_band_2m.dtype}')
+        return sr_prediction_band_2m# .astype('float32')
+
+    def calculate_prediction_band_chunked(self, context,
+                                  band_name, metadata, sr_metrics_list):
+        try:
+            # tracemalloc.start()
+            # breakpoint()
+            sr_prediction_band_2m = None
+            toaBandMaArrayRaw = metadata['toaBandMaArrayRaw']# .astype(np.float16)
+            slope = metadata['slope']
+            intercept = metadata['intercept']
+            chunkSize = 4096
+
+            if band_name == 'BAND-C':
+                sr_prediction_band_2m = self.processMaInChunks(toaBandMaArrayRaw, chunkSize, self.compute_band_c, np.float32, sr_metrics_list=sr_metrics_list)
+            elif band_name == 'BAND-Y':
+                sr_prediction_band_2m = self.processMaInChunks(toaBandMaArrayRaw, chunkSize, self.compute_band_y, np.float32, sr_metrics_list=sr_metrics_list)
+            elif band_name == 'BAND-RE':
+                sr_prediction_band_2m = self.processMaInChunks(toaBandMaArrayRaw, chunkSize, self.compute_band_re, np.float32, sr_metrics_list=sr_metrics_list)
+            elif band_name == 'BAND-N2':
+                sr_prediction_band_2m = self.processMaInChunks(toaBandMaArrayRaw, chunkSize, self.compute_band_n2, np.float32, sr_metrics_list=sr_metrics_list)
+            else:
+                sr_prediction_band_2m = self.processMaInChunks(toaBandMaArrayRaw, chunkSize, self.compute_sr_lite, np.float32, slope=slope, intercept=intercept)
+
+            # snapshot = tracemalloc.take_snapshot()
+            # display_top(snapshot)
+
+        except BaseException as err:
+                print('\ncalculate_prediction_band processing failed - Error details: ', err)
+                raise err
+
+        # srlite-GI#25_Address_Maximum_TIFF_file_size_exceeded - reduce memory usage
+        print(f'sr_prediction_band_2m type: {sr_prediction_band_2m.dtype}')
+        return sr_prediction_band_2m
+
+
 
     # -------------------------------------------------------------------------
     # _model_coeffs_()
@@ -1552,6 +1687,7 @@ class RasterLib(object):
             toaIndexArray = bandPairIndicesList[bandPairIndex+1]
             toaIndex = toaIndexArray[1]
             toaBandMaArrayRaw = iolib.fn_getma(str(context[Context.FN_TOA]), toaIndex)
+            # tracemalloc.start()
             sr_prediction_band, metadata = self.predictSurfaceReflectance(context,
                                                                           bandNamePairList[bandPairIndex][1],
                                                                           toaBandMaArrayRaw,
@@ -1560,6 +1696,9 @@ class RasterLib(object):
                                                                           warp_ma_masked_band_list[
                                                                               context[Context.LIST_INDEX_TOA]],
                                                                           sr_metrics_list)
+
+            # snapshot = tracemalloc.take_snapshot()
+            # display_top(snapshot)
 
             ########################################
             # #### Apply the model to the original EVHR (2m) to predict surface reflectance
@@ -1594,7 +1733,7 @@ class RasterLib(object):
 
         return sr_prediction_list, sr_metrics_list, common_mask_list
 
-   # -------------------------------------------------------------------------
+    # -------------------------------------------------------------------------
     # createImage()
     #
     # Convert list of prediction arrays to TIF image.  Optionally create a
@@ -1666,7 +1805,7 @@ class RasterLib(object):
             
         return output_name
 
-  # -------------------------------------------------------------------------
+    # -------------------------------------------------------------------------
     # createImage()
     #
     # Convert list of prediction arrays to TIF image.  Optionally create a
@@ -1712,6 +1851,7 @@ class RasterLib(object):
             ds_toa = gdal.Open(context[Context.FN_SRC])
             toa_ndv = ds_toa.GetRasterBand(1).GetNoDataValue()
             toa_datatype = ds_toa.GetRasterBand(1).DataType
+            print(f'TOA DATATYPE: {toa_datatype}')
 
             # Create new GeoTIFF raster - Can't use COG driver unless we use CreateCopy, which causes issues when we have less bands in SR than TOA
             driver_GTiff = gdal.GetDriverByName('GTiff')
