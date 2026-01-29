@@ -1965,8 +1965,22 @@ class RasterLib(object):
                                       Context.TARGET_XRES, Context.TARGET_YRES])
 
         self.removeFile(context[Context.FN_DEST], context[Context.CLEAN_FLAG])
-        translateoptions = gdal.TranslateOptions( format="COG",
-                                       creationOptions=['BIGTIFF=YES'])
+
+        creation_opts = [
+            "BIGTIFF=YES",          # usually preferable to ALWAYS
+            "COMPRESS=DEFLATE",          # or LZW/ZSTD depending on your stack
+            "PREDICTOR=YES",             # good for continuous numeric rasters
+            "BLOCKSIZE=256",             # smaller block helps “zoomed-out” pyramid stop earlier
+            "OVERVIEWS=IGNORE_EXISTING", # regenerate overviews even if src has them
+            "OVERVIEW_RESAMPLING=AVERAGE",
+            "NUM_THREADS=ALL_CPUS",
+            # Optional (GDAL >= 3.6): force more / fewer overview levels explicitly
+            # "OVERVIEW_COUNT=10",
+        ]
+
+        translateoptions = gdal.TranslateOptions(
+            format="COG",
+            creationOptions=creation_opts)
         ds = gdal.Translate(context[Context.FN_DEST], context[Context.FN_SRC], options=translateoptions)
         ds = None
 
